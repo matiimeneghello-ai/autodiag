@@ -348,11 +348,11 @@ a, button, [role=button], .btn, .vcard, .dtcrow, .ws-card,
 
 /* ─── SIDEBAR ─── */
 .sidebar {
-  width: 220px; min-width: 220px; flex-shrink: 0;
+  width: 240px; min-width: 240px; flex-shrink: 0;
   background: rgba(6,13,26,.7); backdrop-filter: blur(20px);
   border-right: 1px solid var(--b1);
   display: flex; flex-direction: column;
-  overflow-y: auto; overflow-x: hidden;
+  overflow-y: auto;
   padding: 12px; gap: 4px;
   transition: transform .3s ease;
   z-index: 50;
@@ -360,7 +360,8 @@ a, button, [role=button], .btn, .vcard, .dtcrow, .ws-card,
 .sb-label {
   font-size: 8px; font-family: var(--mono); letter-spacing: 2.5px;
   color: var(--t3); text-transform: uppercase;
-  padding: 8px 8px 4px;
+  padding: 8px 4px 4px 4px;
+  overflow: hidden; text-overflow: clip; white-space: nowrap;
 }
 /* Vehicle cards */
 .vcard {
@@ -401,7 +402,7 @@ a, button, [role=button], .btn, .vcard, .dtcrow, .ws-card,
   padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,.03);
 }
 .sb-stat:last-child { border: none; }
-.sb-stat-k { font-size: 9px; color: var(--t2); }
+.sb-stat-k { font-size: 9px; color: var(--t2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sb-stat-v { font-family: var(--mono); font-size: 12px; font-weight: 500; }
 
 /* Health bars */
@@ -2248,7 +2249,7 @@ async function initApp() {
   await checkHealth();
   await loadLearningStats();
   initCharts();
-  initRadar();
+  setTimeout(initRadar, 100); // wait for Chart.js
   renderLearning();
   updateTotalCases();
   wsClient.connect();
@@ -2493,8 +2494,20 @@ const wsClient = new WS();
 wsClient.on('connected',(data)=>{
   const txt=document.getElementById('statusText');
   if(txt)txt.textContent=data.sim_mode?'Simulación activa':'OBD-II conectado';
-  if(data.live_data&&Object.keys(data.live_data).length)updateLiveUI(data.live_data);
-  if(data.dtcs?.length){const c=data.dtcs.length;document.getElementById('dtcCount').textContent=c;document.getElementById('ceVal').textContent=c>0?'ON':'OFF';}
+  if(data.live_data&&Object.keys(data.live_data).length){
+    updateLiveUI(data.live_data);
+    // Update metric cards too
+    const ld = data.live_data;
+    if(ld.coolant?.value) { const e=document.getElementById('tempVal'); if(e) e.textContent=ld.coolant.value+'°'; }
+    if(ld.voltage?.value) { const e=document.getElementById('voltVal'); if(e) e.textContent=ld.voltage.value+'V'; }
+  }
+  if(data.dtcs?.length){const cnt=data.dtcs.length;
+    const dc=document.getElementById('dtcCount'); if(dc) dc.textContent=cnt;
+    const ce=document.getElementById('ceVal'); if(ce) ce.textContent=cnt>0?'ON':'OFF';
+  } else {
+    const dc=document.getElementById('dtcCount'); if(dc) dc.textContent='0';
+    const ce=document.getElementById('ceVal'); if(ce) ce.textContent='OFF';
+  }
   // Load history for charts
   if(data.history?.length) data.history.forEach(h=>pushHistoryPoint(h));
 });
@@ -2538,6 +2551,9 @@ function updateLiveUI(data) {
     'lv-ftl':  data.fuel_trim_long?.value!==undefined?'+'+data.fuel_trim_long.value+'%':null,
     'lv-o2':   data.o2_b1s1?.value!==undefined?data.o2_b1s1.value+'V':null,
     'lv-maf':  data.maf?.value!==undefined?data.maf.value+' g/s':null,
+    'lv-map':  data.map?.value!==undefined?data.map.value+' kPa':null,
+    'tempVal': data.coolant?.value!==undefined?data.coolant.value+'°':null,
+    'voltVal': data.voltage?.value!==undefined?data.voltage.value+'V':null,
     'lv-map':  data.map?.value!==undefined?data.map.value+' kPa':null,
     'tempVal': data.coolant?.value!==undefined?data.coolant.value+'°':null,
     'voltVal': data.voltage?.value!==undefined?data.voltage.value+'V':null,
