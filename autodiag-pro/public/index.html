@@ -2492,11 +2492,19 @@ async function doAuth() {
 
   const btn = document.getElementById('authBtn');
   btn.textContent = 'Cargando...';
+  btn.disabled = true;
+  // Safety: reset button after 20s max
+  const btnTimer = setTimeout(() => {
+    btn.textContent = loginMode==='login'?'Ingresar':'Crear cuenta';
+    btn.disabled = false;
+    showAuthError('El servidor tardó demasiado. Reintentá.');
+  }, 20000);
 
   const path = loginMode==='login' ? '/api/auth/login' : '/api/auth/register';
   const body = loginMode==='login' ? {email,password:pass} : {email,password:pass,taller_name:taller};
   const res = await API.post(path, body);
 
+  clearTimeout(btnTimer);
   if (res.ok) {
     authToken = res.token;
     currentUser = res.user;
@@ -2506,10 +2514,16 @@ async function doAuth() {
   } else {
     const errMsg = res.error || res.message || 'Error de autenticación';
     console.error('Auth error:', errMsg, res);
-    showAuthError(errMsg);
+    // Show user-friendly message for DB startup delay
+    if (errMsg.includes('iniciando') || errMsg.includes('servidor')) {
+      showAuthError('El servidor está iniciando. Esperá unos segundos y volvé a intentar.');
+    } else {
+      showAuthError(errMsg);
+    }
     btn.textContent = loginMode==='login'?'Ingresar':'Crear cuenta';
+    btn.disabled = false;
   }
-}
+} 
 
 // demoLogin removed
 

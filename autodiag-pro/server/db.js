@@ -3,17 +3,28 @@ const { Pool } = require('pg');
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-  max: 10,
+  ssl: process.env.DATABASE_URL && process.env.DATABASE_URL.includes('railway')
+    ? { rejectUnauthorized: false }
+    : (process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false),
+  max: 5,
+  min: 1,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
+  connectionTimeoutMillis: 15000,  // 15s for Railway cold start
+  acquireTimeoutMillis: 30000,
 });
 
 async function connectDB() {
   const client = await pool.connect();
   client.release();
+  console.log('✓ DB pool connected, running migrations...');
   await runMigrations();
+  console.log('✓ Migrations complete');
 }
+
+// Handle pool errors gracefully
+pool.on('error', (err) => {
+  console.error('PostgreSQL pool error:', err.message);
+});
 
 async function query(sql, params) {
   const client = await pool.connect();

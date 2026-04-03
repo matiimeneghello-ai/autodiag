@@ -114,12 +114,14 @@ async function requireAuth(req, res, next) {
 function generateToken() { return crypto.randomBytes(32).toString('hex'); }
 
 // Wait for DB to be ready (up to 10s on startup)
-async function waitForDB(maxWaitMs = 10000) {
+async function waitForDB(maxWaitMs = 30000) {
   if (db) return db;
+  console.log('Waiting for DB connection...');
   const start = Date.now();
   while (!db && Date.now() - start < maxWaitMs) {
-    await new Promise(r => setTimeout(r, 200));
+    await new Promise(r => setTimeout(r, 500));
   }
+  if (!db) console.error('DB not available after', maxWaitMs, 'ms');
   return db;
 }
 
@@ -187,17 +189,29 @@ function createSimOBD() {
 
 // ── INIT ──────────────────────────────────────────────────────
 async function loadModules() {
-  try {
-    db = require('./db');
-    await db.connectDB();
-    console.log('✓ PostgreSQL conectado');
+  // Connect to DB with retries (Railway DB can take a few seconds to wake up)
+  const dbModule = require('./db');
+  let connected = false;
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    try {
+      await dbModule.connectDB();
+      db = dbModule;
+      connected = true;
+      console.log('✓ PostgreSQL conectado (intento ' + attempt + ')');
+      break;
+    } catch(e) {
+      console.error('✗ DB intento ' + attempt + '/5:', e.message);
+      if (attempt < 5) await new Promise(r => setTimeout(r, 2000 * attempt));
+    }
+  }
+  if (!connected) {
+    console.error('✗ No se pudo conectar a PostgreSQL después de 5 intentos');
+    db = null;
+  } else {
     try {
       const { importDTCDatabase } = require('../db/import_dtc');
       await importDTCDatabase(db);
     } catch(ie) { console.log('⚠ DTC import:', ie.message); }
-  } catch(e) {
-    console.error('✗ PostgreSQL:', e.message);
-    db = null;
   }
 
   try {
@@ -272,7 +286,7 @@ app.post('/api/auth/register', authLimiter, async (req, res) => {
     if (!tallerName.trim())       return res.status(400).json({ ok: false, error: 'Ingresá el nombre del taller' });
 
     const dbReady = await waitForDB();
-    if (!dbReady) return res.status(503).json({ ok: false, error: 'Base de datos iniciando. Esperá unos segundos y reintentá.' });
+    if (!dbReady) return res.status(503).json({ ok: false, error: 'El servidor está iniciando. Recargá la página en 30 segundos.' });
 
     const existing = await db.query('SELECT id FROM users WHERE email=$1', [email]);
     if (existing.rows.length) return res.status(400).json({ ok: false, error: 'Ya existe una cuenta con ese email' });
@@ -302,7 +316,7 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
     if (!password)             return res.status(400).json({ ok: false, error: 'Contraseña requerida' });
     
     const dbReady = await waitForDB();
-    if (!dbReady) return res.status(503).json({ ok: false, error: 'Base de datos iniciando. Esperá unos segundos y reintentá.' });
+    if (!dbReady) return res.status(503).json({ ok: false, error: 'El servidor está iniciando. Recargá la página en 30 segundos.' });
 
     const hash = crypto.createHash('sha256').update(password).digest('hex');
     const r = await db.query(
