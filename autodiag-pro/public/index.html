@@ -5,6 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AutoDiag Pro</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+<!-- PWA -->
+<link rel="manifest" href="/manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AutoDiag Pro">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="theme-color" content="#060d1a">
+<meta name="msapplication-TileColor" content="#060d1a">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <style>
@@ -447,12 +456,310 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
 .g2{display:grid;grid-template-columns:1fr 300px;gap:12px;}
 .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
 .scan-layout{display:grid;grid-template-columns:1fr 260px;gap:12px;flex:1;}
+
+/* ═══════════════════════════════════════════════════════════
+   MOBILE & TABLET — RESPONSIVE DESIGN
+   Optimizado para mecánico en taller con celular/iPad
+   ══════════════════════════════════════════════════════════ */
+
+/* BOTTOM NAV — mobile only */
+.bottom-nav{
+  display:none;
+  position:fixed;bottom:0;left:0;right:0;
+  background:rgba(6,13,26,0.97);
+  backdrop-filter:blur(20px);
+  border-top:1px solid var(--b2);
+  z-index:200;padding:8px 0 max(8px,env(safe-area-inset-bottom));
+  flex-direction:row;gap:0;
+}
+.bnav-item{
+  flex:1;display:flex;flex-direction:column;align-items:center;
+  gap:3px;padding:6px 4px;cursor:pointer;transition:all 0.2s;
+  border:none;background:none;color:var(--t3);
+  font-family:var(--sans);
+}
+.bnav-item.active{color:var(--blue2);}
+.bnav-item:active{background:rgba(59,130,246,0.1);}
+.bnav-icon{font-size:20px;line-height:1;}
+.bnav-label{font-size:9px;font-family:var(--mono);letter-spacing:0.5px;}
+
+/* MOBILE HEADER — slimmer */
+.mobile-header-title{
+  display:none;font-family:var(--syne);font-size:14px;font-weight:700;
+  color:var(--text);flex:1;text-align:center;
+}
+
+/* TABLET SIDEBAR — collapsible */
+.sidebar-overlay{
+  display:none;position:fixed;inset:0;
+  background:rgba(0,0,0,0.6);z-index:150;
+  backdrop-filter:blur(4px);
+}
+.sidebar-close-btn{
+  display:none;position:absolute;top:12px;right:12px;
+  background:rgba(255,255,255,0.1);border:none;color:var(--text);
+  width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;
+}
+.menu-btn{
+  display:none;width:36px;height:36px;border-radius:10px;
+  background:var(--b1);border:1px solid var(--b1);
+  color:var(--text);font-size:18px;cursor:pointer;
+  align-items:center;justify-content:center;flex-shrink:0;
+}
+
+/* PULL TO REFRESH indicator */
+.ptr-indicator{
+  position:fixed;top:0;left:0;right:0;height:3px;
+  background:linear-gradient(90deg,var(--blue),var(--cyan));
+  transform:scaleX(0);transform-origin:left;
+  transition:transform 0.3s;z-index:1000;
+}
+
+/* SCAN button — bigger on mobile for thumb */
+@media(max-width:768px){
+  body{overflow:auto;}
+
+  /* Header mobile */
+  .header{height:56px;padding:0 14px;gap:10px;}
+  .logo-ver,.nav,.status-pill{display:none;}
+  .menu-btn{display:flex;}
+  .mobile-header-title{display:block;}
+  .hclock{font-size:10px;letter-spacing:1px;}
+  .user-badge .user-name{display:none;}
+
+  /* Shell */
+  .shell{overflow:auto;}
+
+  /* Sidebar — drawer on mobile */
+  .body{overflow:visible;}
+  .sidebar{
+    position:fixed;left:-280px;top:0;bottom:0;z-index:160;
+    width:280px;transition:left 0.3s ease;
+    padding:60px 12px 100px;
+  }
+  .sidebar.open{left:0;}
+  .sidebar-close-btn{display:flex;}
+  .sidebar-overlay.show{display:block;}
+
+  /* Content */
+  .content{width:100%;overflow:visible;}
+  .view{padding:12px 12px 100px;overflow:visible;}
+
+  /* Metrics — 2x2 grid */
+  .metrics{grid-template-columns:1fr 1fr;gap:8px;}
+  .m-val{font-size:22px;}
+  .m-icon{font-size:14px;}
+
+  /* DTC rows */
+  .dtcsev{display:none;}
+  .dtccode{font-size:12px;min-width:52px;}
+  .dtcname{font-size:11px;}
+
+  /* G2 layout — stack vertical */
+  .g2,.g3,.chart-row{grid-template-columns:1fr;}
+  .scan-layout{grid-template-columns:1fr;}
+  .ai-layout{grid-template-columns:1fr;}
+
+  /* Workshop kanban — horizontal scroll */
+  .ws-grid{
+    display:flex;gap:10px;overflow-x:auto;
+    scroll-snap-type:x mandatory;padding-bottom:8px;
+    min-height:0;
+  }
+  .ws-col{min-width:260px;scroll-snap-align:start;flex-shrink:0;}
+
+  /* Scanner grid */
+  .scanner-grid{grid-template-columns:repeat(2,1fr);}
+
+  /* Sym grid */
+  .sym-grid{grid-template-columns:repeat(3,1fr);}
+
+  /* Forms */
+  .mrow{grid-template-columns:1fr;}
+
+  /* Charts */
+  .chart-wrap{height:150px;}
+
+  /* Bottom nav */
+  .bottom-nav{display:flex;}
+
+  /* Hide desktop nav completely */
+  .nav{display:none;}
+
+  /* Modal */
+  .modal{width:95vw;margin:10px;}
+
+  /* Scan button bigger */
+  #scanBtn{font-size:15px;padding:16px 40px;width:100%;}
+
+  /* Ficha */
+  .ficha-hero{flex-direction:column;text-align:center;gap:16px;}
+  .ficha-car-icon{width:60px;height:60px;font-size:28px;}
+  .ficha-title{font-size:18px;}
+  .spec-grid{grid-template-columns:1fr;}
+
+  /* DTC drawer */
+  .dg2{grid-template-columns:1fr;}
+
+  /* Diagnóstico */
+  .diag-evidence{grid-template-columns:1fr;}
+
+  /* Live data */
+  .lrow{padding:6px 10px;}
+  .lval{font-size:11px;}
+
+  /* Stitle */
+  .stitle{font-size:14px;}
+
+  /* Add button bigger */
+  .btn-blue{padding:12px 20px;}
+
+  /* Proto grid */
+  .proto-grid{grid-template-columns:1fr 1fr 1fr;}
+
+  /* Historial */
+  .hist-item{flex-direction:column;align-items:flex-start;gap:4px;}
+}
+
+/* TABLET — iPad portrait/landscape */
+@media(min-width:769px) and (max-width:1100px){
+  .shell{overflow:auto;}
+
+  /* Sidebar collapsible en tablet */  
+  .sidebar{
+    position:fixed;left:-240px;top:0;bottom:0;z-index:160;
+    width:240px;transition:left 0.3s ease;
+  }
+  .sidebar.open{left:0;box-shadow:4px 0 30px rgba(0,0,0,0.5);}
+  .sidebar-overlay.show{display:block;}
+  .sidebar-close-btn{display:flex;}
+  .menu-btn{display:flex;}
+
+  .body{overflow:visible;}
+  .content{width:100%;}
+  .view{padding:14px 14px 80px;}
+
+  /* Nav — smaller text */
+  .nav-btn{padding:5px 10px;font-size:11px;}
+  .logo-ver{display:none;}
+
+  /* Layouts */
+  .metrics{grid-template-columns:repeat(4,1fr);}
+  .g2{grid-template-columns:1fr 280px;}
+  .ws-grid{grid-template-columns:1fr 1fr 1fr;}
+  .scanner-grid{grid-template-columns:repeat(4,1fr);}
+  .chart-row{grid-template-columns:1fr 1fr;}
+  .ai-layout{grid-template-columns:1fr 280px;}
+
+  /* Bottom nav on tablet too */
+  .bottom-nav{display:flex;}
+  .nav{display:none;}
+
+  /* Status pill hidden */
+  .status-pill{display:none;}
+}
+
+/* LANDSCAPE MOBILE */
+@media(max-width:768px) and (orientation:landscape){
+  .view{padding:8px 12px 80px;}
+  .scan-hud{min-height:280px;padding:16px;}
+  .hud-ring-wrap{width:130px;height:130px;}
+  .metrics{grid-template-columns:repeat(4,1fr);}
+}
+
+/* iPAD PRO landscape — full desktop experience */
+@media(min-width:1101px){
+  .bottom-nav{display:none;}
+  .menu-btn{display:none;}
+  .sidebar-close-btn{display:none;}
+}
+
+/* SAFE AREA — iPhone notch/home indicator */
+@supports(padding:max(0px)){
+  .header{padding-top:max(0px, env(safe-area-inset-top));}
+  .bottom-nav{padding-bottom:max(8px, env(safe-area-inset-bottom));}
+}
+
+/* TOUCH — faster tap response */
+.btn,.nav-btn,.bnav-item,.vcard,.dtcrow,.ws-card,.proto-card,.sym-btn{
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+
+/* SWIPE hint for kanban */
+.ws-grid::-webkit-scrollbar{height:3px;}
+.ws-grid::-webkit-scrollbar-thumb{background:rgba(59,130,246,0.3);border-radius:2px;}
+
+/* LOADING STATE */
+.app-loading{
+  position:fixed;inset:0;background:var(--bg);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:16px;z-index:5000;transition:opacity 0.3s;
+}
+.app-loading.hidden{opacity:0;pointer-events:none;}
+.app-loading-logo{width:64px;height:64px;border-radius:20px;background:linear-gradient(135deg,var(--blue),var(--cyan));display:flex;align-items:center;justify-content:center;font-size:32px;box-shadow:0 0 40px rgba(59,130,246,0.4);}
+.app-loading-text{font-family:var(--syne);font-size:16px;font-weight:700;color:var(--text);}
+.app-loading-sub{font-family:var(--mono);font-size:10px;color:var(--t3);letter-spacing:1px;}
+.app-loading-bar{width:200px;height:2px;background:rgba(255,255,255,0.05);border-radius:2px;overflow:hidden;}
+.app-loading-fill{height:2px;background:linear-gradient(90deg,var(--blue),var(--cyan));border-radius:2px;animation:loading-anim 1.5s ease-in-out infinite;}
+@keyframes loading-anim{0%{width:0;margin-left:0}50%{width:60%;margin-left:20%}100%{width:0;margin-left:100%}}
+
+/* INSTALL BANNER */
+.install-banner{
+  display:none;position:fixed;bottom:80px;left:12px;right:12px;z-index:400;
+  background:rgba(10,22,40,0.97);border:1px solid rgba(59,130,246,0.4);
+  border-radius:16px;padding:14px 16px;
+  box-shadow:0 8px 32px rgba(0,0,0,0.5);
+  backdrop-filter:blur(20px);
+  flex-direction:row;align-items:center;gap:12px;
+  animation:slideUp 0.3s ease;
+}
+.install-banner.show{display:flex;}
+.install-banner-icon{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,var(--blue),var(--cyan));display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;}
+.install-banner-text{flex:1;}
+.install-banner-title{font-size:12px;font-weight:600;margin-bottom:2px;}
+.install-banner-sub{font-size:10px;color:var(--t2);}
+.install-banner-btn{padding:8px 14px;border-radius:10px;border:none;background:var(--blue);color:#fff;font-size:11px;font-weight:600;cursor:pointer;flex-shrink:0;}
+.install-banner-close{background:none;border:none;color:var(--t3);cursor:pointer;font-size:16px;padding:4px;}
+
+
+/* iOS INPUT ZOOM FIX — font-size must be >= 16px on mobile */
+@media(max-width:768px){
+  .finput,.fselect,.chat-in,.lfield input{font-size:16px !important;}
+  /* Prevent double-tap zoom on buttons */
+  button{touch-action:manipulation;}
+  /* Better scrolling */
+  .view,.ws-col-body,.chat-msgs{-webkit-overflow-scrolling:touch;}
+}
+
 </style>
 </head>
 <body>
 
 <!-- BG -->
 <div class="orbs"><div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div></div>
+
+<!-- APP LOADING SCREEN -->
+<div class="app-loading" id="appLoading">
+  <div class="app-loading-logo">⚙</div>
+  <div class="app-loading-text">AutoDiag Pro</div>
+  <div class="app-loading-sub">INICIANDO SISTEMA...</div>
+  <div class="app-loading-bar"><div class="app-loading-fill"></div></div>
+</div>
+
+<!-- INSTALL BANNER (PWA) -->
+<div class="install-banner" id="installBanner">
+  <div class="install-banner-icon">⚙</div>
+  <div class="install-banner-text">
+    <div class="install-banner-title">Instalar AutoDiag Pro</div>
+    <div class="install-banner-sub">Acceso directo desde tu pantalla de inicio</div>
+  </div>
+  <button class="install-banner-btn" onclick="installPWA()">Instalar</button>
+  <button class="install-banner-close" onclick="document.getElementById('installBanner').classList.remove('show')">✕</button>
+</div>
+
+<!-- SIDEBAR OVERLAY (mobile) -->
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
 
 <!-- ═══ LOGIN ═══ -->
 <div id="loginScreen">
@@ -506,6 +813,7 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
 <div class="shell" id="appShell" style="display:none">
 
 <div class="header">
+  <button class="menu-btn" id="menuBtn" onclick="toggleSidebar()">☰</button>
   <div class="logo">
     <div class="logo-mark">⚙</div>
     <div>
@@ -513,6 +821,7 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
       <div class="logo-ver">v2.0 · DIAGNÓSTICO AUTOMOTRIZ</div>
     </div>
   </div>
+  <div class="mobile-header-title" id="mobileTitle">Dashboard</div>
   <div class="nav">
     <button class="nav-btn active" onclick="goView('dashboard',this)">Dashboard</button>
     <button class="nav-btn" onclick="goView('charts',this)">Gráficas</button>
@@ -536,7 +845,8 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
 </div>
 
 <div class="body">
-<div class="sidebar">
+<div class="sidebar" id="sidebar">
+  <button class="sidebar-close-btn" onclick="closeSidebar()">✕</button>
   <div class="sb-label">Vehículos</div>
   <div id="vehList"></div>
   <button class="add-veh-btn" onclick="openModal('modal-addveh')">+ Agregar vehículo</button>
@@ -912,6 +1222,35 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
 
 </div><!-- /content -->
 </div><!-- /body -->
+
+<!-- BOTTOM NAV — Mobile & Tablet -->
+<nav class="bottom-nav" id="bottomNav">
+  <button class="bnav-item active" onclick="goBNav('dashboard',this,'Dashboard')" id="bnav-dashboard">
+    <span class="bnav-icon">📊</span>
+    <span class="bnav-label">Dashboard</span>
+  </button>
+  <button class="bnav-item" onclick="goBNav('scan',this,'Escaneo')" id="bnav-scan">
+    <span class="bnav-icon">🔌</span>
+    <span class="bnav-label">Escaneo</span>
+  </button>
+  <button class="bnav-item" onclick="goBNav('diagnostico',this,'Diagnóstico')" id="bnav-diagnostico">
+    <span class="bnav-icon">🧠</span>
+    <span class="bnav-label">Diagnóstico</span>
+  </button>
+  <button class="bnav-item" onclick="goBNav('research',this,'IA Research')" id="bnav-research">
+    <span class="bnav-icon">⚡</span>
+    <span class="bnav-label">IA</span>
+  </button>
+  <button class="bnav-item" onclick="goBNav('workshop',this,'Taller')" id="bnav-workshop">
+    <span class="bnav-icon">🔧</span>
+    <span class="bnav-label">Taller</span>
+  </button>
+  <button class="bnav-item" onclick="toggleSidebar()" id="bnav-more">
+    <span class="bnav-icon">⋯</span>
+    <span class="bnav-label">Más</span>
+  </button>
+</nav>
+
 </div><!-- /shell -->
 
 <!-- MODALS -->
@@ -963,6 +1302,169 @@ let obStep = 0;
 let chartRPM, chartTemp, chartO2, chartFT, chartLoad;
 let chartHistory = { labels:[], rpm:[], temp:[], o2:[], ft:[], load:[] };
 let radarChart;
+
+
+// ── PWA & MOBILE ──────────────────────────────────────────
+
+// Register service worker
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .then(r => console.log('✓ SW registrado'))
+      .catch(e => console.log('SW error:', e));
+  });
+}
+
+// Hide loading screen
+function hideLoading() {
+  const el = document.getElementById('appLoading');
+  if (el) { el.classList.add('hidden'); setTimeout(()=>el.remove(), 400); }
+}
+
+// PWA Install prompt
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  // Show install banner after 3 seconds
+  setTimeout(() => {
+    const banner = document.getElementById('installBanner');
+    if (banner && !localStorage.getItem('pwa_installed')) {
+      banner.classList.add('show');
+    }
+  }, 3000);
+});
+
+async function installPWA() {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  const { outcome } = await deferredPrompt.userChoice;
+  if (outcome === 'accepted') {
+    localStorage.setItem('pwa_installed', '1');
+    document.getElementById('installBanner').classList.remove('show');
+    showNotif('✓ AutoDiag Pro instalado', 'success');
+  }
+  deferredPrompt = null;
+}
+
+window.addEventListener('appinstalled', () => {
+  localStorage.setItem('pwa_installed', '1');
+  showNotif('✓ Instalado correctamente', 'success');
+});
+
+// iOS standalone detection
+if (window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches) {
+  localStorage.setItem('pwa_installed', '1');
+}
+
+// ── SIDEBAR MOBILE ────────────────────────────────────────
+function toggleSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebarOverlay');
+  const isOpen = sidebar.classList.contains('open');
+  if (isOpen) {
+    sidebar.classList.remove('open');
+    overlay.classList.remove('show');
+  } else {
+    sidebar.classList.add('open');
+    overlay.classList.add('show');
+  }
+}
+
+function closeSidebar() {
+  document.getElementById('sidebar')?.classList.remove('open');
+  document.getElementById('sidebarOverlay')?.classList.remove('show');
+}
+
+// ── BOTTOM NAV ────────────────────────────────────────────
+function goBNav(viewName, btn, title) {
+  // Update view
+  const navBtn = document.querySelector('.nav-btn[onclick*="' + viewName + '"]');
+  goView(viewName, navBtn);
+
+  // Update bottom nav active state
+  document.querySelectorAll('.bnav-item').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+
+  // Update mobile header title
+  const titleEl = document.getElementById('mobileTitle');
+  if (titleEl) titleEl.textContent = title || viewName;
+
+  // Load ficha if needed
+  if (viewName === 'ficha' && activeVehicleId) {
+    const v = vehiclesList.find(x => x.id === activeVehicleId);
+    loadFicha(activeVehicleId, v);
+  }
+
+  // Close sidebar if open
+  closeSidebar();
+
+  // Scroll to top
+  window.scrollTo(0, 0);
+}
+
+// Update mobile title when desktop nav is used
+const origGoView = goView;
+window.goView = function(name, btn) {
+  origGoView(name, btn);
+  const titleEl = document.getElementById('mobileTitle');
+  const titles = {
+    dashboard:'Dashboard', charts:'Gráficas', multicode:'Multi-DTC',
+    symptoms:'Síntomas', scan:'Escaneo', workshop:'Taller',
+    research:'IA Research', learning:'Aprendizaje', diagnostico:'Diagnóstico IA', ficha:'Ficha Técnica'
+  };
+  if (titleEl) titleEl.textContent = titles[name] || name;
+
+  // Sync bottom nav
+  document.querySelectorAll('.bnav-item').forEach(b => b.classList.remove('active'));
+  const bnavBtn = document.getElementById('bnav-' + name);
+  if (bnavBtn) bnavBtn.classList.add('active');
+};
+
+// ── LOADING ───────────────────────────────────────────────
+// Show loading for 1s then hide
+setTimeout(hideLoading, 1200);
+
+// ── HAPTIC FEEDBACK (iOS) ─────────────────────────────────
+function haptic(type) {
+  if ('vibrate' in navigator) {
+    const patterns = { light:[10], medium:[20], success:[10,50,10] };
+    navigator.vibrate(patterns[type] || patterns.light);
+  }
+}
+
+// Add haptic to scan button
+document.addEventListener('DOMContentLoaded', () => {
+  const scanBtn = document.getElementById('scanBtn');
+  if (scanBtn) scanBtn.addEventListener('click', () => haptic('medium'));
+});
+
+// ── PREVENT ZOOM ON INPUT FOCUS (iOS) ─────────────────────
+// iOS zooms in when font-size < 16px on inputs
+// We handle this via CSS font-size on mobile
+
+// ── KEEP SCREEN AWAKE during scan (if supported) ──────────
+let wakeLock = null;
+async function requestWakeLock() {
+  try {
+    if ('wakeLock' in navigator) {
+      wakeLock = await navigator.wakeLock.request('screen');
+    }
+  } catch(e) {}
+}
+async function releaseWakeLock() {
+  try { if (wakeLock) { await wakeLock.release(); wakeLock = null; } } catch(e) {}
+}
+
+// Activate wake lock during scanning
+const origRunScan = window.runScan;
+if (origRunScan) {
+  window.runScan = async function() {
+    await requestWakeLock();
+    origRunScan();
+    setTimeout(releaseWakeLock, 15000);
+  };
+}
 
 // ── CLOCK ──
 setInterval(()=>{
