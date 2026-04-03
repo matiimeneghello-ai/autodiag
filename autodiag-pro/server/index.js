@@ -777,6 +777,19 @@ app.get('/api/nhtsa/full', async (req, res) => {
 });
 
 
+
+app.get('/api/auth/me', (req, res) => {
+  const token = req.headers['x-auth-token'];
+  if (!token) return res.status(401).json({ ok: false, error: 'Sin token' });
+  const session = sessions.get(token);
+  if (!session) return res.status(401).json({ ok: false, error: 'Token inválido o expirado' });
+  res.json({ ok: true, user: { 
+    id: session.userId, 
+    email: session.email, 
+    tallerName: session.tallerName 
+  }});
+});
+
 // ── ROUTING ──────────────────────────────────────────────────
 // / → landing page
 app.get('/', (req, res) => {

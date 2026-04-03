@@ -1141,16 +1141,14 @@ a, button, [role=button], .btn, .vcard, .dtcrow, .ws-card,
     s.style.opacity = '0';
     s.style.pointerEvents = 'none';
     setTimeout(function() { if (s.parentNode) s.parentNode.removeChild(s); }, 450);
-    // Show login or app
+    // Always show login by default — load handler will validate token and enter app if valid
+    // This prevents auto-entering with an expired/invalid token
     var token = localStorage.getItem('autodiag_token');
-    var user = localStorage.getItem('autodiag_user');
-    if (token && user) {
-      var app = document.getElementById('app');
-      if (app) app.style.display = 'flex';
-    } else {
+    if (!token) {
       var login = document.getElementById('loginScreen');
       if (login) login.style.display = 'flex';
     }
+    // If token exists, load handler will validate and show app or login
   }
   // Kill after 1.2s
   setTimeout(killSplash, 1200);
@@ -2359,11 +2357,34 @@ async function initApp() {
 }
 
 // ── CHECK IF LOGGED IN ──
-window.addEventListener('load', () => {
+window.addEventListener('load', async () => {
   if (authToken && currentUser) {
-    enterApp(false);
+    // Validate token with server before entering app
+    try {
+      const res = await fetch('/api/auth/me', {
+        headers: { 'x-auth-token': authToken }
+      });
+      const data = await res.json();
+      if (data.ok && data.user) {
+        // Token valid — enter app
+        currentUser = data.user;
+        enterApp(false);
+      } else {
+        // Token expired/invalid — clear and show login
+        localStorage.removeItem('autodiag_token');
+        localStorage.removeItem('autodiag_user');
+        authToken = null;
+        currentUser = null;
+        const login = document.getElementById('loginScreen');
+        if (login) login.style.display = 'flex';
+      }
+    } catch(e) {
+      // Network error — show login to be safe
+      const login = document.getElementById('loginScreen');
+      if (login) login.style.display = 'flex';
+    }
   } else {
-    // Make sure login is visible
+    // No token — show login
     const login = document.getElementById('loginScreen');
     if (login) login.style.display = 'flex';
   }
