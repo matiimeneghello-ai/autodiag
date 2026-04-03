@@ -1992,10 +1992,10 @@ let radarChart;
 
 // Register service worker
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
-      .then(r => console.log('✓ SW registrado'))
-      .catch(e => console.log('SW error:', e));
+  // Unregister all old service workers that might be intercepting requests
+  navigator.serviceWorker.getRegistrations().then(regs => {
+    regs.forEach(r => r.unregister());
+    console.log('SW: unregistered', regs.length, 'workers');
   });
 }
 
