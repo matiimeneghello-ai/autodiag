@@ -1141,14 +1141,10 @@ a, button, [role=button], .btn, .vcard, .dtcrow, .ws-card,
     s.style.opacity = '0';
     s.style.pointerEvents = 'none';
     setTimeout(function() { if (s.parentNode) s.parentNode.removeChild(s); }, 450);
-    // Always show login by default — load handler will validate token and enter app if valid
-    // This prevents auto-entering with an expired/invalid token
-    var token = localStorage.getItem('autodiag_token');
-    if (!token) {
-      var login = document.getElementById('loginScreen');
-      if (login) login.style.display = 'flex';
-    }
-    // If token exists, load handler will validate and show app or login
+    // ALWAYS show login immediately — fastest possible path to visible UI
+    // The load handler will silently check the token and switch to app if valid
+    var login = document.getElementById('loginScreen');
+    if (login) login.style.display = 'flex';
   }
   // Kill after 1.2s
   setTimeout(killSplash, 1200);
@@ -1156,7 +1152,17 @@ a, button, [role=button], .btn, .vcard, .dtcrow, .ws-card,
   document.addEventListener('click', killSplash, {once:true, capture:true});
   document.addEventListener('touchstart', killSplash, {once:true, capture:true});
   // Kill on load
-  window.addEventListener('load', function() { setTimeout(killSplash, 300); });
+  window.addEventListener('load', function() { setTimeout(killSplash, 100); });
+  // SAFETY NET: force show login after 2.5s no matter what
+  setTimeout(function() {
+    var s = document.getElementById('splash');
+    if (s) { s.style.display = 'none'; }
+    var login = document.getElementById('loginScreen');
+    var app   = document.getElementById('app');
+    if (login && login.style.display === 'none' && (!app || app.style.display === 'none')) {
+      login.style.display = 'flex';
+    }
+  }, 2500);
 })();
 </script>
 
@@ -2358,36 +2364,27 @@ async function initApp() {
 
 // ── CHECK IF LOGGED IN ──
 window.addEventListener('load', async () => {
+  // Login is already shown by killSplash
+  // If we have a stored token, validate it silently and enter app if valid
   if (authToken && currentUser) {
-    // Validate token with server before entering app
     try {
-      const res = await fetch('/api/auth/me', {
-        headers: { 'x-auth-token': authToken }
-      });
+      const res = await fetch('/api/auth/me', { headers: { 'x-auth-token': authToken } });
       const data = await res.json();
       if (data.ok && data.user) {
-        // Token valid — enter app
         currentUser = data.user;
-        enterApp(false);
+        enterApp(false); // valid token → go straight to app
       } else {
-        // Token expired/invalid — clear and show login
+        // expired/invalid → clear, login already visible
         localStorage.removeItem('autodiag_token');
         localStorage.removeItem('autodiag_user');
         authToken = null;
         currentUser = null;
-        const login = document.getElementById('loginScreen');
-        if (login) login.style.display = 'flex';
       }
     } catch(e) {
-      // Network error — show login to be safe
-      const login = document.getElementById('loginScreen');
-      if (login) login.style.display = 'flex';
+      // network error → stay on login (already visible)
     }
-  } else {
-    // No token — show login
-    const login = document.getElementById('loginScreen');
-    if (login) login.style.display = 'flex';
   }
+  // If no token: login is already visible from killSplash, nothing to do
 });
 
 // ── NAV ──
