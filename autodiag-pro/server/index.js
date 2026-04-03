@@ -44,36 +44,47 @@ wsHandler(wss, obd);
 
 // ── Init ────────────────────────────────────────────────────
 async function init() {
-  try {
-    await connectDB();
-    console.log('✓ PostgreSQL conectado');
+  console.log('Iniciando AutoDiag Pro...');
+  console.log('NODE_ENV:', process.env.NODE_ENV);
+  console.log('DATABASE_URL:', process.env.DATABASE_URL ? 'configurado ✓' : 'NO configurado ✗');
+  console.log('ANTHROPIC_API_KEY:', process.env.ANTHROPIC_API_KEY ? 'configurado ✓' : 'NO configurado ✗');
 
-    // Intentar conectar OBD-II si hay config
-    if (process.env.OBD_HOST) {
+  // Conectar DB (no bloquea el inicio si falla)
+  if (process.env.DATABASE_URL) {
+    try {
+      await connectDB();
+      console.log('✓ PostgreSQL conectado');
+    } catch (err) {
+      console.error('✗ PostgreSQL error:', err.message);
+      console.error(err.stack);
+    }
+  } else {
+    console.log('⚠ DATABASE_URL no configurado — sin base de datos');
+  }
+
+  // OBD-II
+  if (process.env.OBD_HOST) {
+    try {
       await obd.connect({
-        type: process.env.OBD_TYPE || 'wifi',  // wifi | bluetooth | serial
+        type: process.env.OBD_TYPE || 'wifi',
         host: process.env.OBD_HOST,
         port: parseInt(process.env.OBD_PORT) || 35000,
         serialPath: process.env.OBD_SERIAL_PATH
       });
       console.log('✓ OBD-II ELM327 conectado');
-    } else {
-      console.log('⚠ OBD_HOST no configurado — modo simulación activo');
+    } catch (err) {
+      console.error('✗ OBD-II error:', err.message);
       obd.startSimulation();
     }
-
-    const PORT = process.env.PORT || 3000;
-    server.listen(PORT, () => {
-      console.log(`✓ AutoDiag Pro corriendo en puerto ${PORT}`);
-      console.log(`  → Dashboard: http://localhost:${PORT}`);
-      console.log(`  → API:       http://localhost:${PORT}/api`);
-      console.log(`  → WS:        ws://localhost:${PORT}`);
-    });
-
-  } catch (err) {
-    console.error('✗ Error al iniciar:', err.message);
-    process.exit(1);
+  } else {
+    console.log('⚠ OBD_HOST no configurado — modo simulación activo');
+    obd.startSimulation();
   }
+
+  const PORT = process.env.PORT || 3000;
+  server.listen(PORT, () => {
+    console.log(`✓ AutoDiag Pro corriendo en puerto ${PORT}`);
+  });
 }
 
 init();
