@@ -18,26 +18,16 @@ app.use(express.static(path.join(__dirname, '../public')));
 let db  = null;
 let obd = null;
 
-// ── AUTH HELPERS ────────────────────────────────────────────
-const sessions = new Map(); // token → { userId, email, tallerName }
-
+// ── AUTH ──────────────────────────────────────────────────────
+const sessions = new Map();
 function generateToken() { return crypto.randomBytes(32).toString('hex'); }
 
-function authMiddleware(req, res, next) {
-  const token = req.headers['x-auth-token'] || req.query.token;
-  if (!token || !sessions.has(token)) {
-    return res.status(401).json({ ok: false, error: 'No autorizado' });
-  }
-  req.user = sessions.get(token);
-  next();
-}
-
-// ── OBD SIMULATION ──────────────────────────────────────────
+// ── OBD SIMULATION ────────────────────────────────────────────
 function createSimOBD() {
   const { EventEmitter } = require('events');
   const em = new EventEmitter();
   let liveData = {};
-  let history = []; // últimas 60 lecturas para gráficas
+  let history = [];
   let interval = null;
   let tick = 0;
 
@@ -65,9 +55,7 @@ function createSimOBD() {
       em.emit('dtcs', ['P0171','P0420','P0441']);
       interval = setInterval(() => {
         tick++;
-        // Simular rpm que sube y baja con patrón sinusoidal
-        const rpmBase = 750 + Math.sin(tick * 0.1) * 200;
-        const rpm = Math.round(rpmBase + (Math.random()-.5)*50);
+        const rpm = Math.round(750 + Math.sin(tick * 0.1) * 200 + (Math.random()-.5)*50);
         const coolant = Math.round(85 + Math.sin(tick * 0.05) * 3);
         const o2 = parseFloat((.1 + Math.abs(Math.sin(tick * 0.3)) * .85).toFixed(3));
         const ftShort = parseFloat((14+(Math.random()-.5)*6).toFixed(1));
@@ -90,13 +78,10 @@ function createSimOBD() {
           engine_load:     { value: load,      unit:'%',    label:'Carga Motor' },
           timing:          { value: 14.2,      unit:'°',    label:'Avance' },
         };
-
-        // Guardar en historial para gráficas (cada 2 ticks = cada 600ms)
         if (tick % 2 === 0) {
-          history.push({ ts: Date.now(), rpm: rpm, coolant: coolant, o2: o2, load: load, ftShort });
+          history.push({ ts: Date.now(), rpm, coolant, o2, load, ftShort });
           if (history.length > 120) history.shift();
         }
-
         em.emit('liveData', liveData);
       }, 300);
     },
@@ -105,19 +90,16 @@ function createSimOBD() {
   return sim;
 }
 
-// ── INIT MODULES ────────────────────────────────────────────
+// ── INIT ──────────────────────────────────────────────────────
 async function loadModules() {
   try {
     db = require('./db');
     await db.connectDB();
     console.log('✓ PostgreSQL conectado');
-    // Import DTC knowledge base
     try {
       const { importDTCDatabase } = require('../db/import_dtc');
       await importDTCDatabase(db);
-    } catch(ie) {
-      console.log('⚠ DTC import:', ie.message);
-    }
+    } catch(ie) { console.log('⚠ DTC import:', ie.message); }
   } catch(e) {
     console.error('✗ PostgreSQL:', e.message);
     db = null;
@@ -127,113 +109,76 @@ async function loadModules() {
     if (process.env.OBD_HOST) {
       obd = require('./obd');
       await obd.connect({ type: process.env.OBD_TYPE||'wifi', host: process.env.OBD_HOST, port: parseInt(process.env.OBD_PORT)||35000 });
-      console.log('✓ OBD-II físico conectado');
     } else throw new Error('Sin OBD_HOST');
   } catch(e) {
-    console.log('⚡ Modo simulación OBD-II');
     obd = createSimOBD();
     obd.startSimulation();
+    console.log('⚡ Modo simulación OBD-II');
   }
 
   obd.on('liveData', data => broadcast('live_data', data));
   obd.on('dtcs',     data => broadcast('dtcs', { codes: data, count: data.length }));
 }
 
-// ── WEBSOCKET ───────────────────────────────────────────────
+// ── WEBSOCKET ─────────────────────────────────────────────────
 const clients = new Map();
-
 function broadcast(type, payload) {
   const msg = JSON.stringify({ type, payload, ts: Date.now() });
   wss.clients.forEach(ws => { if(ws.readyState===1) ws.send(msg); });
 }
-
 function sendTo(ws, type, payload) {
   if(ws.readyState===1) ws.send(JSON.stringify({type, payload, ts: Date.now()}));
 }
 
-wss.on('connection', (ws, req) => {
+wss.on('connection', (ws) => {
   const id = uuidv4();
-  clients.set(id, { ws, vehicleId: null, userId: null });
-
+  clients.set(id, { ws, vehicleId: null });
   sendTo(ws, 'connected', {
-    clientId: id,
-    sim_mode: obd?.simMode || true,
-    live_data: obd?.getLiveData() || {},
-    dtcs: obd?.getDTCs() || [],
+    clientId: id, sim_mode: obd?.simMode || true,
+    live_data: obd?.getLiveData() || {}, dtcs: obd?.getDTCs() || [],
     history: obd?.getHistory ? obd.getHistory() : [],
   });
-
   ws.on('message', async (raw) => {
     let msg; try { msg = JSON.parse(raw); } catch(e) { return; }
     const { action, payload } = msg;
     const send = (type, data) => sendTo(ws, type, data);
-
     switch(action) {
       case 'read_dtcs':
         const dtcs = await obd.readDTCs();
-        const client = clients.get(id);
-        if (db && client?.vehicleId) {
-          await db.saveScan(client.vehicleId, dtcs, obd.getLiveData()).catch(()=>{});
-        }
-        send('dtcs', { codes: dtcs, count: dtcs.length });
-        break;
-      case 'clear_dtcs':
-        await obd.clearDTCs();
-        send('dtcs_cleared', {});
-        break;
-      case 'read_freeze_frame':
-        send('freeze_frame', { data: await obd.readFreezeFrame(), dtc: payload?.dtc });
-        break;
-      case 'set_vehicle':
-        clients.get(id).vehicleId = payload?.vehicleId;
-        send('vehicle_set', { vehicleId: payload?.vehicleId });
-        break;
-      case 'get_history':
-        send('history', { data: obd?.getHistory ? obd.getHistory() : [] });
-        break;
-      case 'ping':
-        send('pong', { ts: Date.now() });
-        break;
+        if (db && clients.get(id)?.vehicleId) await db.saveScan(clients.get(id).vehicleId, dtcs, obd.getLiveData()).catch(()=>{});
+        send('dtcs', { codes: dtcs, count: dtcs.length }); break;
+      case 'clear_dtcs': await obd.clearDTCs(); send('dtcs_cleared', {}); break;
+      case 'read_freeze_frame': send('freeze_frame', { data: await obd.readFreezeFrame() }); break;
+      case 'set_vehicle': clients.get(id).vehicleId = payload?.vehicleId; send('vehicle_set', {}); break;
+      case 'ping': send('pong', { ts: Date.now() }); break;
     }
   });
-
   ws.on('close', () => clients.delete(id));
   ws.on('error', () => clients.delete(id));
 });
+setInterval(() => { wss.clients.forEach(ws => { if(ws.readyState===1) ws.send(JSON.stringify({type:'heartbeat',ts:Date.now()})); }); }, 25000);
 
-setInterval(() => {
-  wss.clients.forEach(ws => { if(ws.readyState===1) ws.send(JSON.stringify({type:'heartbeat',ts:Date.now()})); });
-}, 25000);
-
-// ── REST API ────────────────────────────────────────────────
-
+// ── HEALTH ────────────────────────────────────────────────────
 app.get('/health', (req, res) => res.json({
   status: 'ok', db: db?'connected':'disconnected',
   sim_mode: obd?.simMode||false, uptime: Math.round(process.uptime()), version:'2.0.0'
 }));
 
-// ── AUTH ROUTES ─────────────────────────────────────────────
+// ── AUTH ──────────────────────────────────────────────────────
 app.post('/api/auth/register', async (req, res) => {
   const { email, password, taller_name } = req.body;
   if (!email || !password) return res.status(400).json({ ok: false, error: 'Email y contraseña requeridos' });
-
   try {
     if (db) {
-      // Verificar si ya existe
       const existing = await db.query('SELECT id FROM users WHERE email=$1', [email.toLowerCase()]);
       if (existing.rows.length) return res.status(400).json({ ok: false, error: 'Email ya registrado' });
-
       const hash = crypto.createHash('sha256').update(password).digest('hex');
-      const r = await db.query(
-        'INSERT INTO users (email, password_hash, taller_name) VALUES ($1,$2,$3) RETURNING id, email, taller_name',
-        [email.toLowerCase(), hash, taller_name || 'Mi Taller']
-      );
+      const r = await db.query('INSERT INTO users (email, password_hash, taller_name) VALUES ($1,$2,$3) RETURNING id, email, taller_name', [email.toLowerCase(), hash, taller_name || 'Mi Taller']);
       const user = r.rows[0];
       const token = generateToken();
       sessions.set(token, { userId: user.id, email: user.email, tallerName: user.taller_name });
       return res.json({ ok: true, token, user: { id: user.id, email: user.email, tallerName: user.taller_name } });
     } else {
-      // Sin DB — sesión en memoria
       const token = generateToken();
       sessions.set(token, { userId: uuidv4(), email: email.toLowerCase(), tallerName: taller_name || 'Mi Taller' });
       return res.json({ ok: true, token, user: { email: email.toLowerCase(), tallerName: taller_name || 'Mi Taller' } });
@@ -243,8 +188,7 @@ app.post('/api/auth/register', async (req, res) => {
 
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ ok: false, error: 'Email y contraseña requeridos' });
-
+  if (!email || !password) return res.status(400).json({ ok: false, error: 'Credenciales requeridas' });
   try {
     if (db) {
       const hash = crypto.createHash('sha256').update(password).digest('hex');
@@ -255,7 +199,6 @@ app.post('/api/auth/login', async (req, res) => {
       sessions.set(token, { userId: user.id, email: user.email, tallerName: user.taller_name });
       return res.json({ ok: true, token, user: { id: user.id, email: user.email, tallerName: user.taller_name } });
     } else {
-      // Sin DB — demo login
       if (email === 'demo@autodiag.com' && password === 'demo1234') {
         const token = generateToken();
         sessions.set(token, { userId: '1', email: 'demo@autodiag.com', tallerName: 'Taller Demo' });
@@ -272,11 +215,7 @@ app.post('/api/auth/logout', (req, res) => {
   res.json({ ok: true });
 });
 
-app.get('/api/auth/me', authMiddleware, (req, res) => {
-  res.json({ ok: true, user: req.user });
-});
-
-// ── OBD STATUS ──────────────────────────────────────────────
+// ── OBD ──────────────────────────────────────────────────────
 app.get('/api/obd/status', (req, res) => res.json({
   ok: true, connected: obd?.isConnected()||false, sim_mode: obd?.simMode||false,
   live_data: obd?.getLiveData()||{}, dtcs: obd?.getDTCs()||[], vin: obd?.vinCode||null,
@@ -305,17 +244,17 @@ app.delete('/api/vehicles/:id', async (req,res) => {
   try { await db.deleteVehicle(req.params.id); res.json({ok:true}); } catch(e){res.status(500).json({ok:false,error:e.message});}
 });
 
-// ── SCANS / HISTORIAL ────────────────────────────────────────
+// ── SCANS ─────────────────────────────────────────────────────
 app.get('/api/vehicles/:id/scans', async (req,res) => {
   if(!db) return res.json({ok:true,data:[]});
-  try { res.json({ok:true,data:await db.getScans(req.params.id, 50)}); } catch(e){res.status(500).json({ok:false,error:e.message});}
+  try { res.json({ok:true,data:await db.getScans(req.params.id,50)}); } catch(e){res.status(500).json({ok:false,error:e.message});}
 });
 app.post('/api/vehicles/:id/scans', async (req,res) => {
   if(!db) return res.status(503).json({ok:false,error:'Sin DB'});
   try { res.json({ok:true,data:await db.saveScan(req.params.id,req.body.dtcs,req.body.live_data)}); } catch(e){res.status(500).json({ok:false,error:e.message});}
 });
 
-// ── JOBS ─────────────────────────────────────────────────────
+// ── JOBS ──────────────────────────────────────────────────────
 app.get('/api/jobs', async (req,res) => {
   if(!db) return res.json({ok:true,data:[]});
   try { res.json({ok:true,data:await db.getJobs(req.query.status)}); } catch(e){res.status(500).json({ok:false,error:e.message});}
@@ -342,9 +281,67 @@ app.post('/api/resolutions', async (req,res) => {
   try { res.json({ok:true,data:await db.saveResolution(req.body)}); } catch(e){res.status(500).json({ok:false,error:e.message});}
 });
 
-// ── AI ENDPOINTS ──────────────────────────────────────────────
-async function callClaude(prompt, webSearch=false, maxTokens=1500) {
+// ── VEHICLE PROFILES ──────────────────────────────────────────
+app.get('/api/vehicles/:id/profile', async (req,res) => {
+  if(!db) return res.json({ok:true,data:null});
+  try { res.json({ok:true,data:await db.getProfile(req.params.id)}); } catch(e){res.status(500).json({ok:false,error:e.message});}
+});
+
+app.post('/api/vehicles/:id/profile/generate', async (req,res) => {
+  const vehicleId = req.params.id;
+  if(!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ok:false,error:'API key no configurada'});
+  try {
+    const vehicle = db ? await db.getVehicle(vehicleId) : req.body;
+    const scans   = db ? await db.getScans(vehicleId, 20) : [];
+    const make  = vehicle?.make  || req.body.make  || 'Desconocido';
+    const model = vehicle?.model || req.body.model || 'Desconocido';
+    const year  = vehicle?.year  || req.body.year  || '';
+    const engine= vehicle?.engine|| req.body.engine|| '';
+    const allDtcs = [...new Set(scans.flatMap(s => s.dtcs || []))];
+
+    const prompt = 'Sos un experto en diagnóstico automotriz para Argentina. Generá un perfil técnico completo para: '
+      + make + ' ' + model + ' ' + year + ' ' + engine + '. '
+      + (allDtcs.length ? 'DTCs detectados: ' + allDtcs.join(', ') + '. ' : '')
+      + 'Priorizá información del mercado argentino. '
+      + 'SOLO JSON: {"overview":"resumen 2-3 oraciones","common_issues":[{"title":"problema","description":"desc","frequency":"Muy frecuente|Frecuente|Ocasional","estimated_cost":"$XX-$XXX USD"}],"maintenance_schedule":{"oil_change_km":5000,"timing_belt_km":90000,"spark_plugs_km":30000,"notes":"notas modelo"},"specs":{"fuel_type":"Nafta/Diesel/GNC","fuel_capacity_liters":50,"oil_type":"5W30","oil_capacity_liters":4.2,"tire_size":"195/65 R15","coolant_type":"OAT"},"argentina_notes":"disponibilidad repuestos y precios Argentina","dtc_patterns":"analisis de los DTCs detectados","reliability_score":7,"sources":["fuente1"]}';
+
+    const raw = await callClaude(prompt, true, 1800);
+    const clean = raw.replace(/```json/g,'').replace(/```/g,'');
+    const match = clean.match(/\{[\s\S]*\}/);
+    if (!match) return res.status(500).json({ok:false,error:'No se pudo generar el perfil'});
+    const profileData = JSON.parse(match[0]);
+    profileData.vehicle = { make, model, year, engine };
+    profileData.generated_at = new Date().toISOString();
+    profileData.dtc_history = allDtcs;
+    profileData.scan_count = scans.length;
+    if (db) await db.upsertProfile(vehicleId, profileData);
+    res.json({ok:true,data:profileData});
+  } catch(e) { res.status(500).json({ok:false,error:e.message}); }
+});
+
+// ── DTC KNOWLEDGE BASE ────────────────────────────────────────
+app.get('/api/dtc/search', async (req,res) => {
+  const q = req.query.q || '';
+  if (!q) return res.json({ok:true,data:[]});
+  if (!db) return res.json({ok:true,data:[]});
+  try { res.json({ok:true,data:await db.searchDTCs(q,20)}); } catch(e){res.status(500).json({ok:false,error:e.message});}
+});
+
+app.get('/api/dtc/:code', async (req,res) => {
+  const code = req.params.code.toUpperCase();
+  if (db) {
+    try {
+      const local = await db.getDTCWithFullData(code);
+      if (local) return res.json({ok:true,data:local,source:'local_db'});
+    } catch(e) {}
+  }
+  res.status(404).json({ok:false,error:'No encontrado en base local'});
+});
+
+// ── AI HELPERS ────────────────────────────────────────────────
+async function callClaude(prompt, webSearch, maxTokens) {
   const fetch = require('node-fetch');
+  maxTokens = maxTokens || 1500;
   const body = { model:'claude-sonnet-4-20250514', max_tokens:maxTokens, messages:[{role:'user',content:prompt}] };
   if(webSearch) body.tools = [{type:'web_search_20250305',name:'web_search'}];
   const r = await fetch('https://api.anthropic.com/v1/messages',{
@@ -357,36 +354,104 @@ async function callClaude(prompt, webSearch=false, maxTokens=1500) {
   return raw;
 }
 
+// ── AI DIAGNOSE (smart differential) ─────────────────────────
+app.post('/api/ai/diagnose', async (req,res) => {
+  const { code, brand, model, freeze_frame, live_data, scanner_data } = req.body;
+  if (!code) return res.status(400).json({ok:false,error:'Código requerido'});
+  if (!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ok:false,error:'API key no configurada'});
+  try {
+    // 1. Local DB lookup
+    let localDTC = null;
+    if (db) localDTC = await db.getDTCWithFullData(code).catch(()=>null);
+
+    // 2. Community resolutions
+    let communityData = [];
+    if (db) communityData = await db.getResolutionStats(code).catch(()=>[]);
+
+    // 3. Build data strings safely (no nested template literals)
+    const communityLines = communityData.length > 0
+      ? communityData.map(function(r) {
+          return r.cause_found + ': ' + r.count + ' casos' + (r.avg_cost ? ', $' + Math.round(r.avg_cost) + ' USD promedio' : '');
+        }).join(' | ')
+      : 'Sin datos de comunidad aun';
+
+    const dataSource = (live_data && Object.keys(live_data).length > 0) ? live_data : (freeze_frame || {});
+    const scannerLines = Object.values(dataSource)
+      .filter(function(v) { return v && v.value !== undefined && v.value !== ''; })
+      .map(function(v) { return v.label + ': ' + v.value + v.unit; })
+      .join(', ') || scanner_data || 'No disponible';
+
+    let localLines = 'Sin datos tecnicos locales para este codigo.';
+    if (localDTC) {
+      localLines = 'Descripcion: ' + (localDTC.description || '') + ' | '
+        + 'Causas: ' + (localDTC.causes || []).join(', ') + ' | '
+        + 'Freeze frame hints: ' + (localDTC.freeze_frame_hints || 'N/A') + ' | '
+        + 'Costo LATAM: ' + (localDTC.latam_cost_usd || 'N/A') + ' | '
+        + 'Notas Argentina: ' + (localDTC.latam_notes || 'N/A');
+    }
+
+    // 4. Build prompt using string concatenation to avoid template literal issues
+    const prompt = 'Sos un experto en diagnostico automotriz para Argentina con datos tecnicos completos. '
+      + 'Codigo DTC: ' + code + '. '
+      + 'Vehiculo: ' + (brand || 'Universal') + ' ' + (model || '') + '. '
+      + 'BASE DE DATOS LOCAL: ' + localLines + '. '
+      + 'DATOS SCANNER ACTUALES: ' + scannerLines + '. '
+      + 'RESOLUCIONES COMUNIDAD: ' + communityLines + '. '
+      + 'Interpreta los datos del scanner en relacion al codigo. '
+      + 'Calcula probabilidad de cada causa basandote en los datos disponibles. '
+      + 'SOLO JSON: {"code":"' + code + '",'
+      + '"primary_diagnosis":"diagnostico mas probable",'
+      + '"confidence":85,'
+      + '"scanner_interpretation":"que dicen los valores del scanner",'
+      + '"recommended_action":"primer paso concreto a realizar",'
+      + '"differential":[{"cause":"nombre causa","probability":75,"evidence_for":"datos a favor","evidence_against":"datos en contra","confirming_test":"prueba confirmatoria","estimated_cost_usd":"XX-XXX"}],'
+      + '"parts_to_check":["componente1"],'
+      + '"tools_needed":["herramienta1"],'
+      + '"latam_availability":"disponibilidad repuestos Argentina"}';
+
+    const raw = await callClaude(prompt, false, 1500);
+    const clean = raw.replace(/```json/g,'').replace(/```/g,'');
+    const match = clean.match(/\{[\s\S]*\}/);
+    const parsed = match ? JSON.parse(match[0]) : { code, primary_diagnosis: raw, confidence: 50, differential: [] };
+
+    if (localDTC) {
+      parsed.local_causes = localDTC.causes;
+      parsed.local_steps  = localDTC.diagnostic_steps;
+      parsed.latam_cost   = localDTC.latam_cost_usd;
+      parsed.latam_notes  = localDTC.latam_notes;
+    }
+    parsed.community_data = communityData;
+
+    res.json({ok:true,data:parsed});
+  } catch(e) { res.status(500).json({ok:false,error:e.message}); }
+});
+
+// ── AI RESEARCH ───────────────────────────────────────────────
 app.post('/api/ai/research', async (req,res) => {
   const {code,brand,model,symptoms,scanner_data} = req.body;
-  if(!code) return res.status(400).json({ok:false,error:'Código requerido'});
-  if(!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ok:false,error:'ANTHROPIC_API_KEY no configurada'});
+  if(!code) return res.status(400).json({ok:false,error:'Codigo requerido'});
+  if(!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ok:false,error:'API key no configurada'});
   try {
-    // Enrich prompt with local DB data
     let localContext = '';
     if (db) {
       const localDTC = await db.getDTCWithFullData(code).catch(()=>null);
       if (localDTC) {
-        localContext = `
-Datos técnicos de nuestra base de datos local para ${code}:
-- Causas documentadas: ${(localDTC.causes||[]).join(', ')}
-- Parámetros de diagnóstico: ${JSON.stringify(localDTC.diagnostic_params||{})}
-- Freeze frame hints: ${localDTC.freeze_frame_hints||'N/A'}
-- Costo LATAM estimado: ${localDTC.latam_cost_usd||'N/A'}
-Complementá y actualizá esta información con búsqueda web.`;
+        localContext = 'Datos de base local: causas=' + (localDTC.causes||[]).join(', ')
+          + ', costo LATAM=' + (localDTC.latam_cost_usd||'N/A')
+          + ', notas AR=' + (localDTC.latam_notes||'N/A') + '. Complementa con busqueda web.';
       }
     }
-    const raw = await callClaude(
-      `Sos un experto técnico automotriz para LATINOAMÉRICA (Argentina principalmente).
-Investigá el código DTC ${code} para: ${brand||'Universal'} ${model||''}.
-${symptoms?'Síntomas: '+symptoms:''} ${scanner_data?'Datos scanner: '+scanner_data:''}
-${localContext}
-Buscá en fuentes técnicas reales. Priorizá info y precios para Argentina/LATAM.
-SOLO JSON sin texto extra:
-{"code":"${code}","title":"título","severity":"Crítico|Moderado|Bajo","system":"sistema","description":"descripción técnica","brands":["marca"],"causes":["causa1","causa2","causa3","causa4","causa5"],"diagnosis_steps":["paso1","paso2","paso3","paso4"],"brand_specific":"notas TSB","latam_notes":"disponibilidad y precios en Argentina","scanner_interpretation":"interpretación datos","costs":{"diagnostic":"$XX","repair_low":"$XXX","repair_high":"$XXXX","latam_parts_usd":"precio repuesto"},"sources":["url1","url2"]}`,
-      true
-    );
-    const match = raw.replace(/```json|```/g,'').match(/\{[\s\S]*\}/);
+    const prompt = 'Sos un experto tecnico automotriz para LATINOAMERICA (Argentina). '
+      + 'Investiga el codigo DTC ' + code + ' para: ' + (brand||'Universal') + ' ' + (model||'') + '. '
+      + (symptoms ? 'Sintomas: ' + symptoms + '. ' : '')
+      + (scanner_data ? 'Datos scanner: ' + scanner_data + '. ' : '')
+      + localContext + ' '
+      + 'Busca en fuentes tecnicas reales. Prioriza info y precios para Argentina/LATAM. '
+      + 'SOLO JSON: {"code":"' + code + '","title":"titulo","severity":"Critico|Moderado|Bajo","system":"sistema","description":"descripcion tecnica","brands":["marca"],"causes":["causa1","causa2","causa3","causa4","causa5"],"diagnosis_steps":["paso1","paso2","paso3","paso4"],"brand_specific":"notas TSB","latam_notes":"disponibilidad y precios Argentina","scanner_interpretation":"interpretacion datos","costs":{"diagnostic":"$XX","repair_low":"$XXX","repair_high":"$XXXX","latam_parts_usd":"precio repuesto"},"sources":["url1","url2"]}';
+
+    const raw = await callClaude(prompt, true, 1500);
+    const clean = raw.replace(/```json/g,'').replace(/```/g,'');
+    const match = clean.match(/\{[\s\S]*\}/);
     const parsed = match ? JSON.parse(match[0]) : {code,title:'Resultado',description:raw,causes:[],costs:{}};
     if(db && parsed.code) await db.upsertDTCInfo(parsed).catch(()=>{});
     res.json({ok:true,data:parsed});
@@ -395,16 +460,14 @@ SOLO JSON sin texto extra:
 
 app.post('/api/ai/analyze-multi', async (req,res) => {
   const {codes,brand,model} = req.body;
-  if(!codes?.length) return res.status(400).json({ok:false,error:'Códigos requeridos'});
+  if(!codes?.length) return res.status(400).json({ok:false,error:'Codigos requeridos'});
   if(!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ok:false,error:'API key no configurada'});
   try {
-    const raw = await callClaude(
-      `Experto diagnóstico automotriz LATAM. ${brand||''} ${model||''}. DTCs simultáneos: ${codes.join(', ')}.
-Identificá causa raíz y relación entre códigos. SOLO JSON:
-{"root_cause":"PXXXX","root_explanation":"por qué","codes":[{"code":"PXXXX","is_root":true,"title":"título","role":"CAUSA RAÍZ|CONSECUENCIA|INDEPENDIENTE","description":"desc","causes":["c1","c2"],"repair_order":1,"estimated_cost":"$XX-$XXX"}],"repair_sequence":"orden recomendado"}`,
-      true
-    );
-    const match = raw.replace(/```json|```/g,'').match(/\{[\s\S]*\}/);
+    const prompt = 'Experto diagnostico automotriz LATAM. ' + (brand||'') + ' ' + (model||'') + '. DTCs simultaneos: ' + codes.join(', ') + '. '
+      + 'Identifica causa raiz. SOLO JSON: {"root_cause":"PXXXX","root_explanation":"por que","codes":[{"code":"PXXXX","is_root":true,"title":"titulo","role":"CAUSA RAIZ|CONSECUENCIA|INDEPENDIENTE","description":"desc","causes":["c1","c2"],"repair_order":1,"estimated_cost":"$XX-$XXX"}],"repair_sequence":"orden recomendado"}';
+    const raw = await callClaude(prompt, true, 1200);
+    const clean = raw.replace(/```json/g,'').replace(/```/g,'');
+    const match = clean.match(/\{[\s\S]*\}/);
     res.json({ok:true,data:match?JSON.parse(match[0]):{codes:[],root_explanation:raw}});
   } catch(e){res.status(500).json({ok:false,error:e.message});}
 });
@@ -413,11 +476,12 @@ app.post('/api/ai/symptoms', async (req,res) => {
   const {symptoms,brand,model,scanner_data} = req.body;
   if(!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ok:false,error:'API key no configurada'});
   try {
-    const raw = await callClaude(
-      `Experto diagnóstico LATAM. ${brand||''} ${model||''}. Síntomas: ${(symptoms||[]).join(', ')}. ${scanner_data?'Scanner: '+JSON.stringify(scanner_data):''}
-SOLO JSON: {"probable_dtcs":[{"code":"PXXXX","probability":85,"title":"título","why":"razón","system":"sistema"}],"recommended_tests":["test1","test2"],"urgency":"URGENTE|MODERADO|BAJO","urgency_reason":"razón"}`
-    );
-    const match = raw.replace(/```json|```/g,'').match(/\{[\s\S]*\}/);
+    const prompt = 'Experto diagnostico LATAM. ' + (brand||'') + ' ' + (model||'') + '. Sintomas: ' + (symptoms||[]).join(', ') + '. '
+      + (scanner_data ? 'Scanner: ' + JSON.stringify(scanner_data) + '. ' : '')
+      + 'SOLO JSON: {"probable_dtcs":[{"code":"PXXXX","probability":85,"title":"titulo","why":"razon","system":"sistema"}],"recommended_tests":["test1","test2"],"urgency":"URGENTE|MODERADO|BAJO","urgency_reason":"razon"}';
+    const raw = await callClaude(prompt, false, 800);
+    const clean = raw.replace(/```json/g,'').replace(/```/g,'');
+    const match = clean.match(/\{[\s\S]*\}/);
     res.json({ok:true,data:match?JSON.parse(match[0]):{probable_dtcs:[],urgency:'MODERADO',urgency_reason:raw}});
   } catch(e){res.status(500).json({ok:false,error:e.message});}
 });
@@ -426,257 +490,19 @@ app.post('/api/ai/chat', async (req,res) => {
   const {message,context} = req.body;
   if(!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ok:false,error:'API key no configurada'});
   try {
-    const response = await callClaude(
-      `Sos un experto en diagnóstico automotriz para Argentina. Respondé en español, técnico y conciso. Máximo 3 párrafos.
-Contexto: ${JSON.stringify(context||{})}
-Pregunta: ${message}`,
-      false, 600
-    );
+    const prompt = 'Sos un experto en diagnostico automotriz para Argentina. Responde en espanol, tecnico y conciso. Max 3 parrafos. Contexto: '
+      + JSON.stringify(context||{}) + '. Pregunta: ' + message;
+    const response = await callClaude(prompt, false, 600);
     res.json({ok:true,data:{response}});
   } catch(e){res.status(500).json({ok:false,error:e.message});}
-});
-
-// ── NOTIFICATIONS (simple webhook/email placeholder) ─────────
-app.post('/api/notifications/dtc-alert', async (req, res) => {
-  const { vehicle, dtcs, severity } = req.body;
-  // En producción: enviar WhatsApp via Twilio o email via SendGrid
-  console.log(`🚨 ALERTA DTC: ${vehicle} — ${dtcs?.join(', ')} [${severity}]`);
-  // Por ahora loguea — implementar Twilio/SendGrid cuando haya saldo
-  res.json({ ok: true, message: 'Alerta registrada' });
-});
-
-
-// ── VEHICLE PROFILES ─────────────────────────────────────────
-app.get('/api/vehicles/:id/profile', async (req,res) => {
-  if(!db) return res.json({ok:true,data:null});
-  try {
-    const profile = await db.getProfile(req.params.id);
-    res.json({ok:true,data:profile});
-  } catch(e){res.status(500).json({ok:false,error:e.message});}
-});
-
-app.post('/api/vehicles/:id/profile/generate', async (req,res) => {
-  const vehicleId = req.params.id;
-  if(!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ok:false,error:'API key no configurada'});
-  
-  try {
-    // Get vehicle info
-    const vehicle = db ? await db.getVehicle(vehicleId) : req.body.vehicle;
-    const scans   = db ? await db.getScans(vehicleId, 20) : [];
-    
-    const make  = vehicle?.make  || req.body.make  || 'Desconocido';
-    const model = vehicle?.model || req.body.model || 'Desconocido';
-    const year  = vehicle?.year  || req.body.year  || '';
-    const engine= vehicle?.engine|| req.body.engine|| '';
-    
-    // Collect all DTCs from history
-    const allDtcs = [...new Set(scans.flatMap(s => s.dtcs || []))];
-    const scanCount = scans.length;
-    const lastScan = scans[0]?.created_at;
-    
-    const prompt = `Sos un experto en diagnóstico automotriz para el mercado latinoamericano (Argentina).
-Generá un perfil técnico completo para el siguiente vehículo:
-
-Vehículo: ${make} ${model} ${year}
-Motor: ${engine}
-Historial de DTCs detectados: ${allDtcs.length ? allDtcs.join(', ') : 'Sin escaneos previos'}
-Cantidad de escaneos: ${scanCount}
-${lastScan ? 'Último escaneo: ' + new Date(lastScan).toLocaleDateString('es-AR') : ''}
-
-Generá información técnica útil para el mecánico. Si no hay historial de DTCs, generá el perfil basado en el modelo/año.
-Buscá información específica sobre este vehículo en el mercado argentino.
-
-SOLO JSON sin texto extra:
-{
-  "overview": "Resumen técnico del vehículo en 2-3 oraciones",
-  "common_issues": [
-    {"title": "Problema conocido", "description": "descripción", "frequency": "Muy frecuente|Frecuente|Ocasional", "estimated_cost": "$XX-$XXX USD"}
-  ],
-  "maintenance_schedule": {
-    "oil_change_km": 5000,
-    "timing_belt_km": 90000,
-    "spark_plugs_km": 30000,
-    "notes": "notas específicas del modelo"
-  },
-  "specs": {
-    "fuel_type": "Nafta/Diesel/GNC",
-    "fuel_capacity_liters": 50,
-    "oil_type": "5W30",
-    "oil_capacity_liters": 4.2,
-    "tire_size": "195/65 R15",
-    "coolant_type": "OAT"
-  },
-  "argentina_notes": "Disponibilidad de repuestos, precios aproximados en Argentina, variantes locales",
-  "dtc_patterns": "${allDtcs.length ? 'Análisis de los DTCs detectados: ' + allDtcs.join(', ') : 'Sin patrones de falla detectados aún'}",
-  "reliability_score": 7,
-  "sources": ["fuente1", "fuente2"]
-}`;
-
-    const raw = await callClaude(prompt, true, 1800);
-    const match = raw.replace(/\`\`\`json|\`\`\`/g,'').match(/\{[\s\S]*\}/);
-    
-    if (!match) return res.status(500).json({ok:false,error:'No se pudo generar el perfil'});
-    
-    const profileData = JSON.parse(match[0]);
-    profileData.vehicle = { make, model, year, engine };
-    profileData.generated_at = new Date().toISOString();
-    profileData.dtc_history = allDtcs;
-    profileData.scan_count = scanCount;
-    
-    // Save to DB
-    if (db) await db.upsertProfile(vehicleId, profileData);
-    
-    res.json({ok:true,data:profileData});
-  } catch(e) { res.status(500).json({ok:false,error:e.message}); }
-});
-
-app.put('/api/vehicles/:id/profile', async (req,res) => {
-  if(!db) return res.status(503).json({ok:false,error:'Sin DB'});
-  try {
-    const profile = await db.upsertProfile(req.params.id, req.body);
-    res.json({ok:true,data:profile});
-  } catch(e){res.status(500).json({ok:false,error:e.message});}
-});
-
-
-// ── DTC KNOWLEDGE BASE ────────────────────────────────────────
-app.get('/api/dtc/search', async (req,res) => {
-  const q = req.query.q || '';
-  if (!q) return res.json({ok:true,data:[]});
-  if (!db) return res.json({ok:true,data:[]});
-  try {
-    const results = await db.searchDTCs(q, 20);
-    res.json({ok:true,data:results});
-  } catch(e){res.status(500).json({ok:false,error:e.message});}
-});
-
-app.get('/api/dtc/:code', async (req,res) => {
-  const code = req.params.code.toUpperCase();
-  // Try local DB first (fast, no API call)
-  if (db) {
-    try {
-      const local = await db.getDTCWithFullData(code);
-      if (local) return res.json({ok:true,data:local,source:'local_db'});
-    } catch(e) {}
-  }
-  // If not in DB, return 404 so frontend uses IA Research
-  res.status(404).json({ok:false,error:'No encontrado en base local — usar IA Research para buscar'});
-});
-
-// ── FREEZE FRAME ENRICHED DIAGNOSIS ──────────────────────────
-app.post('/api/ai/diagnose', async (req,res) => {
-  // Smart diagnosis combining: local DB + freeze frame + live data + community resolutions
-  const { code, brand, model, freeze_frame, live_data, scanner_data } = req.body;
-  if (!code) return res.status(400).json({ok:false,error:'Código requerido'});
-  if (!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ok:false,error:'API key no configurada'});
-  
-  try {
-    // 1. Get local DTC data
-    let localDTC = null;
-    if (db) {
-      localDTC = await db.getDTCWithFullData(code).catch(()=>null);
-    }
-    
-    // 2. Get community resolutions for this code
-    let communityData = [];
-    if (db) {
-      communityData = await db.getResolutionStats(code).catch(()=>[]);
-    }
-    
-    // 3. Build enriched prompt
-    const communityInsights = communityData.length > 0
-      ? communityData.map(r => `${r.cause_found}: ${r.count} casos confirmados${r.avg_cost ? ', costo promedio $'+Math.round(r.avg_cost)+' USD' : ''}`).join('
-')
-      : 'Sin datos de comunidad aún';
-
-    const ffData = freeze_frame ? Object.entries(freeze_frame)
-      .filter(([k,v]) => v?.value !== undefined)
-      .map(([k,v]) => `${v.label}: ${v.value}${v.unit}`)
-      .join(', ') : 'No disponible';
-
-    const liveDataStr = live_data ? Object.entries(live_data)
-      .filter(([k,v]) => v?.value !== undefined)
-      .map(([k,v]) => `${v.label}: ${v.value}${v.unit}`)
-      .join(', ') : (scanner_data || 'No disponible');
-
-    const localContext = localDTC ? `
-DATOS TÉCNICOS DE LA BASE LOCAL:
-- Descripción oficial: ${localDTC.description}
-- Causas documentadas: ${(localDTC.causes||[]).join(', ')}
-- Parámetros diagnóstico: ${JSON.stringify(localDTC.diagnostic_params || {})}
-- Hints de freeze frame: ${localDTC.freeze_frame_hints || 'N/A'}
-- Diagnóstico diferencial conocido: ${JSON.stringify(localDTC.differential_diagnosis || {})}
-- Notas Argentina: ${localDTC.latam_notes || 'N/A'}
-` : 'Sin datos locales para este código';
-
-    const prompt = `Sos un experto en diagnóstico automotriz para el mercado argentino con acceso a datos técnicos completos.
-
-CÓDIGO DTC: ${code}
-VEHÍCULO: ${brand||'Universal'} ${model||''}
-
-${localContext}
-
-DATOS DEL SCANNER EN TIEMPO REAL (momento del diagnóstico):
-${liveDataStr}
-
-FREEZE FRAME (valores al momento del fallo):
-${ffData}
-
-RESOLUCIONES CONFIRMADAS POR LA COMUNIDAD (mecánicos reales):
-${communityInsights}
-
-Usando TODOS estos datos, hacé un diagnóstico diferencial preciso:
-1. Interpretá los valores del scanner y freeze frame en relación al código
-2. Calculá la probabilidad de cada causa basándote en los datos disponibles
-3. Recomendá el orden de diagnóstico de menor a mayor costo
-4. Indicá qué mediciones adicionales confirmarían cada causa
-
-SOLO JSON:
-{
-  "code": "${code}",
-  "primary_diagnosis": "diagnóstico más probable con los datos disponibles",
-  "confidence": 85,
-  "scanner_interpretation": "qué dicen específicamente los valores actuales del scanner",
-  "freeze_frame_analysis": "análisis de los valores del freeze frame",
-  "differential": [
-    {
-      "cause": "nombre de la causa",
-      "probability": 75,
-      "evidence_for": "qué datos apoyan esta causa",
-      "evidence_against": "qué datos van en contra",
-      "confirming_test": "prueba específica para confirmar",
-      "estimated_cost_usd": "XX-XXX"
-    }
-  ],
-  "recommended_action": "primer paso concreto a realizar ahora",
-  "parts_to_check": ["componente1", "componente2"],
-  "tools_needed": ["herramienta1", "herramienta2"],
-  "latam_availability": "disponibilidad y precios de repuestos en Argentina"
-}`;
-
-    const raw = await callClaude(prompt, false, 1500);
-    const match = raw.replace(/\`\`\`json|\`\`\`/g,'').match(/\{[\s\S]*\}/);
-    const parsed = match ? JSON.parse(match[0]) : { code, primary_diagnosis: raw };
-    
-    // Enrich with local data if available
-    if (localDTC) {
-      parsed.local_causes = localDTC.causes;
-      parsed.local_steps = localDTC.diagnostic_steps;
-      parsed.latam_cost = localDTC.latam_cost_usd;
-      parsed.latam_notes = localDTC.latam_notes;
-    }
-    parsed.community_data = communityData;
-    
-    res.json({ok:true,data:parsed});
-  } catch(e) { res.status(500).json({ok:false,error:e.message}); }
 });
 
 // SPA fallback
 app.get('*', (req,res) => res.sendFile(path.join(__dirname,'../public/index.html')));
 
-// ── START ────────────────────────────────────────────────────
+// ── START ─────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, async () => {
-  console.log(`✓ AutoDiag Pro v2.0 → puerto ${PORT}`);
+  console.log('✓ AutoDiag Pro v2.0 → puerto ' + PORT);
   await loadModules();
 });
