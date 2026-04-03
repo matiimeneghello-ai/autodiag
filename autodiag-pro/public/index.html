@@ -1148,23 +1148,15 @@ a, button, [role=button], .btn, .vcard, .dtcrow, .ws-card,
     var login = document.getElementById('loginScreen');
     if (login) login.style.display = 'flex';
   }
-  // Kill after 1.2s
+  // Kill after 1.2s automatically
   setTimeout(killSplash, 1200);
-  // Kill on any interaction
-  document.addEventListener('click', killSplash, {once:true, capture:true});
-  document.addEventListener('touchstart', killSplash, {once:true, capture:true});
-  // Kill on load
+  // Kill on load (faster if page loads quickly)
   window.addEventListener('load', function() { setTimeout(killSplash, 100); });
-  // SAFETY NET: force show login after 2.5s no matter what
+  // NOTE: NO click listeners — they intercept user clicks before they reach buttons
+  // SAFETY NET: if splash still showing at 2s, force hide
   setTimeout(function() {
-    var s = document.getElementById('splash');
-    if (s) { s.style.display = 'none'; }
-    var login = document.getElementById('loginScreen');
-    var app   = document.getElementById('app');
-    if (login && login.style.display === 'none' && (!app || app.style.display === 'none')) {
-      login.style.display = 'flex';
-    }
-  }, 2500);
+    killSplash();
+  }, 2000);
 })();
 </script>
 
