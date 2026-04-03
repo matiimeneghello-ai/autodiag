@@ -1,7 +1,7 @@
 {
   "name": "autodiag-pro",
   "version": "1.0.0",
-  "description": "Plataforma de diagnóstico automotriz con conexión OBD-II en tiempo real",
+  "description": "Plataforma de diagn\u00f3stico automotriz con conexi\u00f3n OBD-II en tiempo real",
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",
@@ -19,7 +19,10 @@
     "serialport": "^12.0.0",
     "@serialport/parser-readline": "^12.0.0",
     "uuid": "^9.0.0",
-    "compression": "^1.7.4"
+    "compression": "^1.7.4",
+    "helmet": "^7.1.0",
+    "express-rate-limit": "^7.2.0",
+    "express-validator": "^7.0.1"
   },
   "devDependencies": {
     "nodemon": "^3.0.3"

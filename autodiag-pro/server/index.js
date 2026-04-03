@@ -1,46 +1,126 @@
 require('dotenv').config();
-const express   = require('express');
-const http      = require('http');
-const WebSocket = require('ws');
-const cors      = require('cors');
-const path      = require('path');
-const crypto    = require('crypto');
+const express      = require('express');
+const http         = require('http');
+const WebSocket    = require('ws');
+const cors         = require('cors');
+const path         = require('path');
+const crypto       = require('crypto');
 const { v4: uuidv4 } = require('uuid');
+
+// Security & performance
+let helmet, rateLimit, compression;
+try { helmet      = require('helmet');           } catch(e) { console.log('helmet not installed yet'); }
+try { rateLimit   = require('express-rate-limit'); } catch(e) { console.log('rate-limit not installed yet'); }
+try { compression = require('compression');      } catch(e) { console.log('compression not installed yet'); }
 
 const app    = express();
 const server = http.createServer(app);
 const wss    = new WebSocket.Server({ server });
 
-app.use(cors({ origin: '*' }));
-app.use(express.json());
+// ── SECURITY MIDDLEWARE ───────────────────────────────────────
+// Helmet: security headers
+if (helmet) {
+  app.use(helmet({
+    contentSecurityPolicy: false, // we load CDN scripts
+    crossOriginEmbedderPolicy: false,
+  }));
+}
+
+// Compression: gzip responses
+if (compression) app.use(compression());
+
+// CORS: restrict in production
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',')
+  : ['*'];
+app.use(cors({
+  origin: allowedOrigins[0] === '*' ? '*' : function(origin, cb) {
+    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+    cb(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+}));
+
+// Body size limit: 1mb max (prevent DoS)
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: false, limit: '1mb' }));
+
+// Static files
 app.use(express.static(path.join(__dirname, '../public')));
 
+// ── RATE LIMITERS ─────────────────────────────────────────────
+function makeRateLimit(windowMs, max, message) {
+  if (!rateLimit) return (req, res, next) => next();
+  return rateLimit({
+    windowMs, max,
+    message: { ok: false, error: message },
+    standardHeaders: true,
+    legacyHeaders: false,
+    // Key by IP + user token if available
+    keyGenerator: (req) => {
+      const token = req.headers['x-auth-token'] || '';
+      return (req.ip || 'unknown') + '_' + token.substring(0, 16);
+    },
+  });
+}
+
+const authLimiter    = makeRateLimit(15 * 60 * 1000, 10,  'Demasiados intentos de login. Esperá 15 minutos.');
+const aiLimiter      = makeRateLimit(60 * 60 * 1000, 30,  'Límite de IA alcanzado (30/hora). Reintentá en 1 hora.');
+const apiLimiter     = makeRateLimit(60 * 1000,       120, 'Demasiadas requests. Esperá un minuto.');
+const nhtsaLimiter   = makeRateLimit(60 * 1000,       20,  'Límite NHTSA alcanzado.');
+
+app.use('/api/', apiLimiter);
+
+// ── INPUT VALIDATION HELPERS ──────────────────────────────────
+function validateEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+function validatePassword(pass) {
+  return pass && pass.length >= 6;
+}
+function sanitizeString(str, maxLen = 255) {
+  if (!str || typeof str !== 'string') return '';
+  return str.trim().substring(0, maxLen).replace(/[<>]/g, '');
+}
+function safeError(e, fallback = 'Error interno del servidor') {
+  // Never expose raw error messages to clients
+  if (process.env.NODE_ENV === 'development') return e.message;
+  return fallback;
+}
+
+// ── AUTH MIDDLEWARE ───────────────────────────────────────────
+async function requireAuth(req, res, next) {
+  const token = req.headers['x-auth-token'];
+  if (!token) return res.status(401).json({ ok: false, error: 'Autenticación requerida' });
+  try {
+    if (db) {
+      const session = await db.getSession(token);
+      if (!session) return res.status(401).json({ ok: false, error: 'Sesión expirada. Ingresá de nuevo.' });
+      req.user = { id: session.user_id, email: session.email, tallerName: session.taller || session.taller_name };
+      return next();
+    }
+    next(); // no DB: allow through
+  } catch(e) {
+    return res.status(401).json({ ok: false, error: 'Token inválido' });
+  }
+}
+
+// ── GLOBALS ───────────────────────────────────────────────────
+function generateToken() { return crypto.randomBytes(32).toString('hex'); }
 let db  = null;
 let obd = null;
-
-// ── AUTH ──────────────────────────────────────────────────────
-function generateToken() { return crypto.randomBytes(32).toString('hex'); }
-// Sessions stored in PostgreSQL (not in-memory) — survive server restarts
 
 // ── OBD SIMULATION ────────────────────────────────────────────
 function createSimOBD() {
   const { EventEmitter } = require('events');
   const em = new EventEmitter();
-  let liveData = {};
-  let history = [];
-  let interval = null;
-  let tick = 0;
+  let liveData = {}, history = [], interval = null, tick = 0;
 
   const sim = {
-    isConnected: () => true,
-    simMode: true,
-    getLiveData: () => liveData,
-    getHistory: () => history.slice(-60),
-    getDTCs: () => ['P0171','P0420','P0441'],
-    vinCode: null,
-    protocol: 'SIMULACION',
-    on: (e,cb) => em.on(e,cb),
-    removeListener: (e,cb) => em.removeListener(e,cb),
+    isConnected: () => true, simMode: true,
+    getLiveData: () => liveData, getHistory: () => history.slice(-60),
+    getDTCs: () => ['P0171','P0420','P0441'], vinCode: null, protocol: 'SIMULACION',
+    on: (e,cb) => em.on(e,cb), removeListener: (e,cb) => em.removeListener(e,cb),
     readDTCs: async () => ['P0171','P0420','P0441'],
     clearDTCs: async () => true,
     readFreezeFrame: async () => ({
@@ -55,32 +135,31 @@ function createSimOBD() {
       em.emit('dtcs', ['P0171','P0420','P0441']);
       interval = setInterval(() => {
         tick++;
-        const rpm = Math.round(750 + Math.sin(tick * 0.1) * 200 + (Math.random()-.5)*50);
-        const coolant = Math.round(85 + Math.sin(tick * 0.05) * 3);
-        const o2 = parseFloat((.1 + Math.abs(Math.sin(tick * 0.3)) * .85).toFixed(3));
+        const rpm     = Math.round(750 + Math.sin(tick*.1)*200 + (Math.random()-.5)*50);
+        const coolant = Math.round(85 + Math.sin(tick*.05)*3);
+        const o2      = parseFloat((.1+Math.abs(Math.sin(tick*.3))*.85).toFixed(3));
         const ftShort = parseFloat((14+(Math.random()-.5)*6).toFixed(1));
-        const maf = parseFloat((1.6+(Math.random()-.5)*.4).toFixed(2));
-        const load = Math.round(20 + Math.sin(tick * 0.08) * 10);
-
+        const maf     = parseFloat((1.6+(Math.random()-.5)*.4).toFixed(2));
+        const load    = Math.round(20+Math.sin(tick*.08)*10);
         liveData = {
-          rpm:             { value: rpm,     unit:'rpm',  label:'RPM' },
-          speed:           { value: 0,        unit:'km/h', label:'Velocidad' },
-          coolant:         { value: coolant,  unit:'°C',   label:'Temp. Refrigerante' },
-          intake_temp:     { value: 24,        unit:'°C',   label:'Temp. Admisión' },
-          throttle:        { value: 15,        unit:'%',    label:'Mariposa' },
-          map:             { value: 45,        unit:'kPa',  label:'MAP' },
-          maf:             { value: maf,       unit:'g/s',  label:'MAF' },
-          fuel_trim_short: { value: ftShort,   unit:'%',    label:'Fuel Trim C' },
-          fuel_trim_long:  { value: 22.1,      unit:'%',    label:'Fuel Trim L' },
-          o2_b1s1:         { value: o2,        unit:'V',    label:'O2 B1S1' },
-          o2_b1s2:         { value: parseFloat((.6+Math.random()*.3).toFixed(3)), unit:'V', label:'O2 B1S2' },
-          voltage:         { value: 12.6,      unit:'V',    label:'Voltaje' },
-          engine_load:     { value: load,      unit:'%',    label:'Carga Motor' },
-          timing:          { value: 14.2,      unit:'°',    label:'Avance' },
+          rpm:             { value:rpm,     unit:'rpm',  label:'RPM' },
+          speed:           { value:0,        unit:'km/h', label:'Velocidad' },
+          coolant:         { value:coolant,  unit:'°C',   label:'Temp. Refrigerante' },
+          intake_temp:     { value:24,        unit:'°C',   label:'Temp. Admisión' },
+          throttle:        { value:15,        unit:'%',    label:'Mariposa' },
+          map:             { value:45,        unit:'kPa',  label:'MAP' },
+          maf:             { value:maf,       unit:'g/s',  label:'MAF' },
+          fuel_trim_short: { value:ftShort,   unit:'%',    label:'Fuel Trim C' },
+          fuel_trim_long:  { value:22.1,      unit:'%',    label:'Fuel Trim L' },
+          o2_b1s1:         { value:o2,        unit:'V',    label:'O2 B1S1' },
+          o2_b1s2:         { value:parseFloat((.6+Math.random()*.3).toFixed(3)), unit:'V', label:'O2 B1S2' },
+          voltage:         { value:12.6,      unit:'V',    label:'Voltaje' },
+          engine_load:     { value:load,      unit:'%',    label:'Carga Motor' },
+          timing:          { value:14.2,      unit:'°',    label:'Avance' },
         };
-        if (tick % 2 === 0) {
-          history.push({ ts: Date.now(), rpm, coolant, o2, load, ftShort });
-          if (history.length > 120) history.shift();
+        if (tick%2===0) {
+          history.push({ ts:Date.now(), rpm, coolant, o2, load, ftShort });
+          if (history.length>120) history.shift();
         }
         em.emit('liveData', liveData);
       }, 300);
@@ -130,15 +209,16 @@ function sendTo(ws, type, payload) {
   if(ws.readyState===1) ws.send(JSON.stringify({type, payload, ts: Date.now()}));
 }
 
-wss.on('connection', (ws) => {
+wss.on('connection', (ws, req) => {
   const id = uuidv4();
   clients.set(id, { ws, vehicleId: null });
   sendTo(ws, 'connected', {
-    clientId: id, sim_mode: obd?.simMode || true,
-    live_data: obd?.getLiveData() || {}, dtcs: obd?.getDTCs() || [],
+    clientId: id, sim_mode: obd?.simMode||true,
+    live_data: obd?.getLiveData()||{}, dtcs: obd?.getDTCs()||[],
     history: obd?.getHistory ? obd.getHistory() : [],
   });
   ws.on('message', async (raw) => {
+    if (raw.length > 10240) return; // 10kb max WS message
     let msg; try { msg = JSON.parse(raw); } catch(e) { return; }
     const { action, payload } = msg;
     const send = (type, data) => sendTo(ws, type, data);
@@ -161,53 +241,84 @@ setInterval(() => { wss.clients.forEach(ws => { if(ws.readyState===1) ws.send(JS
 // ── HEALTH ────────────────────────────────────────────────────
 app.get('/health', (req, res) => res.json({
   status: 'ok', db: db?'connected':'disconnected',
-  sim_mode: obd?.simMode||false, uptime: Math.round(process.uptime()), version:'2.0.0'
+  sim_mode: obd?.simMode||false, uptime: Math.round(process.uptime()), version:'2.1.0'
 }));
 
 // ── AUTH ──────────────────────────────────────────────────────
-app.post('/api/auth/register', async (req, res) => {
-  const { email, password, taller_name } = req.body;
-  if (!email || !password) return res.status(400).json({ ok: false, error: 'Email y contraseña requeridos' });
+app.post('/api/auth/register', authLimiter, async (req, res) => {
   try {
-    if (db) {
-      const existing = await db.query('SELECT id FROM users WHERE email=$1', [email.toLowerCase()]);
-      if (existing.rows.length) return res.status(400).json({ ok: false, error: 'Email ya registrado' });
-      const hash = crypto.createHash('sha256').update(password).digest('hex');
-      const r = await db.query('INSERT INTO users (email, password_hash, taller_name) VALUES ($1,$2,$3) RETURNING id, email, taller_name', [email.toLowerCase(), hash, taller_name || 'Mi Taller']);
-      const user = r.rows[0];
-      const token = generateToken();
-      if (db) await db.createSession(token, user.id, user.email, user.taller_name).catch(()=>{});
-      console.log('NEW USER REGISTERED:', user.email, '|', user.taller_name, '|', new Date().toISOString());
-      return res.json({ ok: true, token, user: { id: user.id, email: user.email, tallerName: user.taller_name } });
-    } else {
-      const token = generateToken();
-      return res.json({ ok: true, token, user: { email: email.toLowerCase(), tallerName: taller_name || 'Mi Taller' } });
-    }
-  } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
+    const email     = sanitizeString(req.body.email, 255).toLowerCase();
+    const password  = req.body.password || '';
+    const tallerName = sanitizeString(req.body.taller_name || req.body.tallerName, 100) || 'Mi Taller';
+
+    if (!validateEmail(email))    return res.status(400).json({ ok: false, error: 'Email inválido' });
+    if (!validatePassword(password)) return res.status(400).json({ ok: false, error: 'La contraseña debe tener al menos 6 caracteres' });
+    if (!tallerName.trim())       return res.status(400).json({ ok: false, error: 'Ingresá el nombre del taller' });
+
+    if (!db) return res.status(503).json({ ok: false, error: 'Base de datos no disponible. Reintentá en unos segundos.' });
+
+    const existing = await db.query('SELECT id FROM users WHERE email=$1', [email]);
+    if (existing.rows.length) return res.status(400).json({ ok: false, error: 'Ya existe una cuenta con ese email' });
+
+    const hash = crypto.createHash('sha256').update(password).digest('hex');
+    const r = await db.query(
+      'INSERT INTO users (email, password_hash, taller_name) VALUES ($1,$2,$3) RETURNING id, email, taller_name',
+      [email, hash, tallerName]
+    );
+    const user = r.rows[0];
+    const token = generateToken();
+    await db.createSession(token, user.id, user.email, user.taller_name);
+    console.log('NEW USER:', user.email, '|', user.taller_name, '|', new Date().toISOString());
+    res.json({ ok: true, token, user: { id: user.id, email: user.email, tallerName: user.taller_name } });
+  } catch(e) {
+    console.error('Register error:', e.message);
+    res.status(500).json({ ok: false, error: safeError(e, 'Error al crear la cuenta') });
+  }
 });
 
-app.post('/api/auth/login', async (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ ok: false, error: 'Credenciales requeridas' });
+app.post('/api/auth/login', authLimiter, async (req, res) => {
   try {
-    if (db) {
-      const hash = crypto.createHash('sha256').update(password).digest('hex');
-      const r = await db.query('SELECT id, email, taller_name FROM users WHERE email=$1 AND password_hash=$2', [email.toLowerCase(), hash]);
-      if (!r.rows.length) return res.status(401).json({ ok: false, error: 'Email o contraseña incorrectos' });
-      const user = r.rows[0];
-      const token = generateToken();
-      console.log('NEW USER REGISTERED:', user.email, '|', user.taller_name, '|', new Date().toISOString());
-      return res.json({ ok: true, token, user: { id: user.id, email: user.email, tallerName: user.taller_name } });
-    } else {
-      return res.status(401).json({ ok: false, error: 'Email o contraseña incorrectos' });
-    }
-  } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
+    const email    = sanitizeString(req.body.email, 255).toLowerCase();
+    const password = req.body.password || '';
+
+    if (!validateEmail(email)) return res.status(400).json({ ok: false, error: 'Email inválido' });
+    if (!password)             return res.status(400).json({ ok: false, error: 'Contraseña requerida' });
+    if (!db) return res.status(503).json({ ok: false, error: 'Base de datos no disponible' });
+
+    const hash = crypto.createHash('sha256').update(password).digest('hex');
+    const r = await db.query(
+      'SELECT id, email, taller_name FROM users WHERE email=$1 AND password_hash=$2',
+      [email, hash]
+    );
+    if (!r.rows.length) return res.status(401).json({ ok: false, error: 'Email o contraseña incorrectos' });
+
+    const user  = r.rows[0];
+    const token = generateToken();
+    await db.createSession(token, user.id, user.email, user.taller_name);
+    res.json({ ok: true, token, user: { id: user.id, email: user.email, tallerName: user.taller_name } });
+  } catch(e) {
+    console.error('Login error:', e.message);
+    res.status(500).json({ ok: false, error: safeError(e, 'Error al iniciar sesión') });
+  }
 });
 
 app.post('/api/auth/logout', async (req, res) => {
-  const token = req.headers['x-auth-token'];
-  if (token && db) await db.deleteSession(token).catch(()=>{});
-  res.json({ ok: true });
+  try {
+    const token = req.headers['x-auth-token'];
+    if (token && db) await db.deleteSession(token).catch(()=>{});
+    res.json({ ok: true });
+  } catch(e) { res.json({ ok: true }); }
+});
+
+app.get('/api/auth/me', async (req, res) => {
+  try {
+    const token = req.headers['x-auth-token'];
+    if (!token) return res.status(401).json({ ok: false, error: 'Sin token' });
+    if (!db) return res.status(503).json({ ok: false, error: 'Sin DB' });
+    const session = await db.getSession(token);
+    if (!session) return res.status(401).json({ ok: false, error: 'Sesión expirada' });
+    res.json({ ok: true, user: { id: session.user_id, email: session.email, tallerName: session.taller || session.taller_name } });
+  } catch(e) { res.status(401).json({ ok: false, error: 'Token inválido' }); }
 });
 
 // ── OBD ──────────────────────────────────────────────────────
@@ -219,86 +330,168 @@ app.get('/api/obd/status', (req, res) => res.json({
 
 // ── VEHICLES ─────────────────────────────────────────────────
 app.get('/api/vehicles', async (req,res) => {
-  if(!db) return res.json({ok:true,data:[]});
-  try { res.json({ok:true,data:await db.getVehicles()}); } catch(e){res.status(500).json({ok:false,error:e.message});}
+  try {
+    if (!db) return res.json({ok:true,data:[]});
+    res.json({ok:true,data:await db.getVehicles()});
+  } catch(e) { res.status(500).json({ok:false,error:safeError(e)}); }
 });
+
 app.get('/api/vehicles/:id', async (req,res) => {
-  if(!db) return res.status(503).json({ok:false,error:'Sin DB'});
-  try { const v=await db.getVehicle(req.params.id); v?res.json({ok:true,data:v}):res.status(404).json({ok:false,error:'No encontrado'}); } catch(e){res.status(500).json({ok:false,error:e.message});}
+  try {
+    if (!db) return res.status(503).json({ok:false,error:'Sin DB'});
+    const id = parseInt(req.params.id);
+    if (!id) return res.status(400).json({ok:false,error:'ID inválido'});
+    const v = await db.getVehicle(id);
+    v ? res.json({ok:true,data:v}) : res.status(404).json({ok:false,error:'No encontrado'});
+  } catch(e) { res.status(500).json({ok:false,error:safeError(e)}); }
 });
+
 app.post('/api/vehicles', async (req,res) => {
-  if(!db) return res.status(503).json({ok:false,error:'Sin DB'});
-  try { res.json({ok:true,data:await db.createVehicle(req.body)}); } catch(e){res.status(500).json({ok:false,error:e.message});}
+  try {
+    if (!db) return res.status(503).json({ok:false,error:'Sin DB'});
+    const { make, model, year, engine, vin, owner_name } = req.body;
+    if (!make || !model) return res.status(400).json({ok:false,error:'Marca y modelo requeridos'});
+    const clean = {
+      make:       sanitizeString(make, 50),
+      model:      sanitizeString(model, 50),
+      year:       year ? parseInt(year) : null,
+      engine:     sanitizeString(engine||'', 50),
+      vin:        sanitizeString(vin||'', 20).toUpperCase(),
+      owner_name: sanitizeString(owner_name||'', 100),
+    };
+    res.json({ok:true,data:await db.createVehicle(clean)});
+  } catch(e) { res.status(500).json({ok:false,error:safeError(e)}); }
 });
+
 app.put('/api/vehicles/:id', async (req,res) => {
-  if(!db) return res.status(503).json({ok:false,error:'Sin DB'});
-  try { res.json({ok:true,data:await db.updateVehicle(req.params.id,req.body)}); } catch(e){res.status(500).json({ok:false,error:e.message});}
+  try {
+    if (!db) return res.status(503).json({ok:false,error:'Sin DB'});
+    const id = parseInt(req.params.id);
+    if (!id) return res.status(400).json({ok:false,error:'ID inválido'});
+    res.json({ok:true,data:await db.updateVehicle(id, req.body)});
+  } catch(e) { res.status(500).json({ok:false,error:safeError(e)}); }
 });
+
 app.delete('/api/vehicles/:id', async (req,res) => {
-  if(!db) return res.status(503).json({ok:false,error:'Sin DB'});
-  try { await db.deleteVehicle(req.params.id); res.json({ok:true}); } catch(e){res.status(500).json({ok:false,error:e.message});}
+  try {
+    if (!db) return res.status(503).json({ok:false,error:'Sin DB'});
+    const id = parseInt(req.params.id);
+    if (!id) return res.status(400).json({ok:false,error:'ID inválido'});
+    await db.deleteVehicle(id);
+    res.json({ok:true});
+  } catch(e) { res.status(500).json({ok:false,error:safeError(e)}); }
 });
 
 // ── SCANS ─────────────────────────────────────────────────────
 app.get('/api/vehicles/:id/scans', async (req,res) => {
-  if(!db) return res.json({ok:true,data:[]});
-  try { res.json({ok:true,data:await db.getScans(req.params.id,50)}); } catch(e){res.status(500).json({ok:false,error:e.message});}
+  try {
+    if (!db) return res.json({ok:true,data:[]});
+    const id = parseInt(req.params.id);
+    if (!id) return res.status(400).json({ok:false,error:'ID inválido'});
+    res.json({ok:true,data:await db.getScans(id, 50)});
+  } catch(e) { res.status(500).json({ok:false,error:safeError(e)}); }
 });
+
 app.post('/api/vehicles/:id/scans', async (req,res) => {
-  if(!db) return res.status(503).json({ok:false,error:'Sin DB'});
-  try { res.json({ok:true,data:await db.saveScan(req.params.id,req.body.dtcs,req.body.live_data)}); } catch(e){res.status(500).json({ok:false,error:e.message});}
+  try {
+    if (!db) return res.status(503).json({ok:false,error:'Sin DB'});
+    const id = parseInt(req.params.id);
+    if (!id) return res.status(400).json({ok:false,error:'ID inválido'});
+    res.json({ok:true,data:await db.saveScan(id, req.body.dtcs||[], req.body.live_data||{})});
+  } catch(e) { res.status(500).json({ok:false,error:safeError(e)}); }
+});
+
+app.post('/api/vehicles/:id/scans/full', async (req,res) => {
+  try {
+    if (!db) return res.status(503).json({ok:false,error:'Sin DB'});
+    res.json({ok:true,data:await db.saveFullScan(parseInt(req.params.id), req.body)});
+  } catch(e) { res.status(500).json({ok:false,error:safeError(e)}); }
+});
+
+// ── HISTORIAL ────────────────────────────────────────────────
+app.get('/api/vehicles/:id/history', async (req,res) => {
+  try {
+    if (!db) return res.json({ok:true,data:{scans:[],resolutions:[],dtc_stats:[],cost_by_month:[]}});
+    res.json({ok:true,data:await db.getVehicleHistory(parseInt(req.params.id))});
+  } catch(e) { res.status(500).json({ok:false,error:safeError(e)}); }
+});
+
+app.patch('/api/scans/:id/note', async (req,res) => {
+  try {
+    if (!db) return res.status(503).json({ok:false,error:'Sin DB'});
+    const note = sanitizeString(req.body.note||'', 500);
+    res.json({ok:true,data:await db.addScanNote(parseInt(req.params.id), note)});
+  } catch(e) { res.status(500).json({ok:false,error:safeError(e)}); }
 });
 
 // ── JOBS ──────────────────────────────────────────────────────
 app.get('/api/jobs', async (req,res) => {
-  if(!db) return res.json({ok:true,data:[]});
-  try { res.json({ok:true,data:await db.getJobs(req.query.status)}); } catch(e){res.status(500).json({ok:false,error:e.message});}
+  try {
+    if (!db) return res.json({ok:true,data:[]});
+    res.json({ok:true,data:await db.getJobs(req.query.status)});
+  } catch(e) { res.status(500).json({ok:false,error:safeError(e)}); }
 });
+
 app.post('/api/jobs', async (req,res) => {
-  if(!db) return res.status(503).json({ok:false,error:'Sin DB'});
-  try { res.json({ok:true,data:await db.createJob(req.body)}); } catch(e){res.status(500).json({ok:false,error:e.message});}
+  try {
+    if (!db) return res.status(503).json({ok:false,error:'Sin DB'});
+    res.json({ok:true,data:await db.createJob(req.body)});
+  } catch(e) { res.status(500).json({ok:false,error:safeError(e)}); }
 });
+
 app.patch('/api/jobs/:id/status', async (req,res) => {
-  if(!db) return res.status(503).json({ok:false,error:'Sin DB'});
-  try { res.json({ok:true,data:await db.updateJobStatus(req.params.id,req.body.status)}); } catch(e){res.status(500).json({ok:false,error:e.message});}
+  try {
+    if (!db) return res.status(503).json({ok:false,error:'Sin DB'});
+    const status = req.body.status;
+    if (!['diag','repair','done'].includes(status)) return res.status(400).json({ok:false,error:'Estado inválido'});
+    res.json({ok:true,data:await db.updateJobStatus(parseInt(req.params.id), status)});
+  } catch(e) { res.status(500).json({ok:false,error:safeError(e)}); }
 });
 
 // ── RESOLUTIONS ───────────────────────────────────────────────
 app.get('/api/resolutions/:code', async (req,res) => {
-  if(!db) return res.json({ok:true,data:{resolutions:[],stats:[]}});
   try {
-    const [resolutions,stats] = await Promise.all([db.getResolutions(req.params.code.toUpperCase()),db.getResolutionStats(req.params.code.toUpperCase())]);
+    if (!db) return res.json({ok:true,data:{resolutions:[],stats:[]}});
+    const code = req.params.code.toUpperCase().replace(/[^A-Z0-9]/g,'');
+    const [resolutions,stats] = await Promise.all([
+      db.getResolutions(code), db.getResolutionStats(code)
+    ]);
     res.json({ok:true,data:{resolutions,stats}});
-  } catch(e){res.status(500).json({ok:false,error:e.message});}
+  } catch(e) { res.status(500).json({ok:false,error:safeError(e)}); }
 });
+
 app.post('/api/resolutions', async (req,res) => {
-  if(!db) return res.status(503).json({ok:false,error:'Sin DB'});
-  try { res.json({ok:true,data:await db.saveResolution(req.body)}); } catch(e){res.status(500).json({ok:false,error:e.message});}
+  try {
+    if (!db) return res.status(503).json({ok:false,error:'Sin DB'});
+    res.json({ok:true,data:await db.saveResolution(req.body)});
+  } catch(e) { res.status(500).json({ok:false,error:safeError(e)}); }
 });
 
 // ── VEHICLE PROFILES ──────────────────────────────────────────
 app.get('/api/vehicles/:id/profile', async (req,res) => {
-  if(!db) return res.json({ok:true,data:null});
-  try { res.json({ok:true,data:await db.getProfile(req.params.id)}); } catch(e){res.status(500).json({ok:false,error:e.message});}
+  try {
+    if (!db) return res.json({ok:true,data:null});
+    res.json({ok:true,data:await db.getProfile(parseInt(req.params.id))});
+  } catch(e) { res.status(500).json({ok:false,error:safeError(e)}); }
 });
 
-app.post('/api/vehicles/:id/profile/generate', async (req,res) => {
-  const vehicleId = req.params.id;
-  if(!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ok:false,error:'API key no configurada'});
+app.post('/api/vehicles/:id/profile/generate', aiLimiter, async (req,res) => {
   try {
+    if (!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ok:false,error:'API key no configurada'});
+    const vehicleId = parseInt(req.params.id);
     const vehicle = db ? await db.getVehicle(vehicleId) : req.body;
     const scans   = db ? await db.getScans(vehicleId, 20) : [];
-    const make  = vehicle?.make  || req.body.make  || 'Desconocido';
-    const model = vehicle?.model || req.body.model || 'Desconocido';
-    const year  = vehicle?.year  || req.body.year  || '';
-    const engine= vehicle?.engine|| req.body.engine|| '';
-    const allDtcs = [...new Set(scans.flatMap(s => s.dtcs || []))];
+    const make    = sanitizeString(vehicle?.make||req.body.make||'Desconocido', 50);
+    const model   = sanitizeString(vehicle?.model||req.body.model||'Desconocido', 50);
+    const year    = vehicle?.year||req.body.year||'';
+    const engine  = vehicle?.engine||req.body.engine||'';
+    const allDtcs = [...new Set(scans.flatMap(s => s.dtcs||[]))];
 
     const prompt = 'Sos un experto en diagnóstico automotriz para Argentina. Generá un perfil técnico completo para: '
       + make + ' ' + model + ' ' + year + ' ' + engine + '. '
       + (allDtcs.length ? 'DTCs detectados: ' + allDtcs.join(', ') + '. ' : '')
       + 'Priorizá información del mercado argentino. '
-      + 'SOLO JSON: {"overview":"resumen 2-3 oraciones","common_issues":[{"title":"problema","description":"desc","frequency":"Muy frecuente|Frecuente|Ocasional","estimated_cost":"$XX-$XXX USD"}],"maintenance_schedule":{"oil_change_km":5000,"timing_belt_km":90000,"spark_plugs_km":30000,"notes":"notas modelo"},"specs":{"fuel_type":"Nafta/Diesel/GNC","fuel_capacity_liters":50,"oil_type":"5W30","oil_capacity_liters":4.2,"tire_size":"195/65 R15","coolant_type":"OAT"},"argentina_notes":"disponibilidad repuestos y precios Argentina","dtc_patterns":"analisis de los DTCs detectados","reliability_score":7,"sources":["fuente1"]}';
+      + 'SOLO JSON: {"overview":"resumen","common_issues":[{"title":"","description":"","frequency":"Muy frecuente|Frecuente|Ocasional","estimated_cost":"$XX-$XXX USD"}],"maintenance_schedule":{"oil_change_km":5000,"timing_belt_km":90000,"spark_plugs_km":30000,"notes":""},"specs":{"fuel_type":"Nafta","fuel_capacity_liters":50,"oil_type":"5W30","oil_capacity_liters":4.2,"tire_size":"195/65 R15","coolant_type":"OAT"},"argentina_notes":"","dtc_patterns":"","reliability_score":7,"sources":[]}';
 
     const raw = await callClaude(prompt, true, 1800);
     const clean = raw.replace(/```json/g,'').replace(/```/g,'');
@@ -308,29 +501,32 @@ app.post('/api/vehicles/:id/profile/generate', async (req,res) => {
     profileData.vehicle = { make, model, year, engine };
     profileData.generated_at = new Date().toISOString();
     profileData.dtc_history = allDtcs;
-    profileData.scan_count = scans.length;
     if (db) await db.upsertProfile(vehicleId, profileData);
     res.json({ok:true,data:profileData});
-  } catch(e) { res.status(500).json({ok:false,error:e.message}); }
+  } catch(e) {
+    console.error('Profile error:', e.message);
+    res.status(500).json({ok:false,error:safeError(e,'Error al generar perfil')});
+  }
 });
 
-// ── DTC KNOWLEDGE BASE ────────────────────────────────────────
+// ── DTC KNOWLEDGE ─────────────────────────────────────────────
 app.get('/api/dtc/search', async (req,res) => {
-  const q = req.query.q || '';
-  if (!q) return res.json({ok:true,data:[]});
-  if (!db) return res.json({ok:true,data:[]});
-  try { res.json({ok:true,data:await db.searchDTCs(q,20)}); } catch(e){res.status(500).json({ok:false,error:e.message});}
+  try {
+    const q = sanitizeString(req.query.q||'', 20);
+    if (!q || !db) return res.json({ok:true,data:[]});
+    res.json({ok:true,data:await db.searchDTCs(q,20)});
+  } catch(e) { res.status(500).json({ok:false,error:safeError(e)}); }
 });
 
 app.get('/api/dtc/:code', async (req,res) => {
-  const code = req.params.code.toUpperCase();
-  if (db) {
-    try {
+  try {
+    const code = req.params.code.toUpperCase().replace(/[^A-Z0-9]/g,'').substring(0,10);
+    if (db) {
       const local = await db.getDTCWithFullData(code);
       if (local) return res.json({ok:true,data:local,source:'local_db'});
-    } catch(e) {}
-  }
-  res.status(404).json({ok:false,error:'No encontrado en base local'});
+    }
+    res.status(404).json({ok:false,error:'No encontrado'});
+  } catch(e) { res.status(500).json({ok:false,error:safeError(e)}); }
 });
 
 // ── AI HELPERS ────────────────────────────────────────────────
@@ -338,510 +534,302 @@ async function callClaude(prompt, webSearch, maxTokens) {
   const fetch = require('node-fetch');
   maxTokens = maxTokens || 1500;
   const body = { model:'claude-sonnet-4-20250514', max_tokens:maxTokens, messages:[{role:'user',content:prompt}] };
-  if(webSearch) body.tools = [{type:'web_search_20250305',name:'web_search'}];
+  if (webSearch) body.tools = [{type:'web_search_20250305',name:'web_search'}];
   const r = await fetch('https://api.anthropic.com/v1/messages',{
     method:'POST',
     headers:{'Content-Type':'application/json','x-api-key':process.env.ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01'},
     body:JSON.stringify(body)
   });
+  if (!r.ok) throw new Error('Claude API error: ' + r.status);
   const data = await r.json();
-  let raw=''; for(const b of (data.content||[])) if(b.type==='text') raw+=b.text;
+  let raw='';
+  for (const b of (data.content||[])) if(b.type==='text') raw+=b.text;
   return raw;
 }
 
-// ── AI DIAGNOSE (smart differential) ─────────────────────────
-app.post('/api/ai/diagnose', async (req,res) => {
-  const { code, brand, model, freeze_frame, live_data, scanner_data } = req.body;
-  if (!code) return res.status(400).json({ok:false,error:'Código requerido'});
-  if (!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ok:false,error:'API key no configurada'});
+// ── AI DIAGNOSE ───────────────────────────────────────────────
+app.post('/api/ai/diagnose', aiLimiter, async (req,res) => {
   try {
-    // 1. Local DB lookup
-    let localDTC = null;
-    if (db) localDTC = await db.getDTCWithFullData(code).catch(()=>null);
+    const code   = sanitizeString(req.body.code||'', 10).toUpperCase().replace(/[^A-Z0-9]/g,'');
+    const brand  = sanitizeString(req.body.brand||'', 50);
+    const model  = sanitizeString(req.body.model||'', 50);
+    if (!code) return res.status(400).json({ok:false,error:'Código requerido'});
+    if (!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ok:false,error:'API key no configurada'});
 
-    // 2. Community resolutions
-    let communityData = [];
-    if (db) communityData = await db.getResolutionStats(code).catch(()=>[]);
-
-    // 3. Build data strings safely (no nested template literals)
-    const communityLines = communityData.length > 0
-      ? communityData.map(function(r) {
-          return r.cause_found + ': ' + r.count + ' casos' + (r.avg_cost ? ', $' + Math.round(r.avg_cost) + ' USD promedio' : '');
-        }).join(' | ')
-      : 'Sin datos de comunidad aun';
-
-    const dataSource = (live_data && Object.keys(live_data).length > 0) ? live_data : (freeze_frame || {});
-    const scannerLines = Object.values(dataSource)
-      .filter(function(v) { return v && v.value !== undefined && v.value !== ''; })
-      .map(function(v) { return v.label + ': ' + v.value + v.unit; })
-      .join(', ') || scanner_data || 'No disponible';
-
-    let localLines = 'Sin datos tecnicos locales para este codigo.';
-    if (localDTC) {
-      localLines = 'Descripcion: ' + (localDTC.description || '') + ' | '
-        + 'Causas: ' + (localDTC.causes || []).join(', ') + ' | '
-        + 'Freeze frame hints: ' + (localDTC.freeze_frame_hints || 'N/A') + ' | '
-        + 'Costo LATAM: ' + (localDTC.latam_cost_usd || 'N/A') + ' | '
-        + 'Notas Argentina: ' + (localDTC.latam_notes || 'N/A');
+    let localDTC = null, communityData = [];
+    if (db) {
+      [localDTC, communityData] = await Promise.all([
+        db.getDTCWithFullData(code).catch(()=>null),
+        db.getResolutionStats(code).catch(()=>[]),
+      ]);
     }
 
-    // 4. Build prompt using string concatenation to avoid template literal issues
-    const prompt = 'Sos un experto en diagnostico automotriz para Argentina con datos tecnicos completos. '
-      + 'Codigo DTC: ' + code + '. '
-      + 'Vehiculo: ' + (brand || 'Universal') + ' ' + (model || '') + '. '
-      + 'BASE DE DATOS LOCAL: ' + localLines + '. '
-      + 'DATOS SCANNER ACTUALES: ' + scannerLines + '. '
-      + 'RESOLUCIONES COMUNIDAD: ' + communityLines + '. '
-      + 'Interpreta los datos del scanner en relacion al codigo. '
-      + 'Calcula probabilidad de cada causa basandote en los datos disponibles. '
-      + 'SOLO JSON: {"code":"' + code + '",'
-      + '"primary_diagnosis":"diagnostico mas probable",'
-      + '"confidence":85,'
-      + '"scanner_interpretation":"que dicen los valores del scanner",'
-      + '"recommended_action":"primer paso concreto a realizar",'
-      + '"differential":[{"cause":"nombre causa","probability":75,"evidence_for":"datos a favor","evidence_against":"datos en contra","confirming_test":"prueba confirmatoria","estimated_cost_usd":"XX-XXX"}],'
-      + '"parts_to_check":["componente1"],'
-      + '"tools_needed":["herramienta1"],'
-      + '"latam_availability":"disponibilidad repuestos Argentina"}';
+    const communityLines = communityData.length > 0
+      ? communityData.map(r => r.cause_found+': '+r.count+' casos'+(r.avg_cost?', $'+Math.round(r.avg_cost)+' USD':'')).join(' | ')
+      : 'Sin datos';
+
+    const dataSource = (req.body.live_data && Object.keys(req.body.live_data).length) ? req.body.live_data : (req.body.freeze_frame||{});
+    const scannerLines = Object.values(dataSource)
+      .filter(v => v && v.value !== undefined)
+      .map(v => v.label+': '+v.value+v.unit).join(', ') || req.body.scanner_data || 'No disponible';
+
+    let localLines = 'Sin datos locales.';
+    if (localDTC) {
+      localLines = 'Descripcion: '+(localDTC.description||'')+' | Causas: '+(localDTC.causes||[]).join(', ')+' | Costo LATAM: '+(localDTC.latam_cost_usd||'N/A');
+    }
+
+    const prompt = 'Experto diagnostico automotriz Argentina. Codigo: '+code+'. Vehiculo: '+brand+' '+model+'. '
+      + 'BASE LOCAL: '+localLines+'. SCANNER: '+scannerLines+'. COMUNIDAD: '+communityLines+'. '
+      + 'SOLO JSON: {"code":"'+code+'","primary_diagnosis":"","confidence":85,"scanner_interpretation":"","recommended_action":"","differential":[{"cause":"","probability":75,"evidence_for":"","evidence_against":"","confirming_test":"","estimated_cost_usd":"XX-XXX"}],"parts_to_check":[],"tools_needed":[],"latam_availability":""}';
 
     const raw = await callClaude(prompt, false, 1500);
     const clean = raw.replace(/```json/g,'').replace(/```/g,'');
     const match = clean.match(/\{[\s\S]*\}/);
-    const parsed = match ? JSON.parse(match[0]) : { code, primary_diagnosis: raw, confidence: 50, differential: [] };
-
-    if (localDTC) {
-      parsed.local_causes = localDTC.causes;
-      parsed.local_steps  = localDTC.diagnostic_steps;
-      parsed.latam_cost   = localDTC.latam_cost_usd;
-      parsed.latam_notes  = localDTC.latam_notes;
-    }
+    const parsed = match ? JSON.parse(match[0]) : { code, primary_diagnosis: raw, confidence:50, differential:[] };
+    if (localDTC) { parsed.local_causes=localDTC.causes; parsed.latam_cost=localDTC.latam_cost_usd; }
     parsed.community_data = communityData;
-
     res.json({ok:true,data:parsed});
-  } catch(e) { res.status(500).json({ok:false,error:e.message}); }
+  } catch(e) {
+    console.error('Diagnose error:', e.message);
+    res.status(500).json({ok:false,error:safeError(e,'Error en diagnóstico')});
+  }
 });
 
 // ── AI RESEARCH ───────────────────────────────────────────────
-app.post('/api/ai/research', async (req,res) => {
-  const {code,brand,model,symptoms,scanner_data} = req.body;
-  if(!code) return res.status(400).json({ok:false,error:'Codigo requerido'});
-  if(!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ok:false,error:'API key no configurada'});
+app.post('/api/ai/research', aiLimiter, async (req,res) => {
   try {
+    const code    = sanitizeString(req.body.code||'', 10).toUpperCase().replace(/[^A-Z0-9]/g,'');
+    const brand   = sanitizeString(req.body.brand||'', 50);
+    const model   = sanitizeString(req.body.model||'', 50);
+    const symptoms= sanitizeString(req.body.symptoms||'', 200);
+    const scanner = sanitizeString(req.body.scanner_data||'', 200);
+    if (!code) return res.status(400).json({ok:false,error:'Código requerido'});
+    if (!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ok:false,error:'API key no configurada'});
+
     let localContext = '';
     if (db) {
       const localDTC = await db.getDTCWithFullData(code).catch(()=>null);
-      if (localDTC) {
-        localContext = 'Datos de base local: causas=' + (localDTC.causes||[]).join(', ')
-          + ', costo LATAM=' + (localDTC.latam_cost_usd||'N/A')
-          + ', notas AR=' + (localDTC.latam_notes||'N/A') + '. Complementa con busqueda web.';
-      }
+      if (localDTC) localContext = 'Datos locales: causas='+( localDTC.causes||[]).join(', ')+', costo LATAM='+(localDTC.latam_cost_usd||'N/A')+'. ';
     }
-    const prompt = 'Sos un experto tecnico automotriz para LATINOAMERICA (Argentina). '
-      + 'Investiga el codigo DTC ' + code + ' para: ' + (brand||'Universal') + ' ' + (model||'') + '. '
-      + (symptoms ? 'Sintomas: ' + symptoms + '. ' : '')
-      + (scanner_data ? 'Datos scanner: ' + scanner_data + '. ' : '')
-      + localContext + ' '
-      + 'Busca en fuentes tecnicas reales. Prioriza info y precios para Argentina/LATAM. '
-      + 'SOLO JSON: {"code":"' + code + '","title":"titulo","severity":"Critico|Moderado|Bajo","system":"sistema","description":"descripcion tecnica","brands":["marca"],"causes":["causa1","causa2","causa3","causa4","causa5"],"diagnosis_steps":["paso1","paso2","paso3","paso4"],"brand_specific":"notas TSB","latam_notes":"disponibilidad y precios Argentina","scanner_interpretation":"interpretacion datos","costs":{"diagnostic":"$XX","repair_low":"$XXX","repair_high":"$XXXX","latam_parts_usd":"precio repuesto"},"sources":["url1","url2"]}';
+
+    const prompt = 'Experto tecnico automotriz LATAM Argentina. Codigo DTC '+code+' para '+brand+' '+model+'. '
+      + (symptoms?'Sintomas: '+symptoms+'. ':'') + (scanner?'Scanner: '+scanner+'. ':'') + localContext
+      + 'Busca en fuentes tecnicas. Prioriza info y precios para Argentina. '
+      + 'SOLO JSON: {"code":"'+code+'","title":"","severity":"Critico|Moderado|Bajo","system":"","description":"","brands":[],"causes":[],"diagnosis_steps":[],"brand_specific":"","latam_notes":"","scanner_interpretation":"","costs":{"diagnostic":"","repair_low":"","repair_high":"","latam_parts_usd":""},"sources":[]}';
 
     const raw = await callClaude(prompt, true, 1500);
     const clean = raw.replace(/```json/g,'').replace(/```/g,'');
     const match = clean.match(/\{[\s\S]*\}/);
-    const parsed = match ? JSON.parse(match[0]) : {code,title:'Resultado',description:raw,causes:[],costs:{}};
-    if(db && parsed.code) await db.upsertDTCInfo(parsed).catch(()=>{});
+    const parsed = match ? JSON.parse(match[0]) : {code, title:'Resultado', description:raw, causes:[], costs:{}};
+    if (db && parsed.code) await db.upsertDTCInfo(parsed).catch(()=>{});
     res.json({ok:true,data:parsed});
-  } catch(e){res.status(500).json({ok:false,error:e.message});}
+  } catch(e) {
+    console.error('Research error:', e.message);
+    res.status(500).json({ok:false,error:safeError(e,'Error en investigación')});
+  }
 });
 
-app.post('/api/ai/analyze-multi', async (req,res) => {
-  const {codes,brand,model} = req.body;
-  if(!codes?.length) return res.status(400).json({ok:false,error:'Codigos requeridos'});
-  if(!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ok:false,error:'API key no configurada'});
+app.post('/api/ai/analyze-multi', aiLimiter, async (req,res) => {
   try {
-    const prompt = 'Experto diagnostico automotriz LATAM. ' + (brand||'') + ' ' + (model||'') + '. DTCs simultaneos: ' + codes.join(', ') + '. '
-      + 'Identifica causa raiz. SOLO JSON: {"root_cause":"PXXXX","root_explanation":"por que","codes":[{"code":"PXXXX","is_root":true,"title":"titulo","role":"CAUSA RAIZ|CONSECUENCIA|INDEPENDIENTE","description":"desc","causes":["c1","c2"],"repair_order":1,"estimated_cost":"$XX-$XXX"}],"repair_sequence":"orden recomendado"}';
-    const raw = await callClaude(prompt, true, 1200);
+    const codes = (req.body.codes||[]).slice(0,10).map(c => sanitizeString(c,10).toUpperCase().replace(/[^A-Z0-9]/g,''));
+    const brand = sanitizeString(req.body.brand||'',50);
+    const model = sanitizeString(req.body.model||'',50);
+    if (!codes.length) return res.status(400).json({ok:false,error:'Códigos requeridos'});
+    if (!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ok:false,error:'API key no configurada'});
+
+    const prompt = 'Experto diagnostico automotriz LATAM. '+brand+' '+model+'. DTCs simultaneos: '+codes.join(', ')+'. '
+      + 'Identifica causa raiz. SOLO JSON: {"root_cause":"","root_explanation":"","codes":[{"code":"","is_root":true,"title":"","role":"CAUSA RAIZ|CONSECUENCIA|INDEPENDIENTE","description":"","causes":[],"repair_order":1,"estimated_cost":"$XX-$XXX"}],"repair_sequence":""}';
+    const raw   = await callClaude(prompt, true, 1200);
     const clean = raw.replace(/```json/g,'').replace(/```/g,'');
     const match = clean.match(/\{[\s\S]*\}/);
     res.json({ok:true,data:match?JSON.parse(match[0]):{codes:[],root_explanation:raw}});
-  } catch(e){res.status(500).json({ok:false,error:e.message});}
+  } catch(e) { res.status(500).json({ok:false,error:safeError(e)}); }
 });
 
-app.post('/api/ai/symptoms', async (req,res) => {
-  const {symptoms,brand,model,scanner_data} = req.body;
-  if(!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ok:false,error:'API key no configurada'});
+app.post('/api/ai/symptoms', aiLimiter, async (req,res) => {
   try {
-    const prompt = 'Experto diagnostico LATAM. ' + (brand||'') + ' ' + (model||'') + '. Sintomas: ' + (symptoms||[]).join(', ') + '. '
-      + (scanner_data ? 'Scanner: ' + JSON.stringify(scanner_data) + '. ' : '')
-      + 'SOLO JSON: {"probable_dtcs":[{"code":"PXXXX","probability":85,"title":"titulo","why":"razon","system":"sistema"}],"recommended_tests":["test1","test2"],"urgency":"URGENTE|MODERADO|BAJO","urgency_reason":"razon"}';
-    const raw = await callClaude(prompt, false, 800);
+    const symptoms = (req.body.symptoms||[]).slice(0,20).map(s=>sanitizeString(s,50));
+    const brand    = sanitizeString(req.body.brand||'',50);
+    const model    = sanitizeString(req.body.model||'',50);
+    if (!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ok:false,error:'API key no configurada'});
+
+    const prompt = 'Experto diagnostico LATAM. '+brand+' '+model+'. Sintomas: '+symptoms.join(', ')+'. '
+      + 'SOLO JSON: {"probable_dtcs":[{"code":"","probability":85,"title":"","why":"","system":""}],"recommended_tests":[],"urgency":"URGENTE|MODERADO|BAJO","urgency_reason":""}';
+    const raw   = await callClaude(prompt, false, 800);
     const clean = raw.replace(/```json/g,'').replace(/```/g,'');
     const match = clean.match(/\{[\s\S]*\}/);
     res.json({ok:true,data:match?JSON.parse(match[0]):{probable_dtcs:[],urgency:'MODERADO',urgency_reason:raw}});
-  } catch(e){res.status(500).json({ok:false,error:e.message});}
+  } catch(e) { res.status(500).json({ok:false,error:safeError(e)}); }
 });
 
-app.post('/api/ai/chat', async (req,res) => {
-  const {message,context} = req.body;
-  if(!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ok:false,error:'API key no configurada'});
+app.post('/api/ai/chat', aiLimiter, async (req,res) => {
   try {
-    const prompt = 'Sos un experto en diagnostico automotriz para Argentina. Responde en espanol, tecnico y conciso. Max 3 parrafos. Contexto: '
-      + JSON.stringify(context||{}) + '. Pregunta: ' + message;
+    const message = sanitizeString(req.body.message||'', 500);
+    if (!message) return res.status(400).json({ok:false,error:'Mensaje requerido'});
+    if (!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ok:false,error:'API key no configurada'});
+
+    const prompt = 'Sos un experto en diagnóstico automotriz para Argentina. Responde en español, técnico y conciso. Max 3 párrafos. Contexto: '
+      + JSON.stringify(req.body.context||{}) + '. Pregunta: ' + message;
     const response = await callClaude(prompt, false, 600);
     res.json({ok:true,data:{response}});
-  } catch(e){res.status(500).json({ok:false,error:e.message});}
+  } catch(e) { res.status(500).json({ok:false,error:safeError(e)}); }
 });
 
-
-// ── LEARNING SYSTEM — aprendizaje continuo ───────────────────
-// Cada caso resuelto alimenta el conocimiento de la plataforma
-
+// ── LEARNING ─────────────────────────────────────────────────
 app.post('/api/learn/case', async (req,res) => {
-  // Guardar caso completo: DTC + datos scanner + freeze frame + causa + solucion + costo
-  const { vehicle_id, dtc_code, brand, model, year, engine,
-          scanner_snapshot, freeze_frame, symptoms,
-          cause_found, fix_applied, parts_replaced,
-          cost_usd, resolution_time_hours, confirmed, mechanic_notes } = req.body;
-
-  if (!dtc_code || !cause_found) return res.status(400).json({ok:false,error:'DTC y causa requeridos'});
-
   try {
-    if (db) {
-      await db.query(`
-        INSERT INTO resolutions
-          (vehicle_id, dtc_code, cause_found, fix_applied, cost_usd, mechanic, confirmed,
-           parts_used)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-      `, [
-        vehicle_id||null, dtc_code.toUpperCase(), cause_found, fix_applied||cause_found,
-        cost_usd||null, mechanic_notes||null, true,
-        parts_replaced||[]
-      ]);
+    const dtc_code   = sanitizeString(req.body.dtc_code||'',10).toUpperCase().replace(/[^A-Z0-9]/g,'');
+    const cause_found= sanitizeString(req.body.cause_found||'',500);
+    if (!dtc_code||!cause_found) return res.status(400).json({ok:false,error:'DTC y causa requeridos'});
+    if (!db) return res.json({ok:true,message:'Sin DB — no guardado'});
 
-      // Update DTC stats in dtcs table — incrementar confianza de causas
-      const existing = await db.getDTCWithFullData(dtc_code.toUpperCase()).catch(()=>null);
-      if (existing) {
-        const causes = existing.causes || [];
-        // Move confirmed cause to top if not already there
-        const idx = causes.findIndex(c => c.toLowerCase().includes(cause_found.toLowerCase().split(' ')[0]));
-        if (idx > 0) {
-          const confirmed_cause = causes.splice(idx, 1)[0];
-          causes.unshift(confirmed_cause);
-          await db.query('UPDATE dtcs SET causes=$1 WHERE code=$2', [causes, dtc_code.toUpperCase()]).catch(()=>{});
-        }
-      }
-    }
-
-    // Log para analytics futuros
-    console.log('CASE LEARNED: ' + dtc_code + ' -> ' + cause_found + ' | ' + (brand||'') + ' ' + (model||'') + ' ' + (year||''));
-
-    res.json({ok:true, message:'Caso guardado. La plataforma aprendio de este diagnostico.'});
-  } catch(e) { res.status(500).json({ok:false,error:e.message}); }
+    await db.query(
+      'INSERT INTO resolutions (vehicle_id,dtc_code,cause_found,fix_applied,cost_usd,mechanic,confirmed,parts_used) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
+      [req.body.vehicle_id||null, dtc_code, cause_found,
+       sanitizeString(req.body.fix_applied||cause_found,500),
+       req.body.cost_usd||null, sanitizeString(req.body.mechanic_notes||'',200), true, req.body.parts_replaced||[]]
+    );
+    console.log('CASE LEARNED:', dtc_code, '->', cause_found);
+    res.json({ok:true,message:'Caso guardado'});
+  } catch(e) { res.status(500).json({ok:false,error:safeError(e)}); }
 });
 
 app.get('/api/learn/stats', async (req,res) => {
-  if (!db) return res.json({ok:true,data:{total:0,top_codes:[],top_causes:[],recent:[]}});
   try {
-    const [total, topCodes, topCauses, recent] = await Promise.all([
+    if (!db) return res.json({ok:true,data:{total:0,top_codes:[],top_causes:[],recent:[]}});
+    const [total,topCodes,topCauses,recent] = await Promise.all([
       db.query('SELECT COUNT(*) as count FROM resolutions WHERE confirmed=TRUE'),
-      db.query('SELECT dtc_code, COUNT(*) as count, AVG(cost_usd) as avg_cost FROM resolutions WHERE confirmed=TRUE GROUP BY dtc_code ORDER BY count DESC LIMIT 10'),
-      db.query('SELECT cause_found, COUNT(*) as count, AVG(cost_usd) as avg_cost FROM resolutions WHERE confirmed=TRUE GROUP BY cause_found ORDER BY count DESC LIMIT 10'),
-      db.query('SELECT r.*, v.make, v.model, v.year FROM resolutions r LEFT JOIN vehicles v ON r.vehicle_id=v.id WHERE r.confirmed=TRUE ORDER BY r.created_at DESC LIMIT 20'),
+      db.query('SELECT dtc_code,COUNT(*) as count,AVG(cost_usd) as avg_cost FROM resolutions WHERE confirmed=TRUE GROUP BY dtc_code ORDER BY count DESC LIMIT 10'),
+      db.query('SELECT cause_found,COUNT(*) as count,AVG(cost_usd) as avg_cost FROM resolutions WHERE confirmed=TRUE GROUP BY cause_found ORDER BY count DESC LIMIT 10'),
+      db.query('SELECT r.*,v.make,v.model,v.year FROM resolutions r LEFT JOIN vehicles v ON r.vehicle_id=v.id WHERE r.confirmed=TRUE ORDER BY r.created_at DESC LIMIT 20'),
     ]);
-    res.json({ok:true, data:{
-      total: parseInt(total.rows[0].count),
-      top_codes: topCodes.rows,
-      top_causes: topCauses.rows,
-      recent: recent.rows,
-    }});
-  } catch(e){ res.status(500).json({ok:false,error:e.message}); }
+    res.json({ok:true,data:{total:parseInt(total.rows[0].count),top_codes:topCodes.rows,top_causes:topCauses.rows,recent:recent.rows}});
+  } catch(e) { res.status(500).json({ok:false,error:safeError(e)}); }
 });
 
-// ── FLOATING ASSISTANT — contexto completo ───────────────────
-app.post('/api/assistant/ask', async (req,res) => {
-  const { message, context } = req.body;
-  if (!message) return res.status(400).json({ok:false,error:'Mensaje requerido'});
-  if (!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ok:false,error:'API key no configurada'});
-
+// ── ASSISTANT ─────────────────────────────────────────────────
+app.post('/api/assistant/ask', aiLimiter, async (req,res) => {
   try {
-    // Build rich context from everything we know
-    const vehicle = context?.vehicle || {};
-    const dtcs    = context?.dtcs || [];
-    const scanner = context?.scanner || {};
-    const history = context?.history || [];
-    const currentView = context?.current_view || '';
+    const message = sanitizeString(req.body.message||'', 500);
+    if (!message) return res.status(400).json({ok:false,error:'Mensaje requerido'});
+    if (!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ok:false,error:'API key no configurada'});
 
-    // Get community data for active DTCs
-    let communityContext = '';
-    if (db && dtcs.length > 0) {
+    const context = req.body.context||{};
+    const vehicle = context.vehicle||{};
+    const dtcs    = (context.dtcs||[]).slice(0,10).map(d=>sanitizeString(d,10));
+    const history = (context.history||[]).slice(-6);
+
+    let communityContext='', dtcContext='';
+    if (db && dtcs.length) {
       for (const code of dtcs.slice(0,3)) {
         const stats = await db.getResolutionStats(code).catch(()=>[]);
-        if (stats.length > 0) {
-          communityContext += code + ': ' + stats.slice(0,2).map(function(s){
-            return s.cause_found + '(' + s.count + ' casos)';
-          }).join(', ') + '. ';
-        }
-      }
-    }
-
-    // Get local DTC data
-    let dtcContext = '';
-    if (db && dtcs.length > 0) {
-      for (const code of dtcs.slice(0,2)) {
+        if (stats.length) communityContext += code+': '+stats.slice(0,2).map(s=>s.cause_found+'('+s.count+' casos)').join(', ')+'. ';
         const local = await db.getDTCWithFullData(code).catch(()=>null);
-        if (local) {
-          dtcContext += code + ': ' + local.title + '. Causas: ' + (local.causes||[]).slice(0,3).join(', ') + '. ';
-        }
+        if (local) dtcContext += code+': '+(local.causes||[]).slice(0,3).join(', ')+'. ';
       }
     }
 
-    const scannerStr = Object.values(scanner)
-      .filter(function(v){ return v && v.value !== undefined; })
-      .map(function(v){ return v.label + ': ' + v.value + (v.unit||''); })
-      .join(', ') || 'Sin datos';
+    const systemPrompt = 'Sos el asistente de AutoDiag Pro para talleres en Argentina. '
+      + 'Responde en español, técnico pero claro. Máximo 3 oraciones salvo que pidan más. '
+      + 'Prioriza soluciones económicas y prácticas para Argentina. '
+      + 'Vehículo: '+(vehicle.make||'')+' '+(vehicle.model||'')+' '+(vehicle.year||'')+'. '
+      + 'DTCs activos: '+(dtcs.join(', ')||'ninguno')+'. '
+      + (dtcContext?'Info técnica: '+dtcContext:'')
+      + (communityContext?'Casos comunidad: '+communityContext:'');
 
-    const systemPrompt = 'Sos el asistente de AutoDiag Pro, una plataforma de diagnostico automotriz para talleres en Argentina. '
-      + 'Tu rol es ayudar al mecanico a diagnosticar y resolver problemas de manera practica y concisa. '
-      + 'Responde siempre en espanol, de forma tecnica pero clara. Maximo 3 oraciones por respuesta salvo que se pida mas detalle. '
-      + 'Prioriza soluciones economicas y practicas para el mercado argentino. '
-      + 'CONTEXTO ACTUAL: '
-      + 'Vehiculo: ' + (vehicle.make||'') + ' ' + (vehicle.model||'') + ' ' + (vehicle.year||'') + ' ' + (vehicle.engine||'') + '. '
-      + 'DTCs activos: ' + (dtcs.join(', ') || 'ninguno') + '. '
-      + 'Datos scanner: ' + scannerStr + '. '
-      + (dtcContext ? 'Info tecnica: ' + dtcContext : '')
-      + (communityContext ? 'Casos resueltos comunidad: ' + communityContext : '')
-      + (currentView ? 'El mecanico esta en la seccion: ' + currentView + '. ' : '')
-      + (history.length ? 'Historial conversacion: ' + history.slice(-4).map(function(h){ return h.role+': '+h.content; }).join(' | ') : '');
-
-    // Build messages including conversation history
-    const messages = [];
-    if (history.length > 0) {
-      history.slice(-6).forEach(function(h) {
-        messages.push({ role: h.role, content: h.content });
-      });
-    }
-    messages.push({ role: 'user', content: message });
+    const messages = history.map(h=>({role:h.role,content:sanitizeString(h.content,500)}));
+    messages.push({role:'user',content:message});
 
     const fetch = require('node-fetch');
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 500,
-        system: systemPrompt,
-        messages: messages
-      })
+    const r = await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':process.env.ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01'},
+      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:500,system:systemPrompt,messages})
     });
-
+    if (!r.ok) throw new Error('Claude API '+r.status);
     const data = await r.json();
-    const response = (data.content||[]).filter(function(b){ return b.type==='text'; }).map(function(b){ return b.text; }).join('');
-    res.json({ok:true, data:{ response, tokens: data.usage }});
-  } catch(e) { res.status(500).json({ok:false,error:e.message}); }
-});
-
-// ── NHTSA — Recalls, complaints y ratings oficiales del gobierno EEUU ──────
-app.get('/api/nhtsa/recalls', async (req, res) => {
-  const { make, model, year } = req.query;
-  if (!make || !model || !year) return res.status(400).json({ ok: false, error: 'make, model y year requeridos' });
-  try {
-    const fetch = require('node-fetch');
-    // Normalize: NHTSA needs English names and specific formatting
-    const makeEnc  = encodeURIComponent(make.trim());
-    const modelEnc = encodeURIComponent(model.trim());
-    const yearEnc  = encodeURIComponent(year.toString().trim());
-    
-    const url = `https://api.nhtsa.dot.gov/recalls/recallsByVehicle?make=${makeEnc}&model=${modelEnc}&modelYear=${yearEnc}`;
-    const r = await fetch(url, { timeout: 8000 });
-    const data = await r.json();
-    
-    const recalls = (data.results || []).map(rec => ({
-      id:           rec.NHTSACampaignNumber,
-      subject:      rec.Subject,
-      summary:      rec.Summary,
-      consequence:  rec.Consequence,
-      remedy:       rec.Remedy,
-      component:    rec.Component,
-      date:         rec.ReportReceivedDate,
-      manufacturer: rec.Manufacturer,
-      park_it:      rec.ParkIt,
-    }));
-    
-    res.json({ ok: true, count: recalls.length, data: recalls });
+    const response = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
+    res.json({ok:true,data:{response,tokens:data.usage}});
   } catch(e) {
-    console.log('NHTSA recalls error:', e.message);
-    res.json({ ok: true, count: 0, data: [], error: e.message });
+    console.error('Assistant error:', e.message);
+    res.status(500).json({ok:false,error:safeError(e,'Error en asistente')});
   }
 });
 
-app.get('/api/nhtsa/complaints', async (req, res) => {
-  const { make, model, year } = req.query;
-  if (!make || !model || !year) return res.status(400).json({ ok: false, error: 'Parámetros requeridos' });
-  try {
-    const fetch = require('node-fetch');
-    const url = `https://api.nhtsa.dot.gov/complaints/complaintsByVehicle?make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}&modelYear=${encodeURIComponent(year)}`;
-    const r = await fetch(url, { timeout: 8000 });
-    const data = await r.json();
-    
-    const complaints = (data.results || []).slice(0, 20).map(c => ({
-      id:          c.odiNumber,
-      summary:     c.summary,
-      components:  c.components,
-      crash:       c.crash,
-      fire:        c.fire,
-      injuries:    c.numberOfInjuries,
-      deaths:      c.numberOfDeaths,
-      date:        c.dateOfIncident,
-      date_filed:  c.dateComplaintFiled,
-    }));
-    
-    res.json({ ok: true, count: data.Count || complaints.length, data: complaints });
-  } catch(e) {
-    console.log('NHTSA complaints error:', e.message);
-    res.json({ ok: true, count: 0, data: [], error: e.message });
-  }
-});
+// ── NHTSA ─────────────────────────────────────────────────────
+const MAKE_MAP = {
+  'toyota':'toyota','ford':'ford','chevrolet':'chevrolet','gm':'chevrolet',
+  'volkswagen':'volkswagen','vw':'volkswagen','honda':'honda','nissan':'nissan',
+  'hyundai':'hyundai','kia':'kia','bmw':'bmw','mercedes':'mercedes-benz',
+  'mercedes-benz':'mercedes-benz','renault':'renault','peugeot':'peugeot',
+  'fiat':'fiat','jeep':'jeep','dodge':'dodge','ram':'ram','chrysler':'chrysler',
+  'subaru':'subaru','mazda':'mazda','mitsubishi':'mitsubishi','suzuki':'suzuki',
+  'volvo':'volvo','audi':'audi','lexus':'lexus','seat':'seat','skoda':'skoda',
+};
 
-app.get('/api/nhtsa/ratings', async (req, res) => {
-  const { make, model, year } = req.query;
-  if (!make || !model || !year) return res.status(400).json({ ok: false, error: 'Parámetros requeridos' });
+app.get('/api/nhtsa/full', nhtsaLimiter, async (req,res) => {
   try {
-    const fetch = require('node-fetch');
-    const url = `https://api.nhtsa.dot.gov/SafetyRatings/modelyear/${encodeURIComponent(year)}/make/${encodeURIComponent(make)}/model/${encodeURIComponent(model)}`;
-    const r = await fetch(url, { timeout: 8000 });
-    const data = await r.json();
-    
-    const ratings = (data.Results || []).map(v => ({
-      vehicle_id:       v.VehicleId,
-      vehicle_desc:     v.VehicleDescription,
-      overall_rating:   v.OverallRating,
-      front_crash:      v.OverallFrontCrashRating,
-      side_crash:       v.OverallSideCrashRating,
-      rollover:         v.RolloverRating,
-      front_crash_pct:  v.FrontCrashDriversideRating,
-    }));
-    
-    res.json({ ok: true, count: ratings.length, data: ratings });
-  } catch(e) {
-    res.json({ ok: true, count: 0, data: [], error: e.message });
-  }
-});
+    const make  = sanitizeString(req.query.make||'',50);
+    const model = sanitizeString(req.query.model||'',50);
+    const year  = parseInt(req.query.year)||0;
+    if (!make||!model||!year) return res.status(400).json({ok:false,error:'make, model y year requeridos'});
+    if (year < 1980 || year > new Date().getFullYear()+2) return res.status(400).json({ok:false,error:'Año inválido'});
 
-// Combined endpoint - fetches recalls + complaints + ratings in parallel
-app.get('/api/nhtsa/full', async (req, res) => {
-  const { make, model, year } = req.query;
-  if (!make || !model || !year) return res.status(400).json({ ok: false, error: 'make, model y year requeridos' });
-  
-  try {
+    const nhtsaMake = MAKE_MAP[make.toLowerCase()]||make;
     const fetch = require('node-fetch');
     const opts = { timeout: 10000 };
-    
-    const [recallsR, complaintsR, ratingsR] = await Promise.allSettled([
-      fetch(`https://api.nhtsa.dot.gov/recalls/recallsByVehicle?make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}&modelYear=${encodeURIComponent(year)}`, opts).then(r=>r.json()),
-      fetch(`https://api.nhtsa.dot.gov/complaints/complaintsByVehicle?make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}&modelYear=${encodeURIComponent(year)}`, opts).then(r=>r.json()),
-      fetch(`https://api.nhtsa.dot.gov/SafetyRatings/modelyear/${encodeURIComponent(year)}/make/${encodeURIComponent(make)}/model/${encodeURIComponent(model)}`, opts).then(r=>r.json()),
+    const enc = encodeURIComponent;
+
+    const [recallsR,complaintsR,ratingsR] = await Promise.allSettled([
+      fetch(`https://api.nhtsa.dot.gov/recalls/recallsByVehicle?make=${enc(nhtsaMake)}&model=${enc(model)}&modelYear=${year}`,opts).then(r=>r.json()),
+      fetch(`https://api.nhtsa.dot.gov/complaints/complaintsByVehicle?make=${enc(nhtsaMake)}&model=${enc(model)}&modelYear=${year}`,opts).then(r=>r.json()),
+      fetch(`https://api.nhtsa.dot.gov/SafetyRatings/modelyear/${year}/make/${enc(nhtsaMake)}/model/${enc(model)}`,opts).then(r=>r.json()),
     ]);
-    
-    const recalls    = recallsR.status === 'fulfilled'    ? (recallsR.value.results || [])     : [];
-    const complaints = complaintsR.status === 'fulfilled' ? (complaintsR.value.results || []).slice(0,15) : [];
-    const ratings    = ratingsR.status === 'fulfilled'    ? (ratingsR.value.Results || [])     : [];
-    
+
+    const recalls    = recallsR.status==='fulfilled'    ? (recallsR.value.results||[])     : [];
+    const complaints = complaintsR.status==='fulfilled' ? (complaintsR.value.results||[]).slice(0,15) : [];
+    const ratings    = ratingsR.status==='fulfilled'    ? (ratingsR.value.Results||[])     : [];
+
     res.json({
-      ok: true,
-      make, model, year,
-      recalls: recalls.map(r => ({
-        id: r.NHTSACampaignNumber, subject: r.Subject, summary: r.Summary,
-        consequence: r.Consequence, remedy: r.Remedy, component: r.Component,
-        date: r.ReportReceivedDate, park_it: r.ParkIt,
-      })),
-      complaints: complaints.map(c => ({
-        id: c.odiNumber, summary: c.summary, components: c.components,
-        crash: c.crash, fire: c.fire, injuries: c.numberOfInjuries,
-        deaths: c.numberOfDeaths, date: c.dateOfIncident,
-      })),
-      ratings: ratings.slice(0,3).map(v => ({
-        desc: v.VehicleDescription, overall: v.OverallRating,
-        front: v.OverallFrontCrashRating, side: v.OverallSideCrashRating,
-        rollover: v.RolloverRating,
-      })),
+      ok:true, make, model, year,
+      recalls:    recalls.map(r=>({id:r.NHTSACampaignNumber,subject:r.Subject,summary:r.Summary,consequence:r.Consequence,remedy:r.Remedy,component:r.Component,date:r.ReportReceivedDate,park_it:r.ParkIt})),
+      complaints: complaints.map(c=>({id:c.odiNumber,summary:c.summary,components:c.components,crash:c.crash,fire:c.fire,injuries:c.numberOfInjuries,deaths:c.numberOfDeaths,date:c.dateOfIncident})),
+      ratings:    ratings.slice(0,3).map(v=>({desc:v.VehicleDescription,overall:v.OverallRating,front:v.OverallFrontCrashRating,side:v.OverallSideCrashRating,rollover:v.RolloverRating})),
     });
   } catch(e) {
-    res.json({ ok: true, recalls: [], complaints: [], ratings: [], error: e.message });
-  }
-});
-
-
-
-app.get('/api/auth/me', async (req, res) => {
-  const token = req.headers['x-auth-token'];
-  if (!token) return res.status(401).json({ ok: false, error: 'Sin token' });
-  try {
-    if (db) {
-      const session = await db.getSession(token);
-      if (!session) return res.status(401).json({ ok: false, error: 'Token inválido o expirado' });
-      return res.json({ ok: true, user: {
-        id: session.user_id,
-        email: session.email,
-        tallerName: session.taller || session.taller_name
-      }});
-    }
-    return res.status(401).json({ ok: false, error: 'Sin base de datos' });
-  } catch(e) {
-    return res.status(401).json({ ok: false, error: 'Token inválido' });
+    console.error('NHTSA error:', e.message);
+    res.json({ok:true,recalls:[],complaints:[],ratings:[],error:safeError(e)});
   }
 });
 
 // ── ROUTING ──────────────────────────────────────────────────
-// / → landing page
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/landing/index.html'));
-});
-
-// /app → main app (login + platform)
-app.get('/app', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/index.html'));
-});
-
-
-// ── HISTORIAL COMPLETO DEL VEHÍCULO ──────────────────────────
-app.get('/api/vehicles/:id/history', async (req, res) => {
-  if (!db) return res.json({ ok: true, data: { scans:[], resolutions:[], dtc_stats:[], cost_by_month:[] } });
-  try {
-    const data = await db.getVehicleHistory(req.params.id);
-    res.json({ ok: true, data });
-  } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
-});
-
-app.patch('/api/scans/:id/note', async (req, res) => {
-  if (!db) return res.status(503).json({ ok: false, error: 'Sin DB' });
-  try {
-    const scan = await db.addScanNote(req.params.id, req.body.note);
-    res.json({ ok: true, data: scan });
-  } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
-});
-
-app.post('/api/vehicles/:id/scans/full', async (req, res) => {
-  if (!db) return res.status(503).json({ ok: false, error: 'Sin DB' });
-  try {
-    const scan = await db.saveFullScan(req.params.id, req.body);
-    res.json({ ok: true, data: scan });
-  } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
-});
+app.get('/', (req,res) => res.sendFile(path.join(__dirname,'../public/landing/index.html')));
+app.get('/app', (req,res) => res.sendFile(path.join(__dirname,'../public/index.html')));
 
 // SPA fallback
 app.get('*', (req,res) => res.sendFile(path.join(__dirname,'../public/index.html')));
 
+// ── GLOBAL ERROR HANDLER ──────────────────────────────────────
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err.message);
+  res.status(500).json({ ok: false, error: 'Error interno del servidor' });
+});
+
 // ── START ─────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, async () => {
-  console.log('✓ AutoDiag Pro v2.0 → puerto ' + PORT);
+  console.log('✓ AutoDiag Pro v2.1 → puerto ' + PORT);
   await loadModules();
   // Clean expired sessions every hour
   setInterval(async () => {
     if (db) await db.cleanExpiredSessions().catch(()=>{});
   }, 60 * 60 * 1000);
+});
+
+// Handle uncaught exceptions — log but don't crash
+process.on('uncaughtException', (err) => {
+  console.error('UNCAUGHT EXCEPTION:', err.message);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('UNHANDLED REJECTION:', reason);
 });
