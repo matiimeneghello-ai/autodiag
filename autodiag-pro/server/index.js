@@ -19,8 +19,8 @@ let db  = null;
 let obd = null;
 
 // ── AUTH ──────────────────────────────────────────────────────
-const sessions = new Map();
 function generateToken() { return crypto.randomBytes(32).toString('hex'); }
+// Sessions stored in PostgreSQL (not in-memory) — survive server restarts
 
 // ── OBD SIMULATION ────────────────────────────────────────────
 function createSimOBD() {
@@ -176,12 +176,11 @@ app.post('/api/auth/register', async (req, res) => {
       const r = await db.query('INSERT INTO users (email, password_hash, taller_name) VALUES ($1,$2,$3) RETURNING id, email, taller_name', [email.toLowerCase(), hash, taller_name || 'Mi Taller']);
       const user = r.rows[0];
       const token = generateToken();
-      sessions.set(token, { userId: user.id, email: user.email, tallerName: user.taller_name });
+      if (db) await db.createSession(token, user.id, user.email, user.taller_name).catch(()=>{});
       console.log('NEW USER REGISTERED:', user.email, '|', user.taller_name, '|', new Date().toISOString());
       return res.json({ ok: true, token, user: { id: user.id, email: user.email, tallerName: user.taller_name } });
     } else {
       const token = generateToken();
-      sessions.set(token, { userId: uuidv4(), email: email.toLowerCase(), tallerName: taller_name || 'Mi Taller' });
       return res.json({ ok: true, token, user: { email: email.toLowerCase(), tallerName: taller_name || 'Mi Taller' } });
     }
   } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
@@ -206,9 +205,9 @@ app.post('/api/auth/login', async (req, res) => {
   } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
-app.post('/api/auth/logout', (req, res) => {
+app.post('/api/auth/logout', async (req, res) => {
   const token = req.headers['x-auth-token'];
-  if (token) sessions.delete(token);
+  if (token && db) await db.deleteSession(token).catch(()=>{});
   res.json({ ok: true });
 });
 
@@ -778,16 +777,23 @@ app.get('/api/nhtsa/full', async (req, res) => {
 
 
 
-app.get('/api/auth/me', (req, res) => {
+app.get('/api/auth/me', async (req, res) => {
   const token = req.headers['x-auth-token'];
   if (!token) return res.status(401).json({ ok: false, error: 'Sin token' });
-  const session = sessions.get(token);
-  if (!session) return res.status(401).json({ ok: false, error: 'Token inválido o expirado' });
-  res.json({ ok: true, user: { 
-    id: session.userId, 
-    email: session.email, 
-    tallerName: session.tallerName 
-  }});
+  try {
+    if (db) {
+      const session = await db.getSession(token);
+      if (!session) return res.status(401).json({ ok: false, error: 'Token inválido o expirado' });
+      return res.json({ ok: true, user: {
+        id: session.user_id,
+        email: session.email,
+        tallerName: session.taller || session.taller_name
+      }});
+    }
+    return res.status(401).json({ ok: false, error: 'Sin base de datos' });
+  } catch(e) {
+    return res.status(401).json({ ok: false, error: 'Token inválido' });
+  }
 });
 
 // ── ROUTING ──────────────────────────────────────────────────
@@ -835,4 +841,8 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, async () => {
   console.log('✓ AutoDiag Pro v2.0 → puerto ' + PORT);
   await loadModules();
+  // Clean expired sessions every hour
+  setInterval(async () => {
+    if (db) await db.cleanExpiredSessions().catch(()=>{});
+  }, 60 * 60 * 1000);
 });

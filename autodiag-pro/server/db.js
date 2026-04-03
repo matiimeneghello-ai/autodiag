@@ -171,6 +171,24 @@ async function runMigrations() {
   await query("ALTER TABLE scans ADD COLUMN IF NOT EXISTS freeze_frame JSONB").catch(()=>{});
   await query("ALTER TABLE scans ADD COLUMN IF NOT EXISTS severity VARCHAR(20)").catch(()=>{});
 
+
+  // Sessions table — persiste entre reinicios del servidor
+  await query(
+    'CREATE TABLE IF NOT EXISTS sessions (' +
+    'token VARCHAR(64) PRIMARY KEY,' +
+    'user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,' +
+    'email VARCHAR(255),' +
+    'taller_name VARCHAR(255),' +
+    'created_at TIMESTAMP DEFAULT NOW(),' +
+    "expires_at TIMESTAMP DEFAULT NOW() + INTERVAL '30 days'," +
+    'last_used TIMESTAMP DEFAULT NOW()' +
+    ')'
+  );
+  // Index for cleanup
+  await query("CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)").catch(()=>{});
+  // Clean expired sessions on startup
+  await query("DELETE FROM sessions WHERE expires_at < NOW()").catch(()=>{});
+
   console.log('✓ Migraciones DB completadas');
 }
 
@@ -360,6 +378,38 @@ async function markDTCResolved(scanId, code, resolution) {
   // Add code to resolved_codes array of that scan
   await query(`UPDATE scans SET resolved_codes = array_append(resolved_codes, $1) WHERE id=$2`, [code, scanId]);
   return true;
+}
+
+// ── SESSIONS EN DB ────────────────────────────────────────────
+async function createSession(token, userId, email, tallerName) {
+  await query(
+    `INSERT INTO sessions (token, user_id, email, taller_name)
+     VALUES ($1,$2,$3,$4)
+     ON CONFLICT (token) DO UPDATE SET last_used=NOW(), expires_at=NOW()+INTERVAL '30 days'`,
+    [token, userId, email, tallerName]
+  );
+}
+
+async function getSession(token) {
+  const r = await query(
+    `SELECT s.*, u.taller_name as taller FROM sessions s
+     LEFT JOIN users u ON u.id = s.user_id
+     WHERE s.token=$1 AND s.expires_at > NOW()`,
+    [token]
+  );
+  if (!r.rows.length) return null;
+  // Update last_used
+  await query('UPDATE sessions SET last_used=NOW() WHERE token=$1', [token]).catch(()=>{});
+  return r.rows[0];
+}
+
+async function deleteSession(token) {
+  await query('DELETE FROM sessions WHERE token=$1', [token]);
+}
+
+async function cleanExpiredSessions() {
+  const r = await query('DELETE FROM sessions WHERE expires_at < NOW() RETURNING token');
+  if (r.rows.length > 0) console.log('Cleaned', r.rows.length, 'expired sessions');
 }
 
 module.exports = {
