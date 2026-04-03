@@ -343,17 +343,17 @@ a, button, [role=button], .btn, .vcard, .dtcrow, .ws-card,
 
 /* ─── MAIN AREA ─── */
 .main {
-  flex: 1; display: flex; overflow: hidden; min-height: 0;
+  flex: 1; display: flex; overflow: hidden; min-height: 0; position: relative;
 }
 
 /* ─── SIDEBAR ─── */
 .sidebar {
-  width: 240px; min-width: 240px; flex-shrink: 0;
+  width: 256px; min-width: 256px; flex-shrink: 0;
   background: rgba(6,13,26,.7); backdrop-filter: blur(20px);
   border-right: 1px solid var(--b1);
   display: flex; flex-direction: column;
   overflow-y: auto;
-  padding: 12px; gap: 4px;
+  padding: 12px 12px 24px 16px; gap: 4px;
   transition: transform .3s ease;
   z-index: 50;
 }
@@ -920,7 +920,7 @@ a, button, [role=button], .btn, .vcard, .dtcrow, .ws-card,
   .sidebar {
     position: fixed; left: 0; top: 0; bottom: 0; z-index: 50;
     transform: translateX(-100%);
-    width: 240px; min-width: 0;
+    width: 256px; min-width: 0;
     padding-top: calc(56px + var(--sat));
     box-shadow: none;
     transition: transform .3s ease, box-shadow .3s ease;
@@ -1224,10 +1224,10 @@ a, button, [role=button], .btn, .vcard, .dtcrow, .ws-card,
         </div>
 
         <div class="metrics">
-          <div class="metric m-red"><div class="metric-bg"></div><div class="metric-glow"></div><div class="metric-c"><span class="m-icon">⚠</span><div class="m-lbl">DTC Activos</div><div class="m-val" id="dtcCount">—</div><div class="m-sub">Requieren atención</div></div></div>
-          <div class="metric m-yel"><div class="metric-bg"></div><div class="metric-glow"></div><div class="metric-c"><span class="m-icon">🔦</span><div class="m-lbl">Check Engine</div><div class="m-val" id="ceVal">—</div><div class="m-sub">Estado luz</div></div></div>
-          <div class="metric m-blue"><div class="metric-bg"></div><div class="metric-glow"></div><div class="metric-c"><span class="m-icon">🌡</span><div class="m-lbl">Temp. Motor</div><div class="m-val" id="tempVal">—</div><div class="m-sub">Normal 80–95°C</div></div></div>
-          <div class="metric m-grn"><div class="metric-bg"></div><div class="metric-glow"></div><div class="metric-c"><span class="m-icon">⚡</span><div class="m-lbl">Batería</div><div class="m-val" id="voltVal">—</div><div class="m-sub">Estado voltaje</div></div></div>
+          <div class="metric m-red"><div class="metric-bg"></div><div class="metric-glow"></div><div class="metric-c"><span class="m-icon">⚠</span><div class="m-lbl">DTC Activos</div><div class="m-val" id="dtcCount">0</div><div class="m-sub">Requieren atención</div></div></div>
+          <div class="metric m-yel"><div class="metric-bg"></div><div class="metric-glow"></div><div class="metric-c"><span class="m-icon">🔦</span><div class="m-lbl">Check Engine</div><div class="m-val" id="ceVal">OFF</div><div class="m-sub">Estado luz</div></div></div>
+          <div class="metric m-blue"><div class="metric-bg"></div><div class="metric-glow"></div><div class="metric-c"><span class="m-icon">🌡</span><div class="m-lbl">Temp. Motor</div><div class="m-val" id="tempVal">—°</div><div class="m-sub">Normal 80–95°C</div></div></div>
+          <div class="metric m-grn"><div class="metric-bg"></div><div class="metric-glow"></div><div class="metric-c"><span class="m-icon">⚡</span><div class="m-lbl">Batería</div><div class="m-val" id="voltVal">—V</div><div class="m-sub">Estado voltaje</div></div></div>
         </div>
 
         <div class="g2">
@@ -1241,13 +1241,13 @@ a, button, [role=button], .btn, .vcard, .dtcrow, .ws-card,
               <div class="gcard-body" style="padding:12px">
                 <div class="live-list">
                   <div class="lrow"><span class="llbl">RPM</span><span class="lval" id="lv-rpm">—</span></div>
-                  <div class="lrow"><span class="llbl">Velocidad</span><span class="lval ok" id="lv-speed">—</span></div>
-                  <div class="lrow"><span class="llbl">Carga motor</span><span class="lval ok" id="lv-load">—</span></div>
-                  <div class="lrow"><span class="llbl">Fuel Trim C</span><span class="lval warn" id="lv-ftc">—</span></div>
-                  <div class="lrow"><span class="llbl">Fuel Trim L</span><span class="lval crit" id="lv-ftl">—</span></div>
-                  <div class="lrow"><span class="llbl">O2 B1S1</span><span class="lval warn" id="lv-o2">—</span></div>
-                  <div class="lrow"><span class="llbl">MAF</span><span class="lval warn" id="lv-maf">—</span></div>
-                  <div class="lrow"><span class="llbl">MAP</span><span class="lval" id="lv-map">—</span></div>
+                  <div class="lrow"><span class="llbl">Velocidad</span><span class="lval ok" id="lv-speed">0 km/h</span></div>
+                  <div class="lrow"><span class="llbl">Carga motor</span><span class="lval ok" id="lv-load">—%</span></div>
+                  <div class="lrow"><span class="llbl">Fuel Trim C</span><span class="lval warn" id="lv-ftc">—%</span></div>
+                  <div class="lrow"><span class="llbl">Fuel Trim L</span><span class="lval crit" id="lv-ftl">—%</span></div>
+                  <div class="lrow"><span class="llbl">O2 B1S1</span><span class="lval warn" id="lv-o2">—V</span></div>
+                  <div class="lrow"><span class="llbl">MAF</span><span class="lval warn" id="lv-maf">— g/s</span></div>
+                  <div class="lrow"><span class="llbl">MAP</span><span class="lval" id="lv-map">— kPa</span></div>
                 </div>
               </div>
             </div>
@@ -2518,21 +2518,17 @@ const wsClient = new WS();
 
 wsClient.on('connected',(data)=>{
   const txt=document.getElementById('statusText');
-  if(txt)txt.textContent=data.sim_mode?'Simulación activa':'OBD-II conectado';
+  if(txt)txt.textContent=data.sim_mode?'⚡ Simulación':'✓ OBD-II';
   if(data.live_data&&Object.keys(data.live_data).length){
     updateLiveUI(data.live_data);
-    // Update metric cards too
     const ld = data.live_data;
     if(ld.coolant?.value) { const e=document.getElementById('tempVal'); if(e) e.textContent=ld.coolant.value+'°'; }
     if(ld.voltage?.value) { const e=document.getElementById('voltVal'); if(e) e.textContent=ld.voltage.value+'V'; }
   }
-  if(data.dtcs?.length){const cnt=data.dtcs.length;
-    const dc=document.getElementById('dtcCount'); if(dc) dc.textContent=cnt;
-    const ce=document.getElementById('ceVal'); if(ce) ce.textContent=cnt>0?'ON':'OFF';
-  } else {
-    const dc=document.getElementById('dtcCount'); if(dc) dc.textContent='0';
-    const ce=document.getElementById('ceVal'); if(ce) ce.textContent='OFF';
-  }
+  // Always update DTC count
+  const cnt = data.dtcs?.length || 0;
+  const dc=document.getElementById('dtcCount'); if(dc) dc.textContent=cnt||'0';
+  const ce=document.getElementById('ceVal'); if(ce) ce.textContent=cnt>0?'ON':'OFF';
   // Load history for charts
   if(data.history?.length) data.history.forEach(h=>pushHistoryPoint(h));
 });
