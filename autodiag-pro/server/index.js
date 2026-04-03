@@ -304,8 +304,7 @@ app.post('/api/auth/register', authLimiter, async (req, res) => {
     if (!validatePassword(password)) return res.status(400).json({ ok: false, error: 'La contraseña debe tener al menos 6 caracteres' });
     if (!tallerName.trim())       return res.status(400).json({ ok: false, error: 'Ingresá el nombre del taller' });
 
-    const dbReady = await waitForDB();
-    if (!dbReady) return res.status(503).json({ ok: false, error: 'El servidor está iniciando. Recargá la página en 30 segundos.' });
+    if (!db) return res.status(503).json({ ok: false, error: 'Base de datos no disponible' });
 
     const existing = await db.query('SELECT id FROM users WHERE email=$1', [email]);
     if (existing.rows.length) return res.status(400).json({ ok: false, error: 'Ya existe una cuenta con ese email' });
@@ -334,8 +333,7 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
     if (!validateEmail(email)) return res.status(400).json({ ok: false, error: 'Email inválido' });
     if (!password)             return res.status(400).json({ ok: false, error: 'Contraseña requerida' });
     
-    const dbReady = await waitForDB();
-    if (!dbReady) return res.status(503).json({ ok: false, error: 'El servidor está iniciando. Recargá la página en 30 segundos.' });
+    if (!db) return res.status(503).json({ ok: false, error: 'Base de datos no disponible' });
 
     const hash = crypto.createHash('sha256').update(password).digest('hex');
     const r = await db.query(
@@ -869,20 +867,26 @@ app.use((err, req, res, next) => {
 
 // ── START ─────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log('✓ AutoDiag Pro v2.1 → puerto ' + PORT);
-  // Load modules in background — server accepts requests immediately
-  // waitForDB() handles the wait on individual requests
-  loadModules().then(() => {
+
+// Start: connect DB first, THEN listen
+// This ensures every request has DB available — no 503s on startup
+(async () => {
+  try {
+    await loadModules();
     console.log('✓ All modules loaded');
-    // Clean expired sessions every hour
-    setInterval(async () => {
-      if (db) await db.cleanExpiredSessions().catch(()=>{});
-    }, 60 * 60 * 1000);
-  }).catch(e => {
-    console.error('loadModules error:', e.message);
+  } catch(e) {
+    console.error('loadModules failed:', e.message);
+  }
+
+  server.listen(PORT, () => {
+    console.log('✓ AutoDiag Pro v2.1 → puerto ' + PORT + ' — DB: ' + (db ? 'connected' : 'disconnected'));
   });
-});
+
+  // Clean expired sessions every hour
+  setInterval(async () => {
+    if (db) await db.cleanExpiredSessions().catch(()=>{});
+  }, 60 * 60 * 1000);
+})();
 
 // Handle uncaught exceptions — log but don't crash
 process.on('uncaughtException', (err) => {
