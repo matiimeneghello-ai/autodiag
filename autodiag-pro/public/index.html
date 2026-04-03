@@ -214,8 +214,6 @@ a, button, [role=button], .btn, .vcard, .dtcrow, .ws-card,
   transition: all .2s; margin-bottom: 12px;
 }
 .login-btn:active { transform: scale(.98); }
-.login-demo { text-align: center; font-size: 12px; color: var(--t3); font-family: var(--mono); }
-.login-demo span { color: var(--blue2); cursor: pointer; }
 .lerror {
   background: rgba(248,113,113,.1); border: 1px solid rgba(248,113,113,.25);
   border-radius: 8px; padding: 9px 12px; font-size: 12px; color: var(--red);
@@ -1181,7 +1179,7 @@ a, button, [role=button], .btn, .vcard, .dtcrow, .ws-card,
     <div class="login-top">
       <div class="login-icon">⚙</div>
       <div class="login-title">AutoDiag Pro</div>
-      <div class="login-sub">Plataforma de diagnóstico automotriz</div>
+      <div class="login-sub">Plataforma profesional de diagnóstico automotriz</div>
     </div>
     <div class="login-body">
       <div class="login-tabs">
@@ -1201,8 +1199,8 @@ a, button, [role=button], .btn, .vcard, .dtcrow, .ws-card,
         <label>Contraseña</label>
         <input type="password" id="loginPass" placeholder="••••••••" autocomplete="current-password" onkeypress="if(event.key==='Enter')doAuth()">
       </div>
-      <button class="login-btn" onclick="doAuth()" id="authBtn">Iniciar sesión</button>
-      <div class="login-demo">¿Sin cuenta? <span onclick="demoLogin()">Entrar como demo</span></div>
+      <button class="login-btn" onclick="doAuth()" id="authBtn">Ingresar</button>
+
     </div>
   </div>
 </div>
@@ -2251,12 +2249,7 @@ async function doAuth() {
   }
 }
 
-async function demoLogin() {
-  document.getElementById('loginEmail').value = 'demo@autodiag.com';
-  document.getElementById('loginPass').value = 'demo1234';
-  loginMode = 'login';
-  await doAuth();
-}
+// demoLogin removed
 
 function showAuthError(msg) {
   const el = document.getElementById('lerror');
@@ -2362,7 +2355,7 @@ async function initApp() {
       if (id === 'voltVal') el.textContent = '—V';
     }
   });
-  showNotif('✓ AutoDiag Pro — Bienvenido, '+(currentUser?.tallerName||'usuario'));
+  showNotif('✓ Bienvenido a AutoDiag Pro, '+(currentUser?.tallerName||currentUser?.email?.split('@')[0]||'usuario'), 'success');
 }
 
 // ── CHECK IF LOGGED IN ──
@@ -2742,11 +2735,11 @@ async function analyzeMulti(){
   document.getElementById('mcResults').innerHTML=`<div class="lsteps"><div class="lstep"><div class="lspin"></div><div class="lstep-txt"><div class="lstep-title">ANALIZANDO RELACIÓN ENTRE CÓDIGOS</div></div></div></div>`;
   try{
     const res=await API.post('/api/ai/analyze-multi',{codes:mcCodes,brand,model});
-    res.ok?renderMultiResult(res.data):renderMultiResultDemo();
-  }catch(e){renderMultiResultDemo();}
+    res.ok?renderMultiResult(res.data):renderMultiResultFallback();
+  }catch(e){renderMultiResultFallback();}
   finally{btn.disabled=false;btn.textContent='⚡ Analizar';}
 }
-function renderMultiResultDemo(){
+function renderMultiResultFallback(){
   renderMultiResult({root_cause:'P0171',root_explanation:'La mezcla pobre causa el daño al catalizador.',codes:[
     {code:'P0171',is_root:true,title:'Mezcla pobre B1',role:'CAUSA RAÍZ',description:'Fuel trim largo +22%.',causes:['MAF sucio','Fuga vacío'],repair_order:1,estimated_cost:'$50–$350 USD'},
     {code:'P0420',is_root:false,title:'Catalizador bajo umbral',role:'CONSECUENCIA',description:'Dañado por P0171.',causes:['Catalizador dañado'],repair_order:2,estimated_cost:'$300–$2000 USD'}
@@ -2781,10 +2774,10 @@ async function analyzeSymptoms(){
   res.innerHTML='<div style="color:var(--blue2);font-family:var(--mono);font-size:9px;letter-spacing:2px">Analizando...</div>';
   try{
     const apiRes=await API.post('/api/ai/symptoms',{symptoms:syms,brand:document.getElementById('symBrand').value,model:document.getElementById('symModel').value,scanner_data:{ftc:document.getElementById('ftc').value,ftl:document.getElementById('ftl').value,o2v:document.getElementById('o2v').value,mafv:document.getElementById('mafv').value}});
-    apiRes.ok?renderSymResult(apiRes.data,syms):renderSymResultDemo(syms);
-  }catch(e){renderSymResultDemo(syms);}
+    apiRes.ok?renderSymResult(apiRes.data,syms):renderSymResultFallback(syms);
+  }catch(e){renderSymResultFallback(syms);}
 }
-function renderSymResultDemo(syms){
+function renderSymResultFallback(syms){
   const urgency=syms.some(s=>s.includes('SOBRECALENTAMIENTO')||s.includes('blanco'))?'URGENTE':'MODERADO';
   renderSymResult({probable_dtcs:[{code:'P0171',probability:82,title:'Mezcla pobre B1',why:'Consumo + tembla apuntan a gestión de combustible'},{code:'P0100',probability:58,title:'MAF fuera de rango',why:'Voltaje MAF bajo'}],recommended_tests:['Limpiar sensor MAF','Verificar fuel trim en tiempo real','Revisar mangueras de vacío'],urgency,urgency_reason:urgency==='URGENTE'?'Síntomas críticos':'Requiere diagnóstico pronto'},syms);
 }

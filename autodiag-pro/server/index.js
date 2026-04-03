@@ -177,6 +177,7 @@ app.post('/api/auth/register', async (req, res) => {
       const user = r.rows[0];
       const token = generateToken();
       sessions.set(token, { userId: user.id, email: user.email, tallerName: user.taller_name });
+      console.log('NEW USER REGISTERED:', user.email, '|', user.taller_name, '|', new Date().toISOString());
       return res.json({ ok: true, token, user: { id: user.id, email: user.email, tallerName: user.taller_name } });
     } else {
       const token = generateToken();
@@ -197,14 +198,10 @@ app.post('/api/auth/login', async (req, res) => {
       const user = r.rows[0];
       const token = generateToken();
       sessions.set(token, { userId: user.id, email: user.email, tallerName: user.taller_name });
+      console.log('NEW USER REGISTERED:', user.email, '|', user.taller_name, '|', new Date().toISOString());
       return res.json({ ok: true, token, user: { id: user.id, email: user.email, tallerName: user.taller_name } });
     } else {
-      if (email === 'demo@autodiag.com' && password === 'demo1234') {
-        const token = generateToken();
-        sessions.set(token, { userId: '1', email: 'demo@autodiag.com', tallerName: 'Taller Demo' });
-        return res.json({ ok: true, token, user: { email: 'demo@autodiag.com', tallerName: 'Taller Demo' } });
-      }
-      return res.status(401).json({ ok: false, error: 'Credenciales incorrectas' });
+      return res.status(401).json({ ok: false, error: 'Email o contraseña incorrectos' });
     }
   } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
 });
