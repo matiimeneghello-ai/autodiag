@@ -1,16 +1,23 @@
 {
   "name": "AutoDiag Pro",
   "short_name": "AutoDiag",
-  "description": "Plataforma de diagnóstico automotriz para talleres",
-  "start_url": "/",
+  "description": "Plataforma de diagn\u00f3stico automotriz para talleres",
+  "start_url": "/app",
   "display": "standalone",
-  "display_override": ["standalone", "minimal-ui"],
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
   "background_color": "#060d1a",
   "theme_color": "#060d1a",
   "orientation": "any",
   "scope": "/",
   "lang": "es",
-  "categories": ["productivity", "utilities", "auto"],
+  "categories": [
+    "productivity",
+    "utilities",
+    "auto"
+  ],
   "icons": [
     {
       "src": "/icon-192.png",
@@ -30,16 +37,24 @@
     {
       "name": "Nuevo escaneo",
       "short_name": "Escanear",
-      "description": "Iniciar un escaneo OBD-II",
-      "url": "/?view=scan",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+      "url": "/app?view=scan",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     },
     {
       "name": "IA Research",
-      "short_name": "Research",
-      "description": "Investigar código DTC",
-      "url": "/?view=research",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+      "short_name": "IA Research",
+      "url": "/app?view=research",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     }
   ]
 }

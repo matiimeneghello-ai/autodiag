@@ -1,6 +1,7 @@
 const CACHE_NAME = 'autodiag-v2';
 const STATIC_CACHE = [
   '/',
+  '/app',
   '/index.html',
   '/manifest.json',
   'https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap',

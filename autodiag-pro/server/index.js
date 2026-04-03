@@ -779,6 +779,18 @@ app.get('/api/nhtsa/full', async (req, res) => {
   }
 });
 
+
+// ── ROUTING ──────────────────────────────────────────────────
+// / → landing page
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/landing/index.html'));
+});
+
+// /app → main app (login + platform)
+app.get('/app', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/index.html'));
+});
+
 // SPA fallback
 app.get('*', (req,res) => res.sendFile(path.join(__dirname,'../public/index.html')));
 
