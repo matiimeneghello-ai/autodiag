@@ -2481,49 +2481,61 @@ function switchTab(mode) {
   if (err) err.classList.remove('show');
 }
 
-async function doAuth() {
-  const email = document.getElementById('loginEmail').value.trim();
-  const pass  = document.getElementById('loginPass').value;
+async function doAuth(retryCount = 0) {
+  const email  = document.getElementById('loginEmail').value.trim();
+  const pass   = document.getElementById('loginPass').value;
   const taller = document.getElementById('tallerName').value.trim();
-  if (!email||!pass) { showAuthError('Completá email y contraseña'); return; }
-  if (loginMode === 'register' && !document.getElementById('tallerName').value.trim()) {
+
+  if (!email || !pass) { showAuthError('Completá email y contraseña'); return; }
+  if (loginMode === 'register' && !taller) {
     showAuthError('Ingresá el nombre de tu taller'); return;
   }
 
   const btn = document.getElementById('authBtn');
-  btn.textContent = 'Cargando...';
+  const isRetry = retryCount > 0;
+  btn.textContent = isRetry ? 'Reintentando (' + retryCount + '/3)...' : 'Cargando...';
   btn.disabled = true;
-  // Safety: reset button after 20s max
-  const btnTimer = setTimeout(() => {
-    btn.textContent = loginMode==='login'?'Ingresar':'Crear cuenta';
-    btn.disabled = false;
-    showAuthError('El servidor tardó demasiado. Reintentá.');
-  }, 20000);
 
-  const path = loginMode==='login' ? '/api/auth/login' : '/api/auth/register';
-  const body = loginMode==='login' ? {email,password:pass} : {email,password:pass,taller_name:taller};
-  const res = await API.post(path, body);
+  const path = loginMode === 'login' ? '/api/auth/login' : '/api/auth/register';
+  const body = loginMode === 'login'
+    ? { email, password: pass }
+    : { email, password: pass, taller_name: taller };
 
-  clearTimeout(btnTimer);
-  if (res.ok) {
-    authToken = res.token;
-    currentUser = res.user;
-    localStorage.setItem('autodiag_token', authToken);
-    localStorage.setItem('autodiag_user', JSON.stringify(currentUser));
-    enterApp(loginMode==='register');
-  } else {
+  try {
+    const res = await API.post(path, body);
+
+    if (res.ok) {
+      authToken   = res.token;
+      currentUser = res.user;
+      localStorage.setItem('autodiag_token', authToken);
+      localStorage.setItem('autodiag_user', JSON.stringify(currentUser));
+      enterApp(loginMode === 'register');
+      return;
+    }
+
     const errMsg = res.error || res.message || 'Error de autenticación';
     console.error('Auth error:', errMsg, res);
-    // Show user-friendly message for DB startup delay
-    if (errMsg.includes('iniciando') || errMsg.includes('servidor')) {
-      showAuthError('El servidor está iniciando. Esperá unos segundos y volvé a intentar.');
-    } else {
-      showAuthError(errMsg);
+
+    // Auto-retry if server is starting up (up to 3 times, every 5 seconds)
+    const isStarting = errMsg.includes('iniciando') || errMsg.includes('servidor') || errMsg.includes('Reintentá');
+    if (isStarting && retryCount < 3) {
+      showAuthError('Servidor iniciando... reintentando en 5s (' + (retryCount + 1) + '/3)');
+      setTimeout(() => doAuth(retryCount + 1), 5000);
+      return;
     }
-    btn.textContent = loginMode==='login'?'Ingresar':'Crear cuenta';
+
+    // Final error
+    showAuthError(errMsg);
+    btn.textContent = loginMode === 'login' ? 'Ingresar' : 'Crear cuenta';
+    btn.disabled = false;
+
+  } catch(e) {
+    console.error('doAuth exception:', e);
+    showAuthError('Error de conexión. Verificá tu internet.');
+    btn.textContent = loginMode === 'login' ? 'Ingresar' : 'Crear cuenta';
     btn.disabled = false;
   }
-} 
+}
 
 // demoLogin removed
 

@@ -850,13 +850,19 @@ app.use((err, req, res, next) => {
 
 // ── START ─────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, async () => {
+server.listen(PORT, () => {
   console.log('✓ AutoDiag Pro v2.1 → puerto ' + PORT);
-  await loadModules();
-  // Clean expired sessions every hour
-  setInterval(async () => {
-    if (db) await db.cleanExpiredSessions().catch(()=>{});
-  }, 60 * 60 * 1000);
+  // Load modules in background — server accepts requests immediately
+  // waitForDB() handles the wait on individual requests
+  loadModules().then(() => {
+    console.log('✓ All modules loaded');
+    // Clean expired sessions every hour
+    setInterval(async () => {
+      if (db) await db.cleanExpiredSessions().catch(()=>{});
+    }, 60 * 60 * 1000);
+  }).catch(e => {
+    console.error('loadModules error:', e.message);
+  });
 });
 
 // Handle uncaught exceptions — log but don't crash
