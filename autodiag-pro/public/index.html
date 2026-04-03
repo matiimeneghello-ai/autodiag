@@ -1786,6 +1786,32 @@ if ('serviceWorker' in navigator) {
 }
 
 // Hide loading screen
+class WS {
+  constructor(){this.ws=null;this.listeners={};this.retryCount=0;}
+  connect(){
+    try{
+      const proto=location.protocol==='https:'?'wss:':'ws:';
+      this.ws=new WebSocket(`${proto}//${location.host}`);
+      this.ws.onopen=()=>{console.log('✓ WS');this.retryCount=0;};
+      this.ws.onmessage=(e)=>{try{const m=JSON.parse(e.data);this._emit(m.type,m.payload);}catch(err){}};
+      this.ws.onclose=()=>{
+        this.retryCount++;
+        const delay=Math.min(3000*this.retryCount,15000);
+        setTimeout(()=>this.connect(),delay);
+      };
+      this.ws.onerror=()=>{};
+    }catch(e){}
+  }
+  send(action,payload={}){if(this.ws?.readyState===1)this.ws.send(JSON.stringify({action,payload}));}
+  on(event,cb){if(!this.listeners[event])this.listeners[event]=[];this.listeners[event].push(cb);}
+  _emit(event,data){(this.listeners[event]||[]).forEach(cb=>cb(data));}
+  readDTCs(){this.send('read_dtcs');}
+  clearDTCs(){this.send('clear_dtcs');}
+  setVehicle(id){this.send('set_vehicle',{vehicleId:id});}
+}
+const wsClient = new WS();
+
+
 function hideLoading() {
   const el = document.getElementById('appLoading');
   if (el) { el.classList.add('hidden'); setTimeout(()=>el.remove(), 400); }
@@ -2590,31 +2616,6 @@ function initRadar() {
 }
 
 // ── WEBSOCKET ──
-class WS {
-  constructor(){this.ws=null;this.listeners={};this.retryCount=0;}
-  connect(){
-    try{
-      const proto=location.protocol==='https:'?'wss:':'ws:';
-      this.ws=new WebSocket(`${proto}//${location.host}`);
-      this.ws.onopen=()=>{console.log('✓ WS');this.retryCount=0;};
-      this.ws.onmessage=(e)=>{try{const m=JSON.parse(e.data);this._emit(m.type,m.payload);}catch(err){}};
-      this.ws.onclose=()=>{
-        this.retryCount++;
-        const delay=Math.min(3000*this.retryCount,15000);
-        setTimeout(()=>this.connect(),delay);
-      };
-      this.ws.onerror=()=>{};
-    }catch(e){}
-  }
-  send(action,payload={}){if(this.ws?.readyState===1)this.ws.send(JSON.stringify({action,payload}));}
-  on(event,cb){if(!this.listeners[event])this.listeners[event]=[];this.listeners[event].push(cb);}
-  _emit(event,data){(this.listeners[event]||[]).forEach(cb=>cb(data));}
-  readDTCs(){this.send('read_dtcs');}
-  clearDTCs(){this.send('clear_dtcs');}
-  setVehicle(id){this.send('set_vehicle',{vehicleId:id});}
-}
-const wsClient = new WS();
-
 wsClient.on('connected',(data)=>{
   const txt=document.getElementById('statusText');
   if(txt)txt.textContent=data.sim_mode?'⚡ Simulación':'✓ OBD-II';
