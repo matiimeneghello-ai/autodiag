@@ -732,6 +732,139 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
   .view,.ws-col-body,.chat-msgs{-webkit-overflow-scrolling:touch;}
 }
 
+
+/* ── FLOATING ASSISTANT ─────────────────────────────────── */
+.fab{
+  position:fixed;bottom:90px;right:18px;z-index:300;
+  width:52px;height:52px;border-radius:16px;
+  background:linear-gradient(135deg,#2563eb,#0891b2);
+  border:none;cursor:pointer;
+  box-shadow:0 6px 24px rgba(37,99,235,0.5);
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;transition:all 0.3s;
+  animation:fabPulse 3s ease-in-out infinite;
+}
+.fab:hover{transform:scale(1.1);box-shadow:0 10px 32px rgba(37,99,235,0.6);}
+@keyframes fabPulse{0%,100%{box-shadow:0 6px 24px rgba(37,99,235,0.5)}50%{box-shadow:0 6px 32px rgba(37,99,235,0.8),0 0 0 8px rgba(37,99,235,0.1)}}
+.fab-badge{
+  position:absolute;top:-4px;right:-4px;
+  width:16px;height:16px;border-radius:50%;
+  background:var(--red);border:2px solid var(--bg);
+  font-size:8px;color:#fff;display:none;
+  align-items:center;justify-content:center;font-family:var(--mono);
+}
+.fab-badge.show{display:flex;}
+
+.assistant-panel{
+  position:fixed;bottom:90px;right:18px;z-index:301;
+  width:360px;max-width:calc(100vw - 24px);
+  background:rgba(8,18,36,0.98);border:1px solid var(--b2);
+  border-radius:20px;overflow:hidden;
+  box-shadow:0 20px 60px rgba(0,0,0,0.6),0 0 0 1px rgba(255,255,255,0.05);
+  display:none;flex-direction:column;
+  animation:scaleIn 0.2s ease;
+  max-height:70vh;
+}
+.assistant-panel.open{display:flex;}
+.ap-head{
+  padding:14px 16px;border-bottom:1px solid var(--b1);
+  display:flex;align-items:center;gap:10px;
+  background:linear-gradient(135deg,rgba(37,99,235,0.15),rgba(8,145,178,0.1));
+  flex-shrink:0;
+}
+.ap-avatar{
+  width:32px;height:32px;border-radius:10px;
+  background:linear-gradient(135deg,var(--blue),var(--cyan));
+  display:flex;align-items:center;justify-content:center;font-size:16px;
+  flex-shrink:0;box-shadow:0 0 16px rgba(59,130,246,0.4);
+}
+.ap-name{font-family:var(--syne);font-size:13px;font-weight:700;}
+.ap-status{font-size:9px;color:var(--grn);font-family:var(--mono);display:flex;align-items:center;gap:4px;}
+.ap-status::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--grn);animation:pulse 2s infinite;}
+.ap-close{margin-left:auto;background:none;border:none;color:var(--t2);cursor:pointer;font-size:18px;width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;}
+.ap-close:hover{background:rgba(255,255,255,0.06);color:var(--red);}
+
+.ap-msgs{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;min-height:200px;}
+.ap-msg{display:flex;gap:8px;align-items:flex-start;}
+.ap-bubble{font-size:11px;line-height:1.7;padding:8px 12px;border-radius:10px;max-width:280px;}
+.ap-bubble.ai{background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.15);color:var(--text);}
+.ap-bubble.user{background:rgba(255,255,255,0.05);border:1px solid var(--b1);color:var(--t2);margin-left:auto;}
+.ap-bubble.system{background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.15);color:var(--grn);font-family:var(--mono);font-size:10px;}
+
+.ap-suggestions{padding:8px 12px;border-top:1px solid var(--b1);display:flex;gap:5px;flex-wrap:wrap;flex-shrink:0;}
+.ap-chip{
+  font-size:10px;padding:5px 10px;border-radius:20px;border:1px solid var(--b2);
+  background:rgba(255,255,255,0.02);color:var(--t2);cursor:pointer;transition:all 0.2s;
+  font-family:var(--sans);
+}
+.ap-chip:hover{border-color:rgba(59,130,246,0.4);color:var(--blue2);background:rgba(59,130,246,0.06);}
+
+.ap-input-row{padding:10px 12px;border-top:1px solid var(--b1);display:flex;gap:7px;flex-shrink:0;}
+.ap-input{
+  flex:1;padding:8px 12px;border-radius:10px;
+  background:rgba(255,255,255,0.04);border:1px solid var(--b2);
+  font-family:var(--sans);font-size:12px;color:var(--text);outline:none;
+}
+.ap-input:focus{border-color:rgba(59,130,246,0.4);}
+.ap-send{
+  width:34px;height:34px;border-radius:10px;border:none;
+  background:var(--blue);color:#fff;cursor:pointer;font-size:16px;
+  display:flex;align-items:center;justify-content:center;transition:all 0.2s;
+}
+.ap-send:hover{background:#1d4ed8;}
+
+/* ── HELP/INFO SYSTEM ──────────────────────────────────── */
+.help-banner{
+  display:flex;align-items:flex-start;gap:12px;
+  padding:12px 14px;border-radius:12px;
+  background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);
+  margin-bottom:14px;position:relative;flex-shrink:0;
+}
+.help-icon{font-size:20px;flex-shrink:0;margin-top:2px;}
+.help-content{flex:1;}
+.help-title{font-size:11px;font-weight:600;color:var(--blue2);margin-bottom:3px;font-family:var(--syne);}
+.help-text{font-size:10px;color:var(--t2);line-height:1.6;}
+.help-dismiss{
+  position:absolute;top:8px;right:8px;background:none;border:none;
+  color:var(--t3);cursor:pointer;font-size:14px;width:22px;height:22px;
+  border-radius:6px;display:flex;align-items:center;justify-content:center;
+}
+.help-dismiss:hover{background:rgba(255,255,255,0.06);color:var(--t2);}
+.help-tips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
+.help-tip{
+  font-size:9px;padding:3px 8px;border-radius:20px;
+  background:rgba(59,130,246,0.1);color:var(--blue2);
+  border:1px solid rgba(59,130,246,0.2);font-family:var(--mono);cursor:pointer;
+}
+.help-tip:hover{background:rgba(59,130,246,0.18);}
+
+/* ── LEARNING FEED ─────────────────────────────────────── */
+.learn-feed{display:flex;flex-direction:column;gap:8px;}
+.learn-feed-item{
+  padding:12px 14px;border-radius:12px;
+  border:1px solid var(--b1);background:rgba(255,255,255,0.02);
+  display:flex;gap:12px;align-items:flex-start;
+  animation:slideUp 0.3s ease;
+}
+.lf-code{font-family:var(--syne);font-size:13px;font-weight:700;color:var(--blue2);min-width:52px;}
+.lf-info{flex:1;}
+.lf-cause{font-size:11px;font-weight:500;color:var(--text);}
+.lf-meta{font-size:9px;color:var(--t2);font-family:var(--mono);margin-top:3px;}
+.lf-cost{font-size:10px;font-family:var(--mono);color:var(--grn);}
+
+/* Confirm resolution modal */
+.resolve-modal{
+  padding:16px;border-radius:14px;
+  background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.2);
+  margin-top:12px;display:none;
+}
+.resolve-modal.show{display:block;}
+
+/* Aprendizaje stats */
+.stat-number{font-family:var(--syne);font-size:28px;font-weight:800;}
+.stat-bar{height:4px;background:rgba(255,255,255,0.06);border-radius:2px;margin-top:6px;}
+.stat-bar-fill{height:4px;border-radius:2px;background:var(--blue2);}
+
 </style>
 </head>
 <body>
@@ -877,6 +1010,19 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
 <!-- DASHBOARD -->
 <div id="view-dashboard" class="view active">
   <div class="stitle">Dashboard <span class="stitle-sub" id="activeVehLabel">SELECCIONÁ UN VEHÍCULO</span></div>
+  <div class="help-banner" id="help-dashboard">
+  <span class="help-icon">📊</span>
+  <div class="help-content">
+    <div class="help-title">Dashboard — Panel de control del vehículo</div>
+    <div class="help-text">Acá ves el estado en tiempo real del auto seleccionado: códigos DTC activos, temperatura del motor, voltaje y datos del scanner en vivo. Seleccioná un vehículo del sidebar para comenzar. Los DTCs en rojo son críticos y requieren atención inmediata.</div>
+    <div class="help-tips">
+      <span class="help-tip" onclick="askAssistant('Explicame qué son los DTCs y cómo interpretarlos')">¿Qué son los DTCs?</span>
+      <span class="help-tip" onclick="askAssistant('¿Qué significa fuel trim y cómo afecta al diagnóstico?')">Fuel Trim</span>
+      <span class="help-tip" onclick="goView('scan',document.querySelectorAll('.nav-btn')[4]);closeSidebar()">Ir a Escaneo →</span>
+    </div>
+  </div>
+  <button class="help-dismiss" onclick="dismissHelp('dashboard')">✕</button>
+</div>
   <div class="metrics">
     <div class="metric m-red"><div class="metric-bg"></div><div class="metric-glow"></div><div class="metric-content"><span class="m-icon">⚠</span><div class="m-lbl">DTC Activos</div><div class="m-val" id="dtcCount">—</div><div class="m-sub">Requieren atención</div></div></div>
     <div class="metric m-yel"><div class="metric-bg"></div><div class="metric-glow"></div><div class="metric-content"><span class="m-icon">🔦</span><div class="m-lbl">Check Engine</div><div class="m-val" id="ceVal">—</div><div class="m-sub">Estado luz</div></div></div>
@@ -946,6 +1092,18 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
 <!-- MULTI-DTC -->
 <div id="view-multicode" class="view">
   <div class="stitle">Comparador Multi-DTC <span class="stitle-sub">ANÁLISIS DE CAUSA RAÍZ</span></div>
+  <div class="help-banner" id="help-multicode">
+  <span class="help-icon">🔗</span>
+  <div class="help-content">
+    <div class="help-title">Multi-DTC — Encontrar la causa raíz entre varios códigos</div>
+    <div class="help-text">Cuando un auto tiene varios DTCs simultáneos, no todos son independientes. Este módulo identifica cuál es la causa raíz y cuáles son consecuencias. Por ejemplo: P0171 (mezcla pobre) puede causar P0420 (catalizador) — si resolvés el primero, el segundo desaparece solo. Ahorrás tiempo y plata al cliente.</div>
+    <div class="help-tips">
+      <span class="help-tip" onclick="()=>{ document.getElementById('mcInput').value='P0171'; addCode(); document.getElementById('mcInput').value='P0420'; addCode(); document.getElementById('mcInput').value='P0441'; addCode(); }">Ejemplo 3 códigos</span>
+      <span class="help-tip" onclick="askAssistant('¿Por qué un solo problema puede generar múltiples códigos DTC?')">Por qué múltiples DTCs</span>
+    </div>
+  </div>
+  <button class="help-dismiss" onclick="dismissHelp('multicode')">✕</button>
+</div>
   <div class="gcard">
     <div class="gcard-head"><div class="gcard-title">Ingresar códigos</div><span class="gcard-tag">La IA identifica la causa raíz</span></div>
     <div class="gcard-body">
@@ -967,6 +1125,18 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
 <!-- SYMPTOMS -->
 <div id="view-symptoms" class="view">
   <div class="stitle">Síntomas → DTC <span class="stitle-sub">DIAGNÓSTICO INVERSO</span></div>
+  <div class="help-banner" id="help-symptoms">
+  <span class="help-icon">🔍</span>
+  <div class="help-content">
+    <div class="help-title">Síntomas → DTC — Diagnóstico inverso sin scanner</div>
+    <div class="help-text">Cuando el cliente describe el problema pero no tenés el auto conectado todavía. Seleccioná los síntomas que describe (tembla, humo, ruido) y la IA identifica los DTCs más probables con su porcentaje de probabilidad. Perfecto para dar un presupuesto preliminar antes de conectar el scanner.</div>
+    <div class="help-tips">
+      <span class="help-tip" onclick="askAssistant('¿Qué síntomas son señal de urgencia y no se puede conducir el auto?')">Síntomas urgentes</span>
+      <span class="help-tip" onclick="askAssistant('Si el auto tembla en ralentí y gasta más combustible, ¿qué puede ser?')">Tembla + consume más</span>
+    </div>
+  </div>
+  <button class="help-dismiss" onclick="dismissHelp('symptoms')">✕</button>
+</div>
   <div class="g2" style="align-items:start">
     <div style="display:flex;flex-direction:column;gap:12px">
       <div class="gcard">
@@ -1030,6 +1200,19 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
             <defs><linearGradient id="pg" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#3b82f6"/><stop offset="100%" stop-color="#22d3ee"/></linearGradient></defs>
           </svg>
           <div class="hud-center"><div class="hud-icon" id="hudIcon">⚙</div><div class="hud-pct" id="hudPct" style="display:none">0%</div></div>
+  <div class="help-banner" id="help-scan">
+  <span class="help-icon">🔌</span>
+  <div class="help-content">
+    <div class="help-title">Escaneo OBD-II — Leer datos del auto</div>
+    <div class="help-text">Conectá el adaptador ELM327 WiFi al puerto OBD del auto (debajo del volante), conectate a su red WiFi, y presioná Iniciar. La plataforma lee todos los códigos de error, freeze frame (datos al momento del fallo) y datos en tiempo real automáticamente. Sin adaptador funciona en modo simulación.</div>
+    <div class="help-tips">
+      <span class="help-tip" onclick="askAssistant('¿Dónde se encuentra el puerto OBD-II en la mayoría de los autos?')">Puerto OBD</span>
+      <span class="help-tip" onclick="askAssistant('¿Qué adaptador OBD-II me recomendás comprar en Argentina?')">Qué adaptador comprar</span>
+      <span class="help-tip" onclick="askAssistant('¿Qué es el freeze frame y para qué sirve?')">Freeze Frame</span>
+    </div>
+  </div>
+  <button class="help-dismiss" onclick="dismissHelp('scan')">✕</button>
+</div>
         </div>
         <div class="proto-grid">
           <div class="proto-card sel" onclick="selProto(this)"><div class="proto-icon">📡</div><div class="proto-name">OBD-II WiFi</div></div>
@@ -1048,6 +1231,19 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
 <!-- WORKSHOP -->
 <div id="view-workshop" class="view">
   <div class="stitle">Gestión de Taller <span class="stitle-sub">CRM LIVIANO</span></div>
+  <div class="help-banner" id="help-workshop">
+  <span class="help-icon">🔧</span>
+  <div class="help-content">
+    <div class="help-title">Taller — CRM liviano para gestionar trabajos</div>
+    <div class="help-text">Gestioná todos los autos en el taller en un tablero Kanban: En diagnóstico → En reparación → Completado. Asignás mecánico, vinculás los DTCs y movés el trabajo con un click. Cuando completás un trabajo, confirmá la resolución para que la plataforma aprenda de ese caso y mejore los diagnósticos futuros.</div>
+    <div class="help-tips">
+      <span class="help-tip" onclick="openModal('modal-addjob')">Agregar trabajo</span>
+      <span class="help-tip" onclick="askAssistant('¿Cómo uso el módulo de taller para gestionar múltiples autos a la vez?')">Cómo usarlo</span>
+      <span class="help-tip" onclick="askAssistant('¿Por qué es importante confirmar la resolución al terminar un trabajo?')">Por qué confirmar</span>
+    </div>
+  </div>
+  <button class="help-dismiss" onclick="dismissHelp('workshop')">✕</button>
+</div>
   <div style="display:flex;gap:8px;margin-bottom:4px;flex-shrink:0">
     <button class="btn btn-blue" onclick="openModal('modal-addjob')">+ Nuevo trabajo</button>
     <input class="finput" id="wsSearch" placeholder="Buscar..." oninput="filterJobs(this.value)" style="max-width:240px">
@@ -1062,6 +1258,19 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
 <!-- AI RESEARCH -->
 <div id="view-research" class="view">
   <div class="stitle">IA Research <span class="stitle-sub">FUENTES TÉCNICAS EN TIEMPO REAL</span></div>
+  <div class="help-banner" id="help-research">
+  <span class="help-icon">⚡</span>
+  <div class="help-content">
+    <div class="help-title">IA Research — Investigación técnica en tiempo real</div>
+    <div class="help-text">Ingresá cualquier código DTC y la IA busca en bases de datos técnicas, foros de mecánicos y TSBs (boletines de servicio) en tiempo real. Te devuelve causas ordenadas por frecuencia, pasos de diagnóstico, y precios de repuestos para el mercado argentino. Cuanto más datos del scanner ingresés, más preciso el diagnóstico.</div>
+    <div class="help-tips">
+      <span class="help-tip" onclick="quickR('P0171','Toyota','Corolla 2019','tembla','+18% FT')">Probar con P0171</span>
+      <span class="help-tip" onclick="askAssistant('¿Cuáles son los DTCs más comunes en Argentina y cómo resolverlos?')">DTCs más comunes AR</span>
+      <span class="help-tip" onclick="askAssistant('¿Cómo uso los datos del scanner para mejorar el diagnóstico?')">Mejorar diagnóstico</span>
+    </div>
+  </div>
+  <button class="help-dismiss" onclick="dismissHelp('research')">✕</button>
+</div>
   <div class="ai-layout" style="flex:1;min-height:0">
     <div style="display:flex;flex-direction:column;gap:12px">
       <div class="gcard">
@@ -1105,10 +1314,28 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
 <!-- LEARNING -->
 <div id="view-learning" class="view">
   <div class="stitle">Aprendizaje Colectivo <span class="stitle-sub">ESTADÍSTICAS DE RESOLUCIÓN</span></div>
+  <div class="help-banner" id="help-learning">
+  <span class="help-icon">🧬</span>
+  <div class="help-content">
+    <div class="help-title">Aprendizaje — La plataforma aprende de cada caso resuelto</div>
+    <div class="help-text">Cada vez que confirmás una resolución, esos datos se guardan y mejoran los diagnósticos futuros de toda la plataforma. Con más casos, el sistema sabe qué causa es más frecuente para cada código en Argentina, cuánto cuesta realmente la reparación, y qué falla más en cada marca/modelo específico.</div>
+    <div class="help-tips">
+      <span class="help-tip" onclick="askAssistant('¿Cómo funciona el aprendizaje automático de la plataforma?')">Cómo aprende</span>
+      <span class="help-tip" onclick="askAssistant('¿Por qué es valioso para el taller contribuir con casos resueltos?')">Por qué contribuir</span>
+    </div>
+  </div>
+  <button class="help-dismiss" onclick="dismissHelp('learning')">✕</button>
+</div>
   <div class="g3">
-    <div class="metric m-blue" style="min-height:auto"><div class="metric-bg"></div><div class="metric-glow"></div><div class="metric-content"><div class="m-lbl">Casos confirmados</div><div class="m-val" id="totalCases">0</div><div class="m-sub">Base de conocimiento</div></div></div>
-    <div class="metric m-grn" style="min-height:auto"><div class="metric-bg"></div><div class="metric-glow"></div><div class="metric-content"><div class="m-lbl">Más frecuente</div><div class="m-val" style="font-size:18px">P0171</div><div class="m-sub">28 casos registrados</div></div></div>
-    <div class="metric" style="min-height:auto;background:rgba(167,139,250,0.08);border-color:rgba(167,139,250,0.18)"><div class="metric-content"><div class="m-lbl">Marca con más datos</div><div class="m-val" style="font-size:18px;color:var(--mag)">Toyota</div><div class="m-sub" style="color:var(--t2)">41% del total</div></div></div>
+    <div class="metric m-blue" style="min-height:auto"><div class="metric-bg"></div><div class="metric-glow"></div><div class="metric-content"><div class="m-lbl">Casos confirmados</div><div class="m-val" id="totalCases">0</div><div class="m-sub">Base de conocimiento colectivo</div></div></div>
+    <div class="gcard" style="padding:16px">
+      <div class="gcard-title" style="margin-bottom:10px">Códigos más frecuentes</div>
+      <div id="topCodes"><div style="font-size:10px;color:var(--t3)">Sin datos aún — confirmá resoluciones</div></div>
+    </div>
+    <div class="gcard" style="padding:16px">
+      <div class="gcard-title" style="margin-bottom:10px">Causas más comunes</div>
+      <div id="topCauses"><div style="font-size:10px;color:var(--t3)">Sin datos aún</div></div>
+    </div>
   </div>
   <div class="g2">
     <div class="gcard">
@@ -1132,6 +1359,19 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
 <!-- DIAGNOSTICO DIFERENCIAL -->
 <div id="view-diagnostico" class="view">
   <div class="stitle">Diagnóstico IA <span class="stitle-sub">DIAGNÓSTICO DIFERENCIAL CON DATOS DEL SCANNER</span></div>
+  <div class="help-banner" id="help-diagnostico">
+  <span class="help-icon">🧠</span>
+  <div class="help-content">
+    <div class="help-title">Diagnóstico IA — Diagnóstico diferencial con datos reales</div>
+    <div class="help-text">La herramienta más poderosa de la plataforma. Combina 4 fuentes: base técnica local (SAE J2012), valores reales del scanner, datos del freeze frame y resoluciones confirmadas por la comunidad. Te da las causas ordenadas por probabilidad con evidencia específica. Usá "Cargar datos live" para no tipear nada.</div>
+    <div class="help-tips">
+      <span class="help-tip" onclick="loadFromLiveData()">Cargar datos live</span>
+      <span class="help-tip" onclick="askAssistant('¿Cómo interpreto el fuel trim largo y corto para diagnosticar mezcla pobre?')">Interpretar Fuel Trim</span>
+      <span class="help-tip" onclick="askAssistant('¿Qué es el diagnóstico diferencial y por qué es importante?')">¿Qué es diag. diferencial?</span>
+    </div>
+  </div>
+  <button class="help-dismiss" onclick="dismissHelp('diagnostico')">✕</button>
+</div>
   
   <div class="g2" style="align-items:start">
     <div style="display:flex;flex-direction:column;gap:12px">
@@ -1211,6 +1451,18 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
 <!-- FICHA TECNICA -->
 <div id="view-ficha" class="view">
   <div class="stitle">Ficha Técnica <span class="stitle-sub">PERFIL COMPLETO DEL VEHÍCULO</span></div>
+  <div class="help-banner" id="help-ficha">
+  <span class="help-icon">📋</span>
+  <div class="help-content">
+    <div class="help-title">Ficha Técnica — Perfil completo del vehículo generado con IA</div>
+    <div class="help-text">Cuando agregás un vehículo nuevo, la IA busca automáticamente información técnica específica de ese modelo: problemas conocidos, plan de mantenimiento, especificaciones de aceite/neumáticos, y notas del mercado argentino (disponibilidad y precios de repuestos). Se actualiza con cada escaneo que hacés.</div>
+    <div class="help-tips">
+      <span class="help-tip" onclick="askAssistant('¿Cuáles son los problemas más frecuentes de Toyota Corolla en Argentina?')">Toyota Corolla AR</span>
+      <span class="help-tip" onclick="askAssistant('¿Cada cuánto km se cambia el aceite en un auto moderno?')">Plan de mantenimiento</span>
+    </div>
+  </div>
+  <button class="help-dismiss" onclick="dismissHelp('ficha')">✕</button>
+</div>
   <div id="fichaContent">
     <div class="no-vehicle-msg">
       <span style="font-size:40px;opacity:0.2">🚗</span>
@@ -1250,6 +1502,40 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
     <span class="bnav-label">Más</span>
   </button>
 </nav>
+
+
+<!-- ═══ FLOATING ASSISTANT ═══ -->
+<button class="fab" id="fab" onclick="toggleAssistant()" title="Asistente IA">
+  🤖
+  <div class="fab-badge" id="fabBadge"></div>
+</button>
+
+<div class="assistant-panel" id="assistantPanel">
+  <div class="ap-head">
+    <div class="ap-avatar">🤖</div>
+    <div>
+      <div class="ap-name">Asistente AutoDiag</div>
+      <div class="ap-status">Activo · Con contexto del vehículo</div>
+    </div>
+    <button class="ap-close" onclick="toggleAssistant()">✕</button>
+  </div>
+  <div class="ap-msgs" id="apMsgs">
+    <div class="ap-msg">
+      <div class="ap-avatar" style="width:24px;height:24px;border-radius:8px;font-size:12px;flex-shrink:0">🤖</div>
+      <div class="ap-bubble ai">Hola. Soy tu asistente de diagnóstico. Tengo acceso al vehículo activo, los DTCs detectados y los datos del scanner. ¿Qué necesitás?</div>
+    </div>
+  </div>
+  <div class="ap-suggestions" id="apSuggestions">
+    <div class="ap-chip" onclick="askAssistant('¿Cuál es el primer paso para diagnosticar los DTCs activos?')">¿Por dónde empiezo?</div>
+    <div class="ap-chip" onclick="askAssistant('¿Qué herramientas necesito para este diagnóstico?')">Herramientas</div>
+    <div class="ap-chip" onclick="askAssistant('Explicame en detalle el código DTC más crítico activo')">Explicar DTC</div>
+    <div class="ap-chip" onclick="askAssistant('¿Cuánto puede costar la reparación en Argentina?')">Costos AR</div>
+  </div>
+  <div class="ap-input-row">
+    <input class="ap-input" id="apInput" placeholder="Preguntame sobre el diagnóstico..." onkeypress="if(event.key==='Enter')sendToAssistant()">
+    <button class="ap-send" onclick="sendToAssistant()">↑</button>
+  </div>
+</div>
 
 </div><!-- /shell -->
 
@@ -1466,6 +1752,259 @@ if (origRunScan) {
   };
 }
 
+
+// ═══════════════════════════════════════════════════════════
+// FLOATING ASSISTANT
+// ═══════════════════════════════════════════════════════════
+let assistantHistory = [];
+let assistantOpen = false;
+
+function toggleAssistant() {
+  assistantOpen = !assistantOpen;
+  const panel = document.getElementById('assistantPanel');
+  const fab   = document.getElementById('fab');
+  panel.classList.toggle('open', assistantOpen);
+  fab.style.display = assistantOpen ? 'none' : 'flex';
+  if (assistantOpen) {
+    setTimeout(() => document.getElementById('apInput')?.focus(), 100);
+    // Update suggestions based on active DTCs
+    updateAssistantSuggestions();
+  }
+}
+
+function updateAssistantSuggestions() {
+  const dtcEl = document.getElementById('dtcCount');
+  const count = dtcEl ? parseInt(dtcEl.textContent) : 0;
+  const vehicle = activeVehicleName || 'el vehículo';
+  const suggestions = document.getElementById('apSuggestions');
+  if (!suggestions) return;
+  if (count > 0) {
+    suggestions.innerHTML = [
+      '¿Por dónde empiezo con estos DTCs?',
+      '¿Cuál es el más urgente?',
+      'Estimá el costo de reparación',
+      '¿Cuánto tiempo lleva la reparación?'
+    ].map(q => '<div class="ap-chip" onclick="askAssistant('' + q + '')">' + q + '</div>').join('');
+  }
+}
+
+async function sendToAssistant() {
+  const input = document.getElementById('apInput');
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+  await askAssistant(msg);
+}
+
+async function askAssistant(message) {
+  if (!assistantOpen) toggleAssistant();
+  const msgs = document.getElementById('apMsgs');
+
+  // Show user message
+  msgs.innerHTML += '<div class="ap-msg" style="flex-direction:row-reverse">'
+    + '<div class="ap-bubble user">' + message + '</div></div>';
+
+  // Typing indicator
+  const typingId = 'typing-' + Date.now();
+  msgs.innerHTML += '<div class="ap-msg" id="' + typingId + '">'
+    + '<div class="ap-avatar" style="width:24px;height:24px;border-radius:8px;font-size:12px;flex-shrink:0">🤖</div>'
+    + '<div class="ap-bubble ai"><div class="typing-dots"><span></span><span></span><span></span></div></div></div>';
+  msgs.scrollTop = msgs.scrollHeight;
+
+  // Build context
+  const context = {
+    vehicle: vehiclesList.find(v => v.id === activeVehicleId) || {},
+    dtcs: obd_latest?.dtcs || ['P0171','P0420','P0441'],
+    scanner: obd_latest || {},
+    current_view: document.querySelector('.view.active')?.id?.replace('view-','') || '',
+    history: assistantHistory,
+  };
+
+  try {
+    const res = await API.post('/api/assistant/ask', { message, context });
+    document.getElementById(typingId)?.remove();
+    const response = res.ok ? res.data.response : 'No puedo conectarme ahora. Verificá la API key en Railway.';
+    msgs.innerHTML += '<div class="ap-msg">'
+      + '<div class="ap-avatar" style="width:24px;height:24px;border-radius:8px;font-size:12px;flex-shrink:0">🤖</div>'
+      + '<div class="ap-bubble ai">' + response + '</div></div>';
+    // Save to history
+    assistantHistory.push({ role:'user', content: message });
+    assistantHistory.push({ role:'assistant', content: response });
+    if (assistantHistory.length > 12) assistantHistory = assistantHistory.slice(-12);
+  } catch(e) {
+    document.getElementById(typingId)?.remove();
+    msgs.innerHTML += '<div class="ap-msg">'
+      + '<div class="ap-bubble ai" style="color:var(--red)">Error de conexión.</div></div>';
+  }
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+// Auto-notify when new DTCs appear
+wsClient.on('dtcs', function(d) {
+  if (d.codes?.length > 0 && !assistantOpen) {
+    const badge = document.getElementById('fabBadge');
+    if (badge) { badge.textContent = d.codes.length; badge.classList.add('show'); }
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// HELP / INSTRUCTIVO SYSTEM
+// ═══════════════════════════════════════════════════════════
+const dismissedHelp = JSON.parse(localStorage.getItem('dismissed_help') || '{}');
+
+function dismissHelp(section) {
+  dismissedHelp[section] = true;
+  localStorage.setItem('dismissed_help', JSON.stringify(dismissedHelp));
+  const el = document.getElementById('help-' + section);
+  if (el) { el.style.opacity='0'; el.style.height='0'; el.style.overflow='hidden'; setTimeout(()=>el.remove(), 300); }
+}
+
+function initHelp() {
+  // Hide already-dismissed banners
+  Object.keys(dismissedHelp).forEach(section => {
+    const el = document.getElementById('help-' + section);
+    if (el) el.style.display = 'none';
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// LEARNING SYSTEM — aprendizaje continuo
+// ═══════════════════════════════════════════════════════════
+let learningStats = { total: 0, top_codes: [], top_causes: [], recent: [] };
+
+async function loadLearningStats() {
+  try {
+    const res = await API.get('/api/learn/stats');
+    if (res.ok) {
+      learningStats = res.data;
+      renderLearningStats();
+    }
+  } catch(e) {}
+}
+
+function renderLearningStats() {
+  const s = learningStats;
+
+  // Update total counter
+  const el = document.getElementById('totalCases');
+  if (el) el.textContent = s.total || learningDB.length;
+
+  // Render top codes
+  const topCodesEl = document.getElementById('topCodes');
+  if (topCodesEl && s.top_codes?.length) {
+    const max = s.top_codes[0]?.count || 1;
+    topCodesEl.innerHTML = s.top_codes.slice(0,5).map(function(c) {
+      const pct = Math.round((c.count / max) * 100);
+      return '<div style="margin-bottom:8px">'
+        + '<div style="display:flex;justify-content:space-between;margin-bottom:3px">'
+        + '<span style="font-family:var(--syne);font-size:12px;font-weight:700;color:var(--blue2)">' + c.dtc_code + '</span>'
+        + '<span style="font-family:var(--mono);font-size:10px;color:var(--t2)">' + c.count + ' casos' + (c.avg_cost ? ' · $' + Math.round(c.avg_cost) + ' USD' : '') + '</span>'
+        + '</div>'
+        + '<div class="stat-bar"><div class="stat-bar-fill" style="width:' + pct + '%"></div></div>'
+        + '</div>';
+    }).join('');
+  }
+
+  // Render top causes
+  const topCausesEl = document.getElementById('topCauses');
+  if (topCausesEl && s.top_causes?.length) {
+    topCausesEl.innerHTML = s.top_causes.slice(0,5).map(function(c) {
+      return '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--b1);font-size:11px">'
+        + '<span style="color:var(--text)">' + c.cause_found + '</span>'
+        + '<span style="font-family:var(--mono);font-size:10px;color:var(--grn)">' + c.count + ' veces</span>'
+        + '</div>';
+    }).join('');
+  }
+
+  // Render recent resolutions feed
+  const feedEl = document.getElementById('learnList');
+  const allCases = [...(s.recent || []), ...learningDB].slice(0,10);
+  if (feedEl && allCases.length) {
+    feedEl.innerHTML = allCases.map(function(e) {
+      const code = e.dtc_code || e.code || '';
+      const cause = e.cause_found || e.cause || '';
+      const veh = (e.make ? e.make + ' ' + e.model + ' ' + (e.year||'') : e.veh) || 'Sin especificar';
+      const cost = e.cost_usd || e.cost;
+      const date = e.created_at ? new Date(e.created_at).toLocaleDateString('es-AR') : (e.ts || '');
+      return '<div class="learn-feed-item">'
+        + '<div class="lf-code">' + code + '</div>'
+        + '<div class="lf-info">'
+        + '<div class="lf-cause">' + cause + '</div>'
+        + '<div class="lf-meta">' + veh + ' · ' + date + '</div>'
+        + '</div>'
+        + (cost ? '<span class="lf-cost">$' + cost + ' USD</span>' : '')
+        + '</div>';
+    }).join('');
+  }
+}
+
+// Enhanced addLearning that also calls the learning API
+const _origAddLearning = window.addLearning;
+window.addLearning = async function() {
+  const code  = document.getElementById('lCode').value.trim().toUpperCase();
+  const veh   = document.getElementById('lVeh').value.trim();
+  const cause = document.getElementById('lCause').value.trim();
+  const cost  = document.getElementById('lCost').value.trim();
+  if (!code || !cause) { showNotif('Completá código y causa', 'error'); return; }
+
+  // Save to learning API with full context
+  const activeVeh = vehiclesList.find(v => v.id === activeVehicleId);
+  try {
+    await API.post('/api/learn/case', {
+      vehicle_id: activeVehicleId,
+      dtc_code: code,
+      brand: activeVeh?.make || '',
+      model: activeVeh?.model || '',
+      year: activeVeh?.year || null,
+      engine: activeVeh?.engine || '',
+      scanner_snapshot: obd_latest,
+      cause_found: cause,
+      fix_applied: cause,
+      cost_usd: cost ? parseFloat(cost) : null,
+      confirmed: true,
+    });
+    showNotif('✓ Caso guardado — plataforma actualizada', 'success');
+  } catch(e) {}
+
+  addLearningEntry(code, veh, cause, cost);
+  ['lCode','lVeh','lCause','lCost'].forEach(id => document.getElementById(id).value = '');
+  await loadLearningStats();
+};
+
+// Enhanced confirmResolution
+const _origConfirmResolution = window.confirmResolution;
+window.confirmResolution = async function(code, veh) {
+  const cause = prompt(code + ' en ' + veh + '\n¿Cuál fue la causa y cómo se resolvió?');
+  if (!cause) return;
+  const cost = prompt('¿Cuánto costó? (USD, dejá vacío si no sabés)');
+  const parts = prompt('¿Qué repuestos se reemplazaron? (separados por coma, o vacío)');
+
+  const activeVeh = vehiclesList.find(v => v.id === activeVehicleId);
+  try {
+    await API.post('/api/learn/case', {
+      vehicle_id: activeVehicleId,
+      dtc_code: code,
+      brand: activeVeh?.make || '',
+      model: activeVeh?.model || '',
+      year: activeVeh?.year || null,
+      scanner_snapshot: obd_latest,
+      cause_found: cause,
+      fix_applied: cause,
+      cost_usd: cost ? parseFloat(cost) : null,
+      parts_replaced: parts ? parts.split(',').map(p=>p.trim()).filter(Boolean) : [],
+      confirmed: true,
+    });
+  } catch(e) {}
+
+  addLearningEntry(code, veh, cause, cost || 'N/A');
+  showNotif('✓ Resolución guardada — la plataforma aprendió', 'success');
+
+  // Offer to ask assistant about the case
+  setTimeout(() => {
+    askAssistant('Acabo de resolver ' + code + ' (' + cause + '). ¿Qué le diría al cliente sobre prevención y próximo service?');
+  }, 500);
+};
+
 // ── CLOCK ──
 setInterval(()=>{
   const n=new Date();
@@ -1602,12 +2141,15 @@ async function initApp() {
   await loadVehicles();
   await loadJobs();
   await checkHealth();
+  await loadLearningStats();
   initCharts();
   initRadar();
   renderLearning();
   updateTotalCases();
   wsClient.connect();
+  initHelp();
   setInterval(checkHealth, 30000);
+  setInterval(loadLearningStats, 60000);
   showNotif('✓ AutoDiag Pro — Bienvenido, '+(currentUser?.tallerName||'usuario'));
 }
 

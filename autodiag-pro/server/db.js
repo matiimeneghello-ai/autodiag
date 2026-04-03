@@ -152,6 +152,17 @@ async function runMigrations() {
 
   await query(`CREATE INDEX IF NOT EXISTS idx_profiles_vehicle ON vehicle_profiles(vehicle_id)`).catch(()=>{});
 
+
+  // Add scanner snapshot columns to resolutions for learning system
+  await query("ALTER TABLE resolutions ADD COLUMN IF NOT EXISTS scanner_snapshot JSONB").catch(()=>{});
+  await query("ALTER TABLE resolutions ADD COLUMN IF NOT EXISTS freeze_frame_data JSONB").catch(()=>{});
+  await query("ALTER TABLE resolutions ADD COLUMN IF NOT EXISTS symptoms TEXT[]").catch(()=>{});
+  await query("ALTER TABLE resolutions ADD COLUMN IF NOT EXISTS resolution_time_hours NUMERIC").catch(()=>{});
+  await query("ALTER TABLE resolutions ADD COLUMN IF NOT EXISTS mechanic_notes TEXT").catch(()=>{});
+  await query("ALTER TABLE resolutions ADD COLUMN IF NOT EXISTS brand VARCHAR(100)").catch(()=>{});
+  await query("ALTER TABLE resolutions ADD COLUMN IF NOT EXISTS model VARCHAR(100)").catch(()=>{});
+  await query("ALTER TABLE resolutions ADD COLUMN IF NOT EXISTS year INTEGER").catch(()=>{});
+
   console.log('✓ Migraciones DB completadas');
 }
 

@@ -497,6 +497,157 @@ app.post('/api/ai/chat', async (req,res) => {
   } catch(e){res.status(500).json({ok:false,error:e.message});}
 });
 
+
+// ── LEARNING SYSTEM — aprendizaje continuo ───────────────────
+// Cada caso resuelto alimenta el conocimiento de la plataforma
+
+app.post('/api/learn/case', async (req,res) => {
+  // Guardar caso completo: DTC + datos scanner + freeze frame + causa + solucion + costo
+  const { vehicle_id, dtc_code, brand, model, year, engine,
+          scanner_snapshot, freeze_frame, symptoms,
+          cause_found, fix_applied, parts_replaced,
+          cost_usd, resolution_time_hours, confirmed, mechanic_notes } = req.body;
+
+  if (!dtc_code || !cause_found) return res.status(400).json({ok:false,error:'DTC y causa requeridos'});
+
+  try {
+    if (db) {
+      await db.query(`
+        INSERT INTO resolutions
+          (vehicle_id, dtc_code, cause_found, fix_applied, cost_usd, mechanic, confirmed,
+           parts_used)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+      `, [
+        vehicle_id||null, dtc_code.toUpperCase(), cause_found, fix_applied||cause_found,
+        cost_usd||null, mechanic_notes||null, true,
+        parts_replaced||[]
+      ]);
+
+      // Update DTC stats in dtcs table — incrementar confianza de causas
+      const existing = await db.getDTCWithFullData(dtc_code.toUpperCase()).catch(()=>null);
+      if (existing) {
+        const causes = existing.causes || [];
+        // Move confirmed cause to top if not already there
+        const idx = causes.findIndex(c => c.toLowerCase().includes(cause_found.toLowerCase().split(' ')[0]));
+        if (idx > 0) {
+          const confirmed_cause = causes.splice(idx, 1)[0];
+          causes.unshift(confirmed_cause);
+          await db.query('UPDATE dtcs SET causes=$1 WHERE code=$2', [causes, dtc_code.toUpperCase()]).catch(()=>{});
+        }
+      }
+    }
+
+    // Log para analytics futuros
+    console.log('CASE LEARNED: ' + dtc_code + ' -> ' + cause_found + ' | ' + (brand||'') + ' ' + (model||'') + ' ' + (year||''));
+
+    res.json({ok:true, message:'Caso guardado. La plataforma aprendio de este diagnostico.'});
+  } catch(e) { res.status(500).json({ok:false,error:e.message}); }
+});
+
+app.get('/api/learn/stats', async (req,res) => {
+  if (!db) return res.json({ok:true,data:{total:0,top_codes:[],top_causes:[],recent:[]}});
+  try {
+    const [total, topCodes, topCauses, recent] = await Promise.all([
+      db.query('SELECT COUNT(*) as count FROM resolutions WHERE confirmed=TRUE'),
+      db.query('SELECT dtc_code, COUNT(*) as count, AVG(cost_usd) as avg_cost FROM resolutions WHERE confirmed=TRUE GROUP BY dtc_code ORDER BY count DESC LIMIT 10'),
+      db.query('SELECT cause_found, COUNT(*) as count, AVG(cost_usd) as avg_cost FROM resolutions WHERE confirmed=TRUE GROUP BY cause_found ORDER BY count DESC LIMIT 10'),
+      db.query('SELECT r.*, v.make, v.model, v.year FROM resolutions r LEFT JOIN vehicles v ON r.vehicle_id=v.id WHERE r.confirmed=TRUE ORDER BY r.created_at DESC LIMIT 20'),
+    ]);
+    res.json({ok:true, data:{
+      total: parseInt(total.rows[0].count),
+      top_codes: topCodes.rows,
+      top_causes: topCauses.rows,
+      recent: recent.rows,
+    }});
+  } catch(e){ res.status(500).json({ok:false,error:e.message}); }
+});
+
+// ── FLOATING ASSISTANT — contexto completo ───────────────────
+app.post('/api/assistant/ask', async (req,res) => {
+  const { message, context } = req.body;
+  if (!message) return res.status(400).json({ok:false,error:'Mensaje requerido'});
+  if (!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ok:false,error:'API key no configurada'});
+
+  try {
+    // Build rich context from everything we know
+    const vehicle = context?.vehicle || {};
+    const dtcs    = context?.dtcs || [];
+    const scanner = context?.scanner || {};
+    const history = context?.history || [];
+    const currentView = context?.current_view || '';
+
+    // Get community data for active DTCs
+    let communityContext = '';
+    if (db && dtcs.length > 0) {
+      for (const code of dtcs.slice(0,3)) {
+        const stats = await db.getResolutionStats(code).catch(()=>[]);
+        if (stats.length > 0) {
+          communityContext += code + ': ' + stats.slice(0,2).map(function(s){
+            return s.cause_found + '(' + s.count + ' casos)';
+          }).join(', ') + '. ';
+        }
+      }
+    }
+
+    // Get local DTC data
+    let dtcContext = '';
+    if (db && dtcs.length > 0) {
+      for (const code of dtcs.slice(0,2)) {
+        const local = await db.getDTCWithFullData(code).catch(()=>null);
+        if (local) {
+          dtcContext += code + ': ' + local.title + '. Causas: ' + (local.causes||[]).slice(0,3).join(', ') + '. ';
+        }
+      }
+    }
+
+    const scannerStr = Object.values(scanner)
+      .filter(function(v){ return v && v.value !== undefined; })
+      .map(function(v){ return v.label + ': ' + v.value + (v.unit||''); })
+      .join(', ') || 'Sin datos';
+
+    const systemPrompt = 'Sos el asistente de AutoDiag Pro, una plataforma de diagnostico automotriz para talleres en Argentina. '
+      + 'Tu rol es ayudar al mecanico a diagnosticar y resolver problemas de manera practica y concisa. '
+      + 'Responde siempre en espanol, de forma tecnica pero clara. Maximo 3 oraciones por respuesta salvo que se pida mas detalle. '
+      + 'Prioriza soluciones economicas y practicas para el mercado argentino. '
+      + 'CONTEXTO ACTUAL: '
+      + 'Vehiculo: ' + (vehicle.make||'') + ' ' + (vehicle.model||'') + ' ' + (vehicle.year||'') + ' ' + (vehicle.engine||'') + '. '
+      + 'DTCs activos: ' + (dtcs.join(', ') || 'ninguno') + '. '
+      + 'Datos scanner: ' + scannerStr + '. '
+      + (dtcContext ? 'Info tecnica: ' + dtcContext : '')
+      + (communityContext ? 'Casos resueltos comunidad: ' + communityContext : '')
+      + (currentView ? 'El mecanico esta en la seccion: ' + currentView + '. ' : '')
+      + (history.length ? 'Historial conversacion: ' + history.slice(-4).map(function(h){ return h.role+': '+h.content; }).join(' | ') : '');
+
+    // Build messages including conversation history
+    const messages = [];
+    if (history.length > 0) {
+      history.slice(-6).forEach(function(h) {
+        messages.push({ role: h.role, content: h.content });
+      });
+    }
+    messages.push({ role: 'user', content: message });
+
+    const fetch = require('node-fetch');
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 500,
+        system: systemPrompt,
+        messages: messages
+      })
+    });
+
+    const data = await r.json();
+    const response = (data.content||[]).filter(function(b){ return b.type==='text'; }).map(function(b){ return b.text; }).join('');
+    res.json({ok:true, data:{ response, tokens: data.usage }});
+  } catch(e) { res.status(500).json({ok:false,error:e.message}); }
+});
 // SPA fallback
 app.get('*', (req,res) => res.sendFile(path.join(__dirname,'../public/index.html')));
 
