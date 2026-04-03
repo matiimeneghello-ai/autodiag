@@ -116,6 +116,19 @@ async function runMigrations() {
   await query(`CREATE INDEX IF NOT EXISTS idx_resolutions_code ON resolutions(dtc_code)`).catch(()=>{});
   await query(`CREATE INDEX IF NOT EXISTS idx_jobs_status ON workshop_jobs(status)`).catch(()=>{});
 
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS vehicle_profiles (
+      id          SERIAL PRIMARY KEY,
+      vehicle_id  INTEGER REFERENCES vehicles(id) ON DELETE CASCADE UNIQUE,
+      profile     JSONB NOT NULL DEFAULT '{}',
+      generated_at TIMESTAMP DEFAULT NOW(),
+      updated_at  TIMESTAMP DEFAULT NOW()
+    )
+  `);
+
+  await query(`CREATE INDEX IF NOT EXISTS idx_profiles_vehicle ON vehicle_profiles(vehicle_id)`).catch(()=>{});
+
   console.log('✓ Migraciones DB completadas');
 }
 
@@ -189,11 +202,29 @@ async function updateJobStatus(id,status) {
   return (await query(`UPDATE workshop_jobs SET status=$1,updated_at=NOW() WHERE id=$2 RETURNING *`,[status,id])).rows[0];
 }
 
+
+// Vehicle Profiles
+async function getProfile(vehicleId) {
+  const r = await query('SELECT * FROM vehicle_profiles WHERE vehicle_id=$1', [vehicleId]);
+  return r.rows[0] || null;
+}
+
+async function upsertProfile(vehicleId, profileData) {
+  const r = await query(`
+    INSERT INTO vehicle_profiles (vehicle_id, profile, generated_at, updated_at)
+    VALUES ($1,$2,NOW(),NOW())
+    ON CONFLICT (vehicle_id) DO UPDATE SET profile=$2, updated_at=NOW()
+    RETURNING *
+  `, [vehicleId, JSON.stringify(profileData)]);
+  return r.rows[0];
+}
+
 module.exports = {
   query,connectDB,pool,
   getVehicles,getVehicle,createVehicle,updateVehicle,deleteVehicle,
   saveScan,getScans,
   getDTCInfo,upsertDTCInfo,
   getResolutions,saveResolution,getResolutionStats,
-  getJobs,createJob,updateJobStatus
+  getJobs,createJob,updateJobStatus,
+  getProfile,upsertProfile
 };

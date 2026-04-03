@@ -423,6 +423,99 @@ app.post('/api/notifications/dtc-alert', async (req, res) => {
   res.json({ ok: true, message: 'Alerta registrada' });
 });
 
+
+// ── VEHICLE PROFILES ─────────────────────────────────────────
+app.get('/api/vehicles/:id/profile', async (req,res) => {
+  if(!db) return res.json({ok:true,data:null});
+  try {
+    const profile = await db.getProfile(req.params.id);
+    res.json({ok:true,data:profile});
+  } catch(e){res.status(500).json({ok:false,error:e.message});}
+});
+
+app.post('/api/vehicles/:id/profile/generate', async (req,res) => {
+  const vehicleId = req.params.id;
+  if(!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ok:false,error:'API key no configurada'});
+  
+  try {
+    // Get vehicle info
+    const vehicle = db ? await db.getVehicle(vehicleId) : req.body.vehicle;
+    const scans   = db ? await db.getScans(vehicleId, 20) : [];
+    
+    const make  = vehicle?.make  || req.body.make  || 'Desconocido';
+    const model = vehicle?.model || req.body.model || 'Desconocido';
+    const year  = vehicle?.year  || req.body.year  || '';
+    const engine= vehicle?.engine|| req.body.engine|| '';
+    
+    // Collect all DTCs from history
+    const allDtcs = [...new Set(scans.flatMap(s => s.dtcs || []))];
+    const scanCount = scans.length;
+    const lastScan = scans[0]?.created_at;
+    
+    const prompt = `Sos un experto en diagnóstico automotriz para el mercado latinoamericano (Argentina).
+Generá un perfil técnico completo para el siguiente vehículo:
+
+Vehículo: ${make} ${model} ${year}
+Motor: ${engine}
+Historial de DTCs detectados: ${allDtcs.length ? allDtcs.join(', ') : 'Sin escaneos previos'}
+Cantidad de escaneos: ${scanCount}
+${lastScan ? 'Último escaneo: ' + new Date(lastScan).toLocaleDateString('es-AR') : ''}
+
+Generá información técnica útil para el mecánico. Si no hay historial de DTCs, generá el perfil basado en el modelo/año.
+Buscá información específica sobre este vehículo en el mercado argentino.
+
+SOLO JSON sin texto extra:
+{
+  "overview": "Resumen técnico del vehículo en 2-3 oraciones",
+  "common_issues": [
+    {"title": "Problema conocido", "description": "descripción", "frequency": "Muy frecuente|Frecuente|Ocasional", "estimated_cost": "$XX-$XXX USD"}
+  ],
+  "maintenance_schedule": {
+    "oil_change_km": 5000,
+    "timing_belt_km": 90000,
+    "spark_plugs_km": 30000,
+    "notes": "notas específicas del modelo"
+  },
+  "specs": {
+    "fuel_type": "Nafta/Diesel/GNC",
+    "fuel_capacity_liters": 50,
+    "oil_type": "5W30",
+    "oil_capacity_liters": 4.2,
+    "tire_size": "195/65 R15",
+    "coolant_type": "OAT"
+  },
+  "argentina_notes": "Disponibilidad de repuestos, precios aproximados en Argentina, variantes locales",
+  "dtc_patterns": "${allDtcs.length ? 'Análisis de los DTCs detectados: ' + allDtcs.join(', ') : 'Sin patrones de falla detectados aún'}",
+  "reliability_score": 7,
+  "sources": ["fuente1", "fuente2"]
+}`;
+
+    const raw = await callClaude(prompt, true, 1800);
+    const match = raw.replace(/\`\`\`json|\`\`\`/g,'').match(/\{[\s\S]*\}/);
+    
+    if (!match) return res.status(500).json({ok:false,error:'No se pudo generar el perfil'});
+    
+    const profileData = JSON.parse(match[0]);
+    profileData.vehicle = { make, model, year, engine };
+    profileData.generated_at = new Date().toISOString();
+    profileData.dtc_history = allDtcs;
+    profileData.scan_count = scanCount;
+    
+    // Save to DB
+    if (db) await db.upsertProfile(vehicleId, profileData);
+    
+    res.json({ok:true,data:profileData});
+  } catch(e) { res.status(500).json({ok:false,error:e.message}); }
+});
+
+app.put('/api/vehicles/:id/profile', async (req,res) => {
+  if(!db) return res.status(503).json({ok:false,error:'Sin DB'});
+  try {
+    const profile = await db.upsertProfile(req.params.id, req.body);
+    res.json({ok:true,data:profile});
+  } catch(e){res.status(500).json({ok:false,error:e.message});}
+});
+
 // SPA fallback
 app.get('*', (req,res) => res.sendFile(path.join(__dirname,'../public/index.html')));
 

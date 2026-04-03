@@ -383,6 +383,38 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
 /* PDF */
 .pdf-preview{background:#fff;border-radius:10px;padding:22px;color:#111;font-family:sans-serif;font-size:12px;line-height:1.6;max-height:380px;overflow-y:auto;}
 
+
+/* FICHA TECNICA */
+.ficha-hero{padding:24px;border-radius:var(--r2);background:var(--glass);backdrop-filter:blur(20px);border:1px solid var(--b1);display:flex;align-items:center;gap:24px;flex-shrink:0;}
+.ficha-car-icon{width:80px;height:80px;border-radius:18px;background:linear-gradient(135deg,rgba(59,130,246,0.2),rgba(34,211,238,0.1));display:flex;align-items:center;justify-content:center;font-size:38px;flex-shrink:0;border:1px solid rgba(59,130,246,0.25);}
+.ficha-title{font-family:var(--syne);font-size:22px;font-weight:800;}
+.ficha-sub{font-size:11px;color:var(--t2);font-family:var(--mono);margin-top:4px;}
+.ficha-badges{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;}
+.reliability-bar{display:flex;align-items:center;gap:10px;margin-top:8px;}
+.rel-track{flex:1;height:6px;background:rgba(255,255,255,0.06);border-radius:3px;}
+.rel-fill{height:6px;border-radius:3px;transition:width 1s ease;}
+.rel-label{font-family:var(--mono);font-size:10px;min-width:28px;}
+.issue-card{padding:14px;border-radius:12px;border:1px solid var(--b1);background:rgba(255,255,255,0.02);margin-bottom:8px;}
+.issue-title{font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:space-between;}
+.issue-desc{font-size:11px;color:var(--t2);margin-top:5px;line-height:1.6;}
+.issue-cost{font-family:var(--mono);font-size:10px;color:var(--grn);margin-top:5px;}
+.freq-badge{font-size:8px;font-family:var(--mono);padding:2px 8px;border-radius:20px;}
+.freq-h{background:rgba(248,113,113,0.12);color:var(--red);border:1px solid rgba(248,113,113,0.2);}
+.freq-m{background:rgba(251,191,36,0.1);color:var(--yel);border:1px solid rgba(251,191,36,0.2);}
+.freq-l{background:rgba(52,211,153,0.08);color:var(--grn);border:1px solid rgba(52,211,153,0.18);}
+.spec-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+.spec-row{display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid var(--b1);}
+.spec-k{font-size:10px;color:var(--t2);}
+.spec-v{font-family:var(--mono);font-size:11px;font-weight:500;color:var(--text);}
+.maint-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;border:1px solid var(--b1);background:rgba(255,255,255,0.02);margin-bottom:5px;}
+.maint-km{font-family:var(--syne);font-size:13px;font-weight:700;color:var(--blue2);min-width:80px;}
+.maint-label{font-size:11px;color:var(--text);}
+.dtc-history-chip{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:8px;font-family:var(--mono);font-size:10px;border:1px solid rgba(248,113,113,0.25);background:rgba(248,113,113,0.08);color:var(--red);margin:2px;cursor:pointer;}
+.dtc-history-chip:hover{background:rgba(248,113,113,0.15);}
+.generating-overlay{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px;gap:16px;font-size:12px;color:var(--t2);}
+.gen-spinner{width:44px;height:44px;border:2px solid rgba(59,130,246,0.2);border-top-color:var(--blue2);border-radius:50%;animation:spin 0.8s linear infinite;}
+.no-vehicle-msg{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px;gap:12px;font-size:12px;color:var(--t3);}
+
 /* GRID HELPERS */
 .g2{display:grid;grid-template-columns:1fr 300px;gap:12px;}
 .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
@@ -462,6 +494,7 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
     <button class="nav-btn" onclick="goView('workshop',this)">Taller</button>
     <button class="nav-btn" onclick="goView('research',this)">IA Research</button>
     <button class="nav-btn" onclick="goView('learning',this)">Aprendizaje</button>
+    <button class="nav-btn" onclick="goView('ficha',this);if(activeVehicleId){const v=vehiclesList.find(x=>x.id===activeVehicleId);loadFicha(activeVehicleId,v);}">Ficha Técnica</button>
   </div>
   <div class="header-right">
     <div class="status-pill" id="statusPill"><div class="sdot"></div><span id="statusText">Sistema OK</span></div>
@@ -496,6 +529,7 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
     <button class="sb-btn sb-btn-blue" onclick="goView('research',document.querySelectorAll('.nav-btn')[6])">⚡ IA Research</button>
     <button class="sb-btn sb-btn-ghost" onclick="generatePDF()">↓ Exportar PDF</button>
     <button class="sb-btn sb-btn-ghost" onclick="goView('scan',document.querySelectorAll('.nav-btn')[4])">◎ Nuevo escaneo</button>
+    <button class="sb-btn sb-btn-ghost" onclick="openFicha()">📋 Ver ficha técnica</button>
   </div>
 </div>
 
@@ -755,6 +789,18 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
   </div>
 </div>
 
+<!-- FICHA TECNICA -->
+<div id="view-ficha" class="view">
+  <div class="stitle">Ficha Técnica <span class="stitle-sub">PERFIL COMPLETO DEL VEHÍCULO</span></div>
+  <div id="fichaContent">
+    <div class="no-vehicle-msg">
+      <span style="font-size:40px;opacity:0.2">🚗</span>
+      <div>Seleccioná un vehículo del sidebar para ver su ficha técnica</div>
+      <div style="font-size:10px;color:var(--t3)">La ficha se genera automáticamente con IA al seleccionar un vehículo nuevo</div>
+    </div>
+  </div>
+</div>
+
 </div><!-- /content -->
 </div><!-- /body -->
 </div><!-- /shell -->
@@ -1006,6 +1052,11 @@ async function selectVehicle(v) {
   document.getElementById('dashVehTag').textContent = activeVehicleName;
   renderVehicleList(vehiclesList);
   wsClient.setVehicle(v.id);
+
+  // Auto-load ficha if on ficha view
+  if(document.getElementById('view-ficha').classList.contains('active')){
+    loadFicha(v.id, v);
+  }
 
   // Cargar historial del vehículo
   const scans = await API.get(`/api/vehicles/${v.id}/scans`);
@@ -1607,6 +1658,200 @@ function showNotif(msg,type='info'){
   n.textContent=msg;
   n.className='notif show '+(type==='success'?'success':type==='error'?'error':'');
   setTimeout(()=>n.classList.remove('show'),3200);
+}
+
+
+// ── FICHA TECNICA ──
+function openFicha() {
+  if (!activeVehicleId) { showNotif('Seleccioná un vehículo primero', 'error'); return; }
+  const navBtns = document.querySelectorAll('.nav-btn');
+  // Find ficha button (last one)
+  const fichaBtn = navBtns[navBtns.length - 1];
+  goView('ficha', fichaBtn);
+  // Find vehicle data
+  const v = vehiclesList.find(x => x.id === activeVehicleId);
+  loadFicha(activeVehicleId, v);
+}
+
+
+let currentProfile = null;
+let fichaVehicleId = null;
+
+async function loadFicha(vehicleId, vehicleData) {
+  fichaVehicleId = vehicleId;
+  const el = document.getElementById('fichaContent');
+  
+  // Try to load existing profile first
+  el.innerHTML = '<div class="generating-overlay"><div class="gen-spinner"></div><div>Cargando ficha técnica...</div></div>';
+  
+  try {
+    const res = await API.get(`/api/vehicles/${vehicleId}/profile`);
+    if (res.ok && res.data?.profile) {
+      currentProfile = res.data.profile;
+      renderFicha(currentProfile, vehicleData);
+    } else {
+      // Auto-generate if no profile exists
+      await generateFicha(vehicleId, vehicleData);
+    }
+  } catch(e) {
+    await generateFicha(vehicleId, vehicleData);
+  }
+}
+
+async function generateFicha(vehicleId, vehicleData) {
+  const el = document.getElementById('fichaContent');
+  el.innerHTML = `<div class="generating-overlay">
+    <div class="gen-spinner"></div>
+    <div style="font-family:var(--syne);font-size:14px;font-weight:600;color:var(--text)">Generando ficha técnica con IA...</div>
+    <div style="font-size:10px;color:var(--t3);text-align:center">Buscando información del vehículo en fuentes técnicas,<br>historial de fallas y datos del mercado argentino</div>
+    <div class="lstep" style="max-width:320px;margin-top:8px">
+      <div class="lspin"></div>
+      <div class="lstep-txt"><div class="lstep-title">IA RESEARCH + WEB SEARCH ACTIVO</div><div>Consultando bases de datos técnicas...</div></div>
+    </div>
+  </div>`;
+  
+  try {
+    const res = await API.post(`/api/vehicles/${vehicleId}/profile/generate`, vehicleData || {});
+    if (res.ok && res.data) {
+      currentProfile = res.data;
+      renderFicha(currentProfile, vehicleData);
+      showNotif('✓ Ficha técnica generada con IA', 'success');
+    } else {
+      el.innerHTML = `<div class="generating-overlay">
+        <span style="font-size:32px">⚠️</span>
+        <div style="color:var(--red)">${res.error || 'Error generando ficha'}</div>
+        <button class="btn btn-blue" onclick="generateFicha(${vehicleId})">Reintentar</button>
+      </div>`;
+    }
+  } catch(e) {
+    el.innerHTML = `<div class="generating-overlay">
+      <span style="font-size:32px">⚠️</span>
+      <div style="color:var(--red)">Error de conexión: ${e.message}</div>
+      <button class="btn btn-blue" onclick="generateFicha(${vehicleId})">Reintentar</button>
+    </div>`;
+  }
+}
+
+function renderFicha(p, vData) {
+  const rel = p.reliability_score || 7;
+  const relColor = rel >= 8 ? 'var(--grn)' : rel >= 6 ? 'var(--yel)' : 'var(--red)';
+  const relLabel = rel >= 8 ? 'Muy confiable' : rel >= 6 ? 'Confiable' : rel >= 4 ? 'Regular' : 'Problemático';
+  
+  const issuesHTML = (p.common_issues || []).map(issue => {
+    const freqClass = issue.frequency?.includes('Muy') ? 'freq-h' : issue.frequency?.includes('Frecuente') ? 'freq-m' : 'freq-l';
+    return `<div class="issue-card">
+      <div class="issue-title">
+        <span>${issue.title}</span>
+        <span class="freq-badge ${freqClass}">${issue.frequency || 'Ocasional'}</span>
+      </div>
+      <div class="issue-desc">${issue.description}</div>
+      ${issue.estimated_cost ? `<div class="issue-cost">Costo estimado: ${issue.estimated_cost}</div>` : ''}
+    </div>`;
+  }).join('');
+
+  const specsHTML = p.specs ? `
+    <div class="spec-grid">
+      ${p.specs.fuel_type ? `<div class="spec-row"><span class="spec-k">Combustible</span><span class="spec-v">${p.specs.fuel_type}</span></div>` : ''}
+      ${p.specs.fuel_capacity_liters ? `<div class="spec-row"><span class="spec-k">Tanque</span><span class="spec-v">${p.specs.fuel_capacity_liters}L</span></div>` : ''}
+      ${p.specs.oil_type ? `<div class="spec-row"><span class="spec-k">Aceite</span><span class="spec-v">${p.specs.oil_type}</span></div>` : ''}
+      ${p.specs.oil_capacity_liters ? `<div class="spec-row"><span class="spec-k">Cap. aceite</span><span class="spec-v">${p.specs.oil_capacity_liters}L</span></div>` : ''}
+      ${p.specs.tire_size ? `<div class="spec-row"><span class="spec-k">Neumáticos</span><span class="spec-v">${p.specs.tire_size}</span></div>` : ''}
+      ${p.specs.coolant_type ? `<div class="spec-row"><span class="spec-k">Refrigerante</span><span class="spec-v">${p.specs.coolant_type}</span></div>` : ''}
+    </div>` : '';
+
+  const maintHTML = p.maintenance_schedule ? [
+    {km: p.maintenance_schedule.oil_change_km, label: 'Cambio de aceite'},
+    {km: p.maintenance_schedule.timing_belt_km, label: 'Correa de distribución'},
+    {km: p.maintenance_schedule.spark_plugs_km, label: 'Bujías'},
+  ].filter(m => m.km).map(m => `
+    <div class="maint-item">
+      <div class="maint-km">c/ ${(m.km/1000).toFixed(0)}k km</div>
+      <div class="maint-label">${m.label}</div>
+    </div>`).join('') : '';
+
+  const dtcHistoryHTML = (p.dtc_history || []).map(code => 
+    `<span class="dtc-history-chip" onclick="researchDTC('${code}','','')">
+      ${code} <span style="opacity:0.5">→</span>
+    </span>`).join('') || '<span style="font-size:10px;color:var(--t3)">Sin DTCs registrados aún</span>';
+
+  const vehicle = p.vehicle || vData || {};
+  const fichaTitle = `${vehicle.make || ''} ${vehicle.model || ''}`.trim() || 'Vehículo';
+  const fichaSub = [vehicle.year, vehicle.engine].filter(Boolean).join(' · ');
+
+  document.getElementById('fichaContent').innerHTML = `
+    <!-- HERO -->
+    <div class="ficha-hero">
+      <div class="ficha-car-icon">🚗</div>
+      <div style="flex:1">
+        <div class="ficha-title">${fichaTitle}</div>
+        <div class="ficha-sub">${fichaSub}</div>
+        <div class="ficha-badges">
+          <span class="tag tag-b">${p.specs?.fuel_type || 'Nafta'}</span>
+          ${p.scan_count ? `<span class="tag tag-b">${p.scan_count} escaneos</span>` : ''}
+          <span class="tag ${rel>=8?'tag-g':rel>=6?'tag-y':'tag-r'}">${relLabel}</span>
+        </div>
+        <div class="reliability-bar">
+          <span style="font-size:9px;color:var(--t2);font-family:var(--mono);min-width:70px">CONFIABILIDAD</span>
+          <div class="rel-track"><div class="rel-fill" style="width:${rel*10}%;background:${relColor}"></div></div>
+          <span class="rel-label" style="color:${relColor}">${rel}/10</span>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end;flex-shrink:0">
+        <button class="btn btn-blue" onclick="generateFicha(${fichaVehicleId})" style="font-size:10px;padding:7px 14px">⚡ Regenerar con IA</button>
+        <span style="font-size:8px;color:var(--t3);font-family:var(--mono)">Generado: ${p.generated_at ? new Date(p.generated_at).toLocaleDateString('es-AR') : 'ahora'}</span>
+      </div>
+    </div>
+
+    <!-- GRID PRINCIPAL -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      
+      <!-- Overview + Issues -->
+      <div style="display:flex;flex-direction:column;gap:12px">
+        ${p.overview ? `<div class="gcard">
+          <div class="gcard-head"><div class="gcard-title">Resumen técnico</div></div>
+          <div class="gcard-body"><div style="font-size:12px;color:var(--text);line-height:1.75">${p.overview}</div>
+          ${p.argentina_notes ? `<div style="margin-top:10px;padding:10px;border-radius:8px;border-left:2px solid var(--grn);background:rgba(52,211,153,0.04);font-size:11px;color:var(--t2)">${p.argentina_notes}</div>` : ''}
+          </div>
+        </div>` : ''}
+
+        <div class="gcard">
+          <div class="gcard-head"><div class="gcard-title">Historial de DTCs detectados</div><span class="gcard-tag">Click para investigar</span></div>
+          <div class="gcard-body">
+            <div style="display:flex;flex-wrap:wrap;gap:2px">${dtcHistoryHTML}</div>
+            ${p.dtc_patterns && p.dtc_patterns !== 'Sin patrones de falla detectados aún' ? `<div style="margin-top:10px;font-size:11px;color:var(--t2);line-height:1.6;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid var(--b1)">${p.dtc_patterns}</div>` : ''}
+          </div>
+        </div>
+
+        ${issuesHTML ? `<div class="gcard">
+          <div class="gcard-head"><div class="gcard-title">Problemas conocidos del modelo</div></div>
+          <div class="gcard-body">${issuesHTML}</div>
+        </div>` : ''}
+      </div>
+
+      <!-- Specs + Maintenance -->
+      <div style="display:flex;flex-direction:column;gap:12px">
+        ${specsHTML ? `<div class="gcard">
+          <div class="gcard-head"><div class="gcard-title">Especificaciones técnicas</div></div>
+          <div class="gcard-body">${specsHTML}</div>
+        </div>` : ''}
+
+        ${maintHTML ? `<div class="gcard">
+          <div class="gcard-head"><div class="gcard-title">Plan de mantenimiento</div></div>
+          <div class="gcard-body">
+            ${maintHTML}
+            ${p.maintenance_schedule?.notes ? `<div style="margin-top:8px;font-size:10px;color:var(--t2);font-style:italic">${p.maintenance_schedule.notes}</div>` : ''}
+          </div>
+        </div>` : ''}
+
+        ${(p.sources?.length) ? `<div class="gcard">
+          <div class="gcard-head"><div class="gcard-title">Fuentes consultadas</div></div>
+          <div class="gcard-body" style="display:flex;flex-wrap:wrap;gap:5px">
+            ${p.sources.map(s=>`<span class="src-chip off">${s}</span>`).join('')}
+          </div>
+        </div>` : ''}
+      </div>
+    </div>
+  `;
 }
 
 // ── MODALS ──
