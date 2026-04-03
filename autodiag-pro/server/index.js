@@ -255,7 +255,8 @@ app.post('/api/auth/register', authLimiter, async (req, res) => {
     if (!validatePassword(password)) return res.status(400).json({ ok: false, error: 'La contraseña debe tener al menos 6 caracteres' });
     if (!tallerName.trim())       return res.status(400).json({ ok: false, error: 'Ingresá el nombre del taller' });
 
-    if (!db) return res.status(503).json({ ok: false, error: 'Base de datos no disponible. Reintentá en unos segundos.' });
+    const dbReady = await waitForDB();
+    if (!dbReady) return res.status(503).json({ ok: false, error: 'Base de datos iniciando. Esperá unos segundos y reintentá.' });
 
     const existing = await db.query('SELECT id FROM users WHERE email=$1', [email]);
     if (existing.rows.length) return res.status(400).json({ ok: false, error: 'Ya existe una cuenta con ese email' });
@@ -283,7 +284,9 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
 
     if (!validateEmail(email)) return res.status(400).json({ ok: false, error: 'Email inválido' });
     if (!password)             return res.status(400).json({ ok: false, error: 'Contraseña requerida' });
-    if (!db) return res.status(503).json({ ok: false, error: 'Base de datos no disponible' });
+    
+    const dbReady = await waitForDB();
+    if (!dbReady) return res.status(503).json({ ok: false, error: 'Base de datos iniciando. Esperá unos segundos y reintentá.' });
 
     const hash = crypto.createHash('sha256').update(password).digest('hex');
     const r = await db.query(

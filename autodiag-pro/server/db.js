@@ -420,5 +420,6 @@ module.exports = {
   getResolutions,saveResolution,getResolutionStats,
   getJobs,createJob,updateJobStatus,
   getProfile,upsertProfile,
-  upsertDTCInfo,getDTCWithFullData,searchDTCs
+  upsertDTCInfo,getDTCWithFullData,searchDTCs,
+  createSession,getSession,deleteSession,cleanExpiredSessions,
 };
