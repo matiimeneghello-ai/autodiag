@@ -125,6 +125,7 @@ async function waitForDB(maxWaitMs = 15000) {
 
 let db  = null;
 let obd = null;
+let lastDbError = null;
 
 // ── OBD SIMULATION ────────────────────────────────────────────
 function createSimOBD() {
@@ -198,7 +199,8 @@ async function loadModules() {
       console.log('✓ PostgreSQL conectado (intento ' + attempt + ')');
       break;
     } catch(e) {
-      console.error('✗ DB intento ' + attempt + '/5:', e.message);
+      lastDbError = e.message;
+    console.error('✗ DB intento ' + attempt + '/5:', e.message);
       if (attempt < 5) await new Promise(r => setTimeout(r, 2000 * attempt));
     }
   }
@@ -848,15 +850,31 @@ app.get('/api/nhtsa/full', nhtsaLimiter, async (req,res) => {
 app.get('/api/debug/status', async (req, res) => {
   try {
     const dbOk = !!db;
-    let userCount = 0;
-    let sessionCount = 0;
+    let userCount = 0, sessionCount = 0;
     if (db) {
-      const u = await db.query('SELECT COUNT(*) FROM users').catch(()=>({rows:[{count:0}]}));
-      const s = await db.query('SELECT COUNT(*) FROM sessions').catch(()=>({rows:[{count:0}]}));
-      userCount = parseInt(u.rows[0].count);
-      sessionCount = parseInt(s.rows[0].count);
+      const u = await db.query('SELECT COUNT(*) FROM users').catch(e=>({rows:[{count:'ERR:'+e.message}]}));
+      const s = await db.query('SELECT COUNT(*) FROM sessions').catch(e=>({rows:[{count:'ERR:'+e.message}]}));
+      userCount = u.rows[0].count;
+      sessionCount = s.rows[0].count;
     }
-    res.json({ ok: true, db: dbOk, users: userCount, sessions: sessionCount, uptime: Math.round(process.uptime()) });
+    // Try to reconnect if db is null
+    if (!db) {
+      try {
+        const dbModule = require('./db');
+        await dbModule.connectDB();
+        db = dbModule;
+        lastDbError = null;
+      } catch(e) {
+        lastDbError = e.message;
+      }
+    }
+    res.json({ 
+      ok: true, db: !!db, users: userCount, sessions: sessionCount, 
+      uptime: Math.round(process.uptime()),
+      dbError: lastDbError,
+      dbUrl: process.env.DATABASE_URL ? process.env.DATABASE_URL.replace(/:([^:@]+)@/, ':***@') : 'NOT SET',
+      nodeEnv: process.env.NODE_ENV || 'not set'
+    });
   } catch(e) {
     res.json({ ok: false, error: e.message });
   }
