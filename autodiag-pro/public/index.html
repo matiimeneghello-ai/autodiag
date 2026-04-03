@@ -2494,77 +2494,70 @@ function switchTab(mode) {
   if (err) err.classList.remove('show');
 }
 
-async function doAuth(retryCount = 0) {
+async function doAuth(attempt = 1) {
   const email  = document.getElementById('loginEmail').value.trim();
   const pass   = document.getElementById('loginPass').value;
   const taller = document.getElementById('tallerName').value.trim();
-
-  if (!email || !pass) { showAuthError('Completá email y contraseña'); return; }
+  if (!email||!pass) { showAuthError('Completá email y contraseña'); return; }
   if (loginMode === 'register' && !taller) {
     showAuthError('Ingresá el nombre de tu taller'); return;
   }
 
-  const btn = document.getElementById('authBtn');
-  const isRetry = retryCount > 0;
-  btn.textContent = isRetry ? 'Reintentando (' + retryCount + '/3)...' : 'Cargando...';
+  const btn  = document.getElementById('authBtn');
+  const path = loginMode==='login' ? '/api/auth/login' : '/api/auth/register';
+  const body = loginMode==='login' ? {email,password:pass} : {email,password:pass,taller_name:taller};
+  const maxAttempts = 4;
+
   btn.disabled = true;
+  btn.textContent = attempt > 1 ? 'Reintentando (' + attempt + '/' + maxAttempts + ')...' : 'Cargando...';
 
-  const path = loginMode === 'login' ? '/api/auth/login' : '/api/auth/register';
-  const body = loginMode === 'login'
-    ? { email, password: pass }
-    : { email, password: pass, taller_name: taller };
+  const res = await API.post(path, body);
 
-  try {
-    const res = await API.post(path, body);
-
-    if (res.ok) {
-      authToken   = res.token;
-      currentUser = res.user;
-      localStorage.setItem('autodiag_token', authToken);
-      localStorage.setItem('autodiag_user', JSON.stringify(currentUser));
-      enterApp(loginMode === 'register');
-      return;
-    }
-
-    const errMsg = res.error || res.message || 'Error de autenticación';
-    console.error('Auth error:', errMsg, res);
-
-    // Auto-retry if server is starting up (up to 3 times, every 5 seconds)
-    const isStarting = errMsg.includes('iniciando') || errMsg.includes('servidor') || errMsg.includes('Reintentá');
-    if (isStarting && retryCount < 3) {
-      showAuthError('Servidor iniciando... reintentando en 5s (' + (retryCount + 1) + '/3)');
-      setTimeout(() => doAuth(retryCount + 1), 5000);
-      return;
-    }
-
-    // Final error
-    showAuthError(errMsg);
-    btn.textContent = loginMode === 'login' ? 'Ingresar' : 'Crear cuenta';
-    btn.disabled = false;
-
-  } catch(e) {
-    console.error('doAuth exception:', e);
-    showAuthError('Error de conexión. Verificá tu internet.');
-    btn.textContent = loginMode === 'login' ? 'Ingresar' : 'Crear cuenta';
-    btn.disabled = false;
+  if (res.ok) {
+    authToken  = res.token;
+    currentUser = res.user;
+    localStorage.setItem('autodiag_token', authToken);
+    localStorage.setItem('autodiag_user', JSON.stringify(currentUser));
+    enterApp(loginMode==='register');
+    return;
   }
-}
 
-// demoLogin removed
+  // 503 = server/DB still starting up → auto-retry with countdown
+  const isStarting = res.error && (
+    res.error.includes('iniciando') ||
+    res.error.includes('servidor') ||
+    res.error.includes('disponible')
+  );
 
-function showAuthError(msg) {
-  const el = document.getElementById('lerror');
-  el.textContent = msg;
-  el.classList.add('show');
-}
+  if (isStarting && attempt < maxAttempts) {
+    const waitSecs = attempt * 5; // 5s, 10s, 15s
+    let remaining = waitSecs;
+    showAuthError('Servidor iniciando... reintentando en ' + remaining + 's (' + attempt + '/' + maxAttempts + ')');
+    btn.textContent = 'Esperando ' + remaining + 's...';
 
-function enterApp(isNew=false) {
-  document.getElementById('loginScreen').style.display = 'none';
-  document.getElementById('app').style.display = 'flex';
-  document.getElementById('userName').textContent = currentUser?.tallerName || currentUser?.email?.split('@')[0] || 'Usuario';
-  document.getElementById('userAv').textContent = (currentUser?.tallerName||currentUser?.email||'?')[0].toUpperCase();
-  initApp().catch(e => console.error('initApp error:', e));
-  if (isNew) showOnboarding();
+    const countdown = setInterval(() => {
+      remaining--;
+      if (remaining > 0) {
+        showAuthError('Servidor iniciando... reintentando en ' + remaining + 's (' + attempt + '/' + maxAttempts + ')');
+        btn.textContent = 'Esperando ' + remaining + 's...';
+      } else {
+        clearInterval(countdown);
+        doAuth(attempt + 1);
+      }
+    }, 1000);
+    return;
+  }
+
+  // Real error or max retries exceeded
+  const errMsg = res.error || 'Error de autenticación';
+  console.error('Auth error:', errMsg, res);
+  if (attempt >= maxAttempts) {
+    showAuthError('El servidor no responde. Esperá 1 minuto y recargá la página.');
+  } else {
+    showAuthError(errMsg);
+  }
+  btn.textContent = loginMode==='login' ? 'Ingresar' : 'Crear cuenta';
+  btn.disabled = false;
 }
 
 async function doLogout() {

@@ -114,11 +114,22 @@ async function requireAuth(req, res, next) {
 function generateToken() { return crypto.randomBytes(32).toString('hex'); }
 
 // Wait for DB to be ready (up to 10s on startup)
-async function waitForDB(maxWaitMs = 5000) {
+async function waitForDB(maxWaitMs = 20000) {
   if (db) return db;
   const start = Date.now();
+  // Actively try to reconnect every 2s
   while (!db && Date.now() - start < maxWaitMs) {
-    await new Promise(r => setTimeout(r, 200));
+    await new Promise(r => setTimeout(r, 1000));
+    if (!db) {
+      try {
+        const dbModule = require('./db');
+        await dbModule.connectDB();
+        db = dbModule;
+        console.log('✓ DB connected during waitForDB');
+      } catch(e) {
+        // Still not ready, keep waiting
+      }
+    }
   }
   return db;
 }
