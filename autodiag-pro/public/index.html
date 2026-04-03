@@ -1303,19 +1303,6 @@ a, button, [role=button], .btn, .vcard, .dtcrow, .ws-card,
   setTimeout(function() {
     killSplash();
   }, 2000);
-
-  // WAKE UP SERVER: ping /health immediately on page load
-  // This wakes Railway's sleeping server before the user clicks anything
-  (function wakeServer() {
-    fetch('/health', { method: 'GET', cache: 'no-store' })
-      .then(function(r) {
-        if (r.ok) console.log('✓ Server awake');
-      })
-      .catch(function() {
-        // Server still waking up, retry in 3s
-        setTimeout(wakeServer, 3000);
-      });
-  })();
 })();
 </script>
 
@@ -2532,3 +2519,1860 @@ async function doAuth() {
 }
 
 
+function showAuthError(msg) {
+  const el = document.getElementById('lerror');
+  el.textContent = msg;
+  el.classList.add('show');
+}
+
+function enterApp(isNew=false) {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  document.getElementById('userName').textContent = currentUser?.tallerName || currentUser?.email?.split('@')[0] || 'Usuario';
+  document.getElementById('userAv').textContent = (currentUser?.tallerName||currentUser?.email||'?')[0].toUpperCase();
+  initApp().catch(e => console.error('initApp error:', e));
+  if (isNew) showOnboarding();
+}
+
+async function doLogout() {
+  await API.post('/api/auth/logout');
+  authToken = null; currentUser = null;
+  localStorage.removeItem('autodiag_token');
+  localStorage.removeItem('autodiag_user');
+  location.reload();
+}
+
+// ── ONBOARDING ──
+const obSteps = [
+  { icon:'🚗', title:'Bienvenido a AutoDiag Pro', desc:'En 2 pasos vas a tener todo configurado. Primero, agregá tu primer vehículo.', btn:'Agregar vehículo →' },
+  { icon:'🔌', title:'Conectar adaptador OBD-II', desc:'Para leer datos reales del motor necesitás un adaptador ELM327 WiFi (~$10 USD en MercadoLibre). Sin él, el sistema funciona en modo simulación.', btn:'Entendido, iniciar →' },
+  { icon:'✅', title:'¡Todo listo!', desc:'Ya podés diagnosticar vehículos, usar la IA Research para buscar información técnica, y gestionar tu taller desde un solo lugar.', btn:'Empezar a usar AutoDiag →' },
+];
+
+function showOnboarding() {
+  obStep = 0;
+  renderOBStep();
+  document.getElementById('onboardingScreen').classList.add('show');
+}
+
+function renderOBStep() {
+  const s = obSteps[obStep];
+  document.getElementById('obIcon').textContent = s.icon;
+  document.getElementById('obTitle').textContent = s.title;
+  document.getElementById('obDesc').textContent = s.desc;
+  document.getElementById('obBtn').textContent = s.btn;
+  for(let i=0;i<3;i++){
+    const el=document.getElementById('obs'+i);
+    el.className='ob-step'+(i<obStep?' done':i===obStep?' active':'');
+  }
+  if (obStep===0) {
+    document.getElementById('obBtn').onclick = () => { closeOnboardingStep(); openModal('modal-addveh'); };
+  } else {
+    document.getElementById('obBtn').onclick = nextOnboarding;
+  }
+}
+
+function closeOnboardingStep() { obStep=1; renderOBStep(); }
+function nextOnboarding() {
+  if (obStep >= obSteps.length-1) {
+    skipOnboarding();
+  } else {
+    obStep++;
+    renderOBStep();
+  }
+}
+function skipOnboarding() {
+  document.getElementById('onboardingScreen').classList.remove('show');
+}
+
+// ── INIT APP ──
+async function initApp() {
+  await loadVehicles();
+  await loadJobs();
+  await checkHealth();
+  await loadLearningStats();
+  // Charts - retry until Chart.js is ready
+  (function tryInitCharts(attempts) {
+    if (typeof Chart !== "undefined") {
+      initCharts();
+    } else if (attempts > 0) {
+      setTimeout(() => tryInitCharts(attempts - 1), 200);
+    }
+  })(10);
+  // Radar - retry until Chart.js is ready
+  (function tryInitRadar(attempts) {
+    if (typeof Chart !== "undefined") {
+      initRadar();
+    } else if (attempts > 0) {
+      setTimeout(() => tryInitRadar(attempts - 1), 200);
+    }
+  })(10);
+  renderLearning();
+  updateTotalCases();
+  wsClient.connect();
+  initHelp();
+  setInterval(checkHealth, 30000);
+  setInterval(loadLearningStats, 60000);
+  // Set default metric values (— → 0/values)
+  ['dtcCount','ceVal','tempVal','voltVal'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && el.textContent === '—') {
+      if (id === 'dtcCount') el.textContent = '0';
+      if (id === 'ceVal') el.textContent = 'OFF';
+      if (id === 'tempVal') el.textContent = '—°C';
+      if (id === 'voltVal') el.textContent = '—V';
+    }
+  });
+  showNotif('✓ Bienvenido a AutoDiag Pro, '+(currentUser?.tallerName||currentUser?.email?.split('@')[0]||'usuario'), 'success');
+}
+
+// ── CHECK IF LOGGED IN ──
+window.addEventListener('load', async () => {
+  // Login is already shown by killSplash
+  // If we have a stored token, validate it silently and enter app if valid
+  if (authToken && currentUser) {
+    try {
+      const res = await fetch('/api/auth/me', { headers: { 'x-auth-token': authToken } });
+      const data = await res.json();
+      if (data.ok && data.user) {
+        currentUser = data.user;
+        enterApp(false); // valid token → go straight to app
+      } else {
+        // expired/invalid → clear, login already visible
+        localStorage.removeItem('autodiag_token');
+        localStorage.removeItem('autodiag_user');
+        authToken = null;
+        currentUser = null;
+      }
+    } catch(e) {
+      // network error → stay on login (already visible)
+    }
+  }
+  // If no token: login is already visible from killSplash, nothing to do
+});
+
+// ── NAV ──
+function goView(name,btn){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.tb-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('view-'+name).classList.add('active');
+  if(btn)btn.classList.add('active');
+}
+
+// ── VEHICLES ──
+let vehiclesList = [];
+async function loadVehicles() {
+  const res = await API.get('/api/vehicles');
+  if (res.ok && res.data) {
+    vehiclesList = res.data;
+    renderVehicleList(vehiclesList);
+    updateSidebarStats();
+  }
+}
+
+function renderVehicleList(vehicles) {
+  const list = document.getElementById('vehList');
+  list.innerHTML = '';
+  if (!vehicles.length) {
+    list.innerHTML = '<div style="font-size:10px;color:var(--t3);text-align:center;padding:10px;font-family:var(--mono)">Sin vehículos — agregá el primero</div>';
+    return;
+  }
+  vehicles.forEach(v => {
+    const div = document.createElement('div');
+    div.className = 'vcard' + (v.id === activeVehicleId ? ' sel' : '');
+    const dtcs = v.last_dtcs || [];
+    div.innerHTML = `<div class="vcard-make">${v.make} ${v.model}</div>
+      <div class="vcard-sub">${v.year||''} · ${v.engine||''}</div>
+      <div class="vcard-tags">${dtcs.length?`<span class="tag tag-r">${dtcs.length} DTC</span>`:'<span class="tag tag-g">Sin errores</span>'}${v.owner_name?`<span class="tag tag-b">${v.owner_name}</span>`:''}</div>`;
+    div.onclick = () => selectVehicle(v);
+    list.appendChild(div);
+  });
+}
+
+async function selectVehicle(v) {
+  activeVehicleId = v.id;
+  activeVehicleName = `${v.make} ${v.model} ${v.year||''}`;
+  document.getElementById('activeVehLabel').textContent = activeVehicleName.toUpperCase();
+  document.getElementById('dashVehTag').textContent = activeVehicleName;
+  renderVehicleList(vehiclesList);
+  wsClient.setVehicle(v.id);
+
+  // Auto-load ficha if on ficha view
+  if(document.getElementById('view-ficha').classList.contains('active')){
+    loadFicha(v.id, v);
+  }
+
+  // Cargar historial del vehículo
+  const scans = await API.get(`/api/vehicles/${v.id}/scans`);
+  if (scans.ok && scans.data) renderHistorial(scans.data);
+
+  // Mostrar DTCs del último scan
+  if (scans.ok && scans.data?.length) {
+    const last = scans.data[0];
+    renderDashDTCs(last.dtcs || []);
+    const count = last.dtcs?.length || 0;
+    document.getElementById('dtcCount').textContent = count;
+    document.getElementById('ceVal').textContent = count > 0 ? 'ON' : 'OFF';
+    document.getElementById('sbScan').textContent = new Date(last.created_at).toLocaleDateString('es-AR');
+  }
+}
+
+function renderHistorial(scans) {
+  const list = document.getElementById('histList');
+  if (!scans.length) { list.innerHTML='<div style="font-size:10px;color:var(--t3);text-align:center;padding:10px">Sin historial aún</div>'; return; }
+  list.innerHTML = scans.slice(0,6).map(s=>`
+    <div class="hist-item">
+      <span class="hist-date">${new Date(s.created_at).toLocaleString('es-AR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</span>
+      <div class="hist-dtcs">${(s.dtcs||[]).map(d=>`<span class="hist-dtc">${d}</span>`).join('')||'<span style="font-size:9px;color:var(--t3)">Sin DTCs</span>'}</div>
+    </div>`).join('');
+}
+
+function renderDashDTCs(dtcs) {
+  const el = document.getElementById('dashDTCList');
+  if (!dtcs.length) { el.innerHTML='<div style="font-size:11px;color:var(--t3);text-align:center;padding:16px">Sin códigos DTC activos ✓</div>'; return; }
+  const sevMap = { 'P0':'r', 'P1':'y', 'P2':'r', 'P3':'y', 'C':'y', 'B':'b', 'U':'b' };
+  el.innerHTML = '<div class="dtclist">' + dtcs.map(code => {
+    const col = sevMap[code.substring(0,2)] || 'b';
+    const sev = col==='r'?'Crítico':col==='y'?'Moderado':'Info';
+    const sevC = col==='r'?'sev-c':col==='y'?'sev-m':'sev-l';
+    return `<div class="dtcrow" onclick="researchDTC('${code}','','')">
+      <div class="dtccode ${col}">${code}</div>
+      <div class="dtcinfo"><div class="dtcname">Código DTC ${code}</div><div class="dtcsys">Click para investigar con IA</div></div>
+      <span class="dtcsev ${sevC}">${sev}</span><span class="dtcchev">›</span>
+    </div>`;
+  }).join('') + '</div>';
+}
+
+function updateSidebarStats() {
+  let crit = 0, ok = 0;
+  vehiclesList.forEach(v => {
+    if (v.last_dtcs?.length) crit += v.last_dtcs.length;
+    else ok++;
+  });
+  document.getElementById('sbCrit').textContent = crit;
+  document.getElementById('sbOk').textContent = ok;
+}
+
+async function saveVehicle() {
+  const brand=document.getElementById('av-brand').value.trim();
+  const model=document.getElementById('av-model').value.trim();
+  const year=document.getElementById('av-year').value.trim();
+  const engine=document.getElementById('av-engine').value.trim();
+  const vin=document.getElementById('av-vin').value.trim().toUpperCase();
+  const owner=document.getElementById('av-owner').value.trim();
+  if(!brand||!model){showNotif('Ingresá marca y modelo','error');return;}
+  const res=await API.post('/api/vehicles',{make:brand,model,year:year?parseInt(year):null,engine,vin:vin||null,owner_name:owner||null,user_id:currentUser?.userId});
+  if(res.ok){
+    closeModal('modal-addveh');
+    showNotif('✓ Vehículo guardado: '+brand+' '+model,'success');
+    await loadVehicles();
+    ['av-brand','av-model','av-year','av-engine','av-vin','av-owner'].forEach(id=>document.getElementById(id).value='');
+    // Si es desde onboarding
+    if(obStep===0){closeOnboardingStep();}
+  } else showNotif('Error: '+(res.error||'No se pudo guardar'),'error');
+}
+
+// ── CHARTS ──
+const chartDefaults = {
+  responsive:true, maintainAspectRatio:false,
+  animation:{duration:0},
+  plugins:{legend:{display:false},tooltip:{enabled:true,backgroundColor:'rgba(10,22,40,0.9)',titleColor:'#60a5fa',bodyColor:'#c8dde8',borderColor:'rgba(59,130,246,0.3)',borderWidth:1}},
+  scales:{
+    x:{display:false,grid:{display:false}},
+    y:{display:true,grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'rgba(122,156,200,0.7)',font:{size:9,family:'DM Mono'}}}
+  }
+};
+
+function makeDataset(color, data=[]) {
+  return {
+    data,
+    borderColor:color,
+    backgroundColor:color.replace(')',',0.1)').replace('rgb','rgba'),
+    borderWidth:1.5,
+    pointRadius:0,
+    tension:0.4,
+    fill:true
+  };
+}
+
+function initCharts() {
+  const labels = Array(60).fill('');
+  const emptyData = Array(60).fill(null);
+
+  chartRPM  = new Chart(document.getElementById('chartRPM'),  {type:'line',data:{labels:[...labels],datasets:[makeDataset('rgb(96,165,250)',[...emptyData])]},options:{...chartDefaults,scales:{...chartDefaults.scales,y:{...chartDefaults.scales.y,min:0,max:3000}}}});
+  chartTemp = new Chart(document.getElementById('chartTemp'), {type:'line',data:{labels:[...labels],datasets:[makeDataset('rgb(251,191,36)',[...emptyData])]},options:{...chartDefaults,scales:{...chartDefaults.scales,y:{...chartDefaults.scales.y,min:60,max:110}}}});
+  chartO2   = new Chart(document.getElementById('chartO2'),   {type:'line',data:{labels:[...labels],datasets:[makeDataset('rgb(52,211,153)',[...emptyData])]},options:{...chartDefaults,scales:{...chartDefaults.scales,y:{...chartDefaults.scales.y,min:0,max:1}}}});
+  chartFT   = new Chart(document.getElementById('chartFT'),   {type:'line',data:{labels:[...labels],datasets:[makeDataset('rgb(248,113,113)',[...emptyData])]},options:{...chartDefaults,scales:{...chartDefaults.scales,y:{...chartDefaults.scales.y,min:-10,max:40}}}});
+  chartLoad = new Chart(document.getElementById('chartLoad'), {type:'line',data:{labels:[...labels],datasets:[makeDataset('rgb(167,139,250)',[...emptyData])]},options:{...chartDefaults,scales:{...chartDefaults.scales,y:{...chartDefaults.scales.y,min:0,max:100}}}});
+}
+
+function pushToChart(chart, value) {
+  if (!chart) return;
+  chart.data.datasets[0].data.shift();
+  chart.data.datasets[0].data.push(value);
+  chart.update('none');
+}
+
+// ── RADAR CHART ──
+function initRadar() {
+  const ctx = document.getElementById('radarChart');
+  if (!ctx) return;
+  radarChart = new Chart(ctx, {
+    type: 'radar',
+    data: {
+      labels: ['Motor','Transm.','Frenos','Emis.','Elect.','Suspens.'],
+      datasets: [{
+        data: [62,88,91,34,79,85],
+        borderColor: 'rgba(59,130,246,0.8)',
+        backgroundColor: 'rgba(59,130,246,0.1)',
+        borderWidth: 1.5,
+        pointBackgroundColor: 'rgba(59,130,246,0.8)',
+        pointRadius: 3,
+      }]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:true,
+      animation:{duration:500},
+      plugins:{legend:{display:false}},
+      scales:{r:{
+        display:true,
+        min:0,max:100,
+        grid:{color:'rgba(255,255,255,0.06)'},
+        angleLines:{color:'rgba(255,255,255,0.06)'},
+        ticks:{display:false},
+        pointLabels:{color:'rgba(122,156,200,0.7)',font:{size:8,family:'DM Mono'}}
+      }}
+    }
+  });
+}
+
+// ── WEBSOCKET ──
+wsClient.on('connected',(data)=>{
+  const txt=document.getElementById('statusText');
+  if(txt)txt.textContent=data.sim_mode?'⚡ Simulación':'✓ OBD-II';
+  if(data.live_data&&Object.keys(data.live_data).length){
+    updateLiveUI(data.live_data);
+    const ld = data.live_data;
+    if(ld.coolant?.value) { const e=document.getElementById('tempVal'); if(e) e.textContent=ld.coolant.value+'°'; }
+    if(ld.voltage?.value) { const e=document.getElementById('voltVal'); if(e) e.textContent=ld.voltage.value+'V'; }
+  }
+  // Always update DTC count
+  const cnt = data.dtcs?.length || 0;
+  const dc=document.getElementById('dtcCount'); if(dc) dc.textContent=cnt||'0';
+  const ce=document.getElementById('ceVal'); if(ce) ce.textContent=cnt>0?'ON':'OFF';
+  // Load history for charts
+  if(data.history?.length) data.history.forEach(h=>pushHistoryPoint(h));
+});
+
+wsClient.on('live_data',(data)=>{
+  updateLiveUI(data);
+  // Push to charts
+  const now=new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  if(data.rpm)     pushToChart(chartRPM,  data.rpm.value);
+  if(data.coolant) pushToChart(chartTemp, data.coolant.value);
+  if(data.o2_b1s1) pushToChart(chartO2,  parseFloat(data.o2_b1s1.value));
+  if(data.fuel_trim_short) pushToChart(chartFT, parseFloat(data.fuel_trim_short.value));
+  if(data.engine_load)     pushToChart(chartLoad, data.engine_load.value);
+});
+
+wsClient.on('dtcs',(d)=>{
+  const c=d.codes?.length||0;
+  document.getElementById('dtcCount').textContent=c;
+  document.getElementById('ceVal').textContent=c>0?'ON':'OFF';
+  if(c>0&&activeVehicleName){
+    renderDashDTCs(d.codes);
+    // Auto-save scan if vehicle selected
+    if(activeVehicleId) API.post(`/api/vehicles/${activeVehicleId}/scans`,{dtcs:d.codes,live_data:obd_latest});
+  }
+});
+
+wsClient.on('dtcs_cleared',()=>{
+  document.getElementById('dtcCount').textContent='0';
+  document.getElementById('ceVal').textContent='OFF';
+  showNotif('✓ DTCs borrados','success');
+});
+
+let obd_latest = {};
+function updateLiveUI(data) {
+  obd_latest = data;
+  const map = {
+    'lv-rpm':  data.rpm?.value,
+    'lv-speed':data.speed?.value!==undefined?data.speed.value+' km/h':null,
+    'lv-load': data.engine_load?.value!==undefined?data.engine_load.value+'%':null,
+    'lv-ftc':  data.fuel_trim_short?.value!==undefined?'+'+data.fuel_trim_short.value+'%':null,
+    'lv-ftl':  data.fuel_trim_long?.value!==undefined?'+'+data.fuel_trim_long.value+'%':null,
+    'lv-o2':   data.o2_b1s1?.value!==undefined?data.o2_b1s1.value+'V':null,
+    'lv-maf':  data.maf?.value!==undefined?data.maf.value+' g/s':null,
+    'lv-map':  data.map?.value!==undefined?data.map.value+' kPa':null,
+    'tempVal': data.coolant?.value!==undefined?data.coolant.value+'°':null,
+    'voltVal': data.voltage?.value!==undefined?data.voltage.value+'V':null,
+    'lv-map':  data.map?.value!==undefined?data.map.value+' kPa':null,
+    'tempVal': data.coolant?.value!==undefined?data.coolant.value+'°':null,
+    'voltVal': data.voltage?.value!==undefined?data.voltage.value+'V':null,
+  };
+  Object.entries(map).forEach(([id,val])=>{const el=document.getElementById(id);if(el&&val!=null)el.textContent=val;});
+}
+
+function pushHistoryPoint(h) {
+  if(h.rpm)    pushToChart(chartRPM,  h.rpm);
+  if(h.coolant)pushToChart(chartTemp, h.coolant);
+  if(h.o2)     pushToChart(chartO2,   h.o2);
+  if(h.ftShort)pushToChart(chartFT,   h.ftShort);
+  if(h.load)   pushToChart(chartLoad, h.load);
+}
+
+// ── SCAN ──
+let scanning=false;
+function selProto(el){document.querySelectorAll('.proto-card').forEach(c=>c.classList.remove('sel'));el.classList.add('sel');}
+
+function runScan(){
+  if(scanning)return;scanning=true;
+  const btn=document.getElementById('scanBtn');
+  const log=document.getElementById('scanLog');
+  const icon=document.getElementById('hudIcon');
+  const pct=document.getElementById('hudPct');
+  const circle=document.getElementById('progCircle');
+  const title=document.getElementById('scanTitle');
+  const sub=document.getElementById('scanSub');
+  btn.disabled=true;btn.textContent='Escaneando...';
+  pct.style.display='block';icon.style.fontSize='0';
+  log.innerHTML='';
+  const ts=()=>{const n=new Date();return '['+[n.getHours(),n.getMinutes(),n.getSeconds()].map(x=>String(x).padStart(2,'0')).join(':')+']';};
+  const steps=[
+    {t:'info',m:'Iniciando protocolo OBD-II ELM327...',d:0},
+    {t:'info',m:'Conectando con ECU principal...',d:700},
+    {t:'ok',  m:'ECU detectada',d:1300},
+    {t:'info',m:'Leyendo VIN...',d:1900},
+    {t:'info',m:'Escaneando motor (P0xxx)...',d:2800},
+    {t:'err', m:'► DTC detectado — leyendo...',d:3600},
+    {t:'info',m:'Escaneando EVAP, transmisión, ABS...',d:4400},
+    {t:'info',m:'Leyendo PIDs en tiempo real...',d:5500},
+    {t:'ok',  m:'✓ Escaneo completo',d:6500},
+  ];
+  steps.forEach((s,i)=>{
+    setTimeout(()=>{
+      const cls=s.t==='ok'?'lok':s.t==='err'?'lerr2':s.t==='warn'?'lwarn':'linfo';
+      log.innerHTML+=`<div class="ll"><span class="lts">${ts()}</span><span class="${cls}">${s.m}</span></div>`;
+      log.scrollTop=log.scrollHeight;
+      const p=Math.round(((i+1)/steps.length)*100);
+      circle.setAttribute('stroke-dashoffset',452-(452*p/100));
+      pct.textContent=p+'%';
+      title.textContent=p<100?'Escaneando...':'¡Completo!';
+      if(i===steps.length-1){
+        icon.textContent='✓';icon.style.fontSize='28px';
+        btn.disabled=false;btn.textContent='⚡ Nuevo escaneo';
+        scanning=false;
+        // Disparar lectura real
+        wsClient.readDTCs();
+      }
+    },s.d);
+  });
+}
+
+// ── MULTI DTC ──
+let mcCodes=[];
+function addCode(){
+  const val=document.getElementById('mcInput').value.trim().toUpperCase();
+  if(!val||mcCodes.includes(val))return;
+  if(mcCodes.length>=6){showNotif('Máximo 6 códigos');return;}
+  mcCodes.push(val);document.getElementById('mcInput').value='';renderCodeTags();
+  document.getElementById('mcAnalyzeBtn').disabled=mcCodes.length<2;
+}
+function removeCode(c){mcCodes=mcCodes.filter(x=>x!==c);renderCodeTags();document.getElementById('mcAnalyzeBtn').disabled=mcCodes.length<2;}
+function renderCodeTags(){
+  const w=document.getElementById('codeTagsWrap');
+  if(!mcCodes.length){w.innerHTML='<span style="font-size:9px;color:var(--t3);font-family:var(--mono)">Códigos aparecerán aquí →</span>';return;}
+  w.innerHTML=mcCodes.map(c=>`<span class="codetag"><span style="color:var(--blue2);font-weight:600">${c}</span><span class="rm" onclick="removeCode('${c}')">✕</span></span>`).join('');
+}
+async function analyzeMulti(){
+  const brand=document.getElementById('mcBrand').value;
+  const model=document.getElementById('mcModel').value;
+  const btn=document.getElementById('mcAnalyzeBtn');
+  btn.disabled=true;btn.textContent='Analizando...';
+  document.getElementById('mcResults').innerHTML=`<div class="lsteps"><div class="lstep"><div class="lspin"></div><div class="lstep-txt"><div class="lstep-title">ANALIZANDO RELACIÓN ENTRE CÓDIGOS</div></div></div></div>`;
+  try{
+    const res=await API.post('/api/ai/analyze-multi',{codes:mcCodes,brand,model});
+    res.ok?renderMultiResult(res.data):renderMultiResultFallback();
+  }catch(e){renderMultiResultFallback();}
+  finally{btn.disabled=false;btn.textContent='⚡ Analizar';}
+}
+function renderMultiResultFallback(){
+  renderMultiResult({root_cause:'P0171',root_explanation:'La mezcla pobre causa el daño al catalizador.',codes:[
+    {code:'P0171',is_root:true,title:'Mezcla pobre B1',role:'CAUSA RAÍZ',description:'Fuel trim largo +22%.',causes:['MAF sucio','Fuga vacío'],repair_order:1,estimated_cost:'$50–$350 USD'},
+    {code:'P0420',is_root:false,title:'Catalizador bajo umbral',role:'CONSECUENCIA',description:'Dañado por P0171.',causes:['Catalizador dañado'],repair_order:2,estimated_cost:'$300–$2000 USD'}
+  ],repair_sequence:'Resolver P0171 primero, re-evaluar P0420 tras 200km.'});
+}
+function renderMultiResult(d){
+  let html=`<div style="padding:12px 14px;border-radius:12px;border:1px solid rgba(59,130,246,0.2);background:rgba(59,130,246,0.05);font-size:11px;color:var(--text);line-height:1.7;margin-bottom:10px">
+    <span style="color:var(--blue2);font-size:10px;font-weight:600">Diagnóstico raíz: </span>${d.root_explanation||''}
+    ${d.repair_sequence?`<br><span style="color:var(--t2)">Secuencia: </span>${d.repair_sequence}`:''}
+  </div>`;
+  (d.codes||[]).forEach(c=>{
+    html+=`<div class="comp-card ${c.is_root?'root':''}">
+      ${c.is_root?'<div class="root-badge">Causa raíz</div>':''}
+      <div class="comp-h"><div class="comp-code">${c.code}</div>
+        <div><div style="font-size:12px;font-weight:600;margin-bottom:4px">${c.title}</div>
+        <div style="display:flex;gap:5px"><span class="tag ${c.is_root?'tag-r':'tag-b'}">${c.role}</span><span class="tag tag-y">#${c.repair_order}</span></div></div></div>
+      <div class="comp-body">
+        <div><div class="dlbl2">Descripción</div><div class="res-txt">${c.description}</div></div>
+        <div><div class="dlbl2">Causas</div><ul class="dlist">${(c.causes||[]).map(x=>`<li>${x}</li>`).join('')}</ul>
+        <div class="dlbl2" style="margin-top:8px">Costo</div><span class="cost-tag ${c.is_root?'ct-y':'ct-g'}">${c.estimated_cost}</span></div>
+      </div></div>`;
+  });
+  document.getElementById('mcResults').innerHTML=html;
+}
+
+// ── SYMPTOMS ──
+function togSym(el){el.classList.toggle('sel');}
+async function analyzeSymptoms(){
+  const syms=[...document.querySelectorAll('.sym-btn.sel')].map(e=>e.textContent);
+  const res=document.getElementById('symResult');
+  if(!syms.length){res.textContent='Seleccioná al menos un síntoma.';return;}
+  res.innerHTML='<div style="color:var(--blue2);font-family:var(--mono);font-size:9px;letter-spacing:2px">Analizando...</div>';
+  try{
+    const apiRes=await API.post('/api/ai/symptoms',{symptoms:syms,brand:document.getElementById('symBrand').value,model:document.getElementById('symModel').value,scanner_data:{ftc:document.getElementById('ftc').value,ftl:document.getElementById('ftl').value,o2v:document.getElementById('o2v').value,mafv:document.getElementById('mafv').value}});
+    apiRes.ok?renderSymResult(apiRes.data,syms):renderSymResultFallback(syms);
+  }catch(e){renderSymResultFallback(syms);}
+}
+function renderSymResultFallback(syms){
+  const urgency=syms.some(s=>s.includes('SOBRECALENTAMIENTO')||s.includes('blanco'))?'URGENTE':'MODERADO';
+  renderSymResult({probable_dtcs:[{code:'P0171',probability:82,title:'Mezcla pobre B1',why:'Consumo + tembla apuntan a gestión de combustible'},{code:'P0100',probability:58,title:'MAF fuera de rango',why:'Voltaje MAF bajo'}],recommended_tests:['Limpiar sensor MAF','Verificar fuel trim en tiempo real','Revisar mangueras de vacío'],urgency,urgency_reason:urgency==='URGENTE'?'Síntomas críticos':'Requiere diagnóstico pronto'},syms);
+}
+function renderSymResult(d,syms){
+  const urgClr=d.urgency==='URGENTE'?'var(--red)':d.urgency==='MODERADO'?'var(--yel)':'var(--grn)';
+  let html=`<div style="padding:7px 10px;border-radius:7px;border-left:2px solid ${urgClr};background:rgba(0,0,0,0.2);margin-bottom:10px"><span style="color:${urgClr};font-size:9px;font-family:var(--mono);font-weight:600">${d.urgency}</span><span style="color:var(--t2);font-size:10px;margin-left:7px">${d.urgency_reason}</span></div>
+  <div style="font-size:8px;font-family:var(--mono);color:var(--blue2);letter-spacing:1.5px;margin-bottom:7px">CÓDIGOS PROBABLES</div>`;
+  (d.probable_dtcs||[]).forEach(c=>{
+    html+=`<div style="margin-bottom:9px;padding:9px 10px;border:1px solid var(--b1);border-radius:9px;background:rgba(255,255,255,0.02)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <span style="font-family:var(--syne);font-size:12px;font-weight:700;color:var(--blue2)">${c.code}</span>
+        <span style="font-family:var(--mono);font-size:9px;color:var(--grn)">${c.probability}%</span>
+      </div>
+      <div style="height:2px;background:rgba(255,255,255,0.05);border-radius:2px;margin-bottom:5px">
+        <div style="width:${c.probability}%;height:2px;background:var(--grn);border-radius:2px"></div>
+      </div>
+      <div style="font-size:11px;font-weight:500;margin-bottom:1px">${c.title}</div>
+      <div style="font-size:10px;color:var(--t2)">${c.why}</div></div>`;
+  });
+  if(d.recommended_tests?.length){
+    html+=`<div style="font-size:8px;font-family:var(--mono);color:var(--blue2);letter-spacing:1.5px;margin:8px 0 5px">PASOS RECOMENDADOS</div>`;
+    d.recommended_tests.forEach((t,i)=>{html+=`<div style="font-size:10px;color:var(--t2);padding:3px 0;display:flex;gap:7px;border-bottom:1px solid rgba(255,255,255,0.03)"><span style="color:var(--blue2);font-family:var(--mono)">0${i+1}</span>${t}</div>`;});
+  }
+  document.getElementById('symResult').innerHTML=html;
+}
+
+// ── WORKSHOP ──
+async function loadJobs(){
+  const res=await API.get('/api/jobs');
+  if(res.ok&&res.data?.length){jobs=res.data.map(j=>({...j,time:new Date(j.created_at).toLocaleTimeString('es-AR')}));renderJobs();}
+}
+function openModal(id){document.getElementById(id).classList.add('open');}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+function filterJobs(q){const f=q?jobs.filter(j=>(j.car_label||'').toLowerCase().includes(q.toLowerCase())||(j.mechanic||'').toLowerCase().includes(q.toLowerCase())):jobs;renderJobs(f);}
+async function saveJob(){
+  const car=document.getElementById('j-car').value.trim();
+  const mec=document.getElementById('j-mec').value.trim();
+  const dtcs=document.getElementById('j-dtcs').value.trim();
+  const desc=document.getElementById('j-desc').value.trim();
+  const status=document.getElementById('j-status').value;
+  if(!car){showNotif('Ingresá el vehículo','error');return;}
+  try{
+    const res=await API.post('/api/jobs',{car_label:car,mechanic:mec,dtcs:dtcs.split(',').map(d=>d.trim()).filter(Boolean),description:desc,status,user_id:currentUser?.userId});
+    if(res.ok){
+      jobs.push({...res.data,time:new Date(res.data.created_at).toLocaleTimeString('es-AR')});
+      closeModal('modal-addjob');renderJobs();showNotif('✓ Trabajo guardado: '+car,'success');
+      ['j-car','j-mec','j-dtcs','j-desc'].forEach(id=>document.getElementById(id).value='');
+    }
+  }catch(e){
+    jobs.push({id:Date.now(),car_label:car,mechanic:mec,dtcs:dtcs.split(',').map(d=>d.trim()).filter(Boolean),description:desc,status,time:new Date().toLocaleTimeString()});
+    closeModal('modal-addjob');renderJobs();showNotif('Guardado localmente');
+    ['j-car','j-mec','j-dtcs','j-desc'].forEach(id=>document.getElementById(id).value='');
+  }
+}
+function renderJobs(list){
+  const data=list||jobs;
+  ['diag','repair','done'].forEach(s=>{
+    const col=document.getElementById('col-'+s);
+    const cnt=document.getElementById('cnt-'+s);
+    const items=data.filter(j=>j.status===s);
+    cnt.textContent=items.length;
+    col.innerHTML=items.length?items.map(j=>`
+      <div class="ws-card" onclick="moveJob(${j.id})">
+        <div class="ws-car">${j.car_label||j.car}</div>
+        <div class="ws-mec">${j.mechanic||'Sin asignar'}${j.description?' · '+j.description:''}</div>
+        <div class="ws-dtcs">${(j.dtcs||[]).map(d=>`<span class="ws-dtc">${d}</span>`).join('')}</div>
+        <div class="ws-time">${j.time||''} · Click para avanzar</div>
+      </div>`).join(''):`<div style="font-size:10px;color:var(--t3);text-align:center;padding:16px">Vacío</div>`;
+  });
+}
+async function moveJob(id){
+  const j=jobs.find(x=>x.id===id);if(!j)return;
+  const order=['diag','repair','done'];const idx=order.indexOf(j.status);
+  if(idx>=order.length-1)return;
+  j.status=order[idx+1];renderJobs();
+  try{await API.patch(`/api/jobs/${id}/status`,{status:j.status});showNotif('✓ Estado actualizado','success');}catch(e){}
+}
+renderJobs();
+
+// ── AI RESEARCH ──
+function quickR(code,brand,model,sym,scanner){
+  document.getElementById('rCode').value=code;
+  document.getElementById('rBrand').value=brand;
+  document.getElementById('rModel').value=model;
+  document.getElementById('rSym').value=sym;
+  document.getElementById('rScanner').value=scanner;
+  runResearch();
+}
+function researchDTC(code,brand,model){
+  goView('research',document.querySelectorAll('.tb-btn')[6]);
+  document.getElementById('rCode').value=code;
+  document.getElementById('rBrand').value=brand;
+  document.getElementById('rModel').value=model;
+  setTimeout(runResearch,100);
+}
+async function runResearch(){
+  const code=document.getElementById('rCode').value.trim().toUpperCase();
+  const brand=document.getElementById('rBrand').value;
+  const model=document.getElementById('rModel').value.trim();
+  const sym=document.getElementById('rSym').value.trim();
+  const scanner=document.getElementById('rScanner').value.trim();
+  if(!code){showNotif('Ingresá un código DTC','error');return;}
+  const btn=document.getElementById('rBtn');
+  btn.disabled=true;btn.textContent='Investigando...';
+  const res=document.getElementById('rResults');
+  res.innerHTML=`<div class="lsteps" style="width:100%"><div class="lstep"><div class="lspin" id="rs1"></div><div class="lstep-txt"><div class="lstep-title">BUSCANDO EN FUENTES TÉCNICAS</div><div>obd-codes.com, foros, TSB oficiales...</div></div></div><div class="lstep" style="opacity:0.3" id="rs2w"><div class="lspin" id="rs2" style="border-top-color:rgba(59,130,246,0.2)"></div><div class="lstep-txt"><div class="lstep-title">ANALIZANDO CON IA + WEB SEARCH</div><div>Procesando para mercado LATAM...</div></div></div></div>`;
+  setTimeout(()=>{const s=document.getElementById('rs1');if(s)s.classList.add('done');const w=document.getElementById('rs2w');if(w)w.style.opacity='1';},900);
+  try{
+    const apiRes=await API.post('/api/ai/research',{code,brand,model,symptoms:sym,scanner_data:scanner});
+    apiRes.ok?renderResearch(apiRes.data):res.innerHTML=`<div style="padding:14px;border:1px solid rgba(248,113,113,0.25);border-radius:10px;font-size:11px;color:var(--red)">Error: ${apiRes.error}</div>`;
+  }catch(e){res.innerHTML=`<div style="padding:14px;border:1px solid rgba(248,113,113,0.25);border-radius:10px;font-size:11px;color:var(--red)">Error: ${e.message}</div>`;}
+  finally{btn.disabled=false;btn.textContent='⚡ Investigar con IA';}
+}
+function renderResearch(d){
+  const sc=d.severity==='Crítico'?'sev-c':d.severity==='Moderado'?'sev-m':'sev-l';
+  const causesH=(d.causes||[]).map(c=>`<li>${c}</li>`).join('');
+  const stepsH=(d.diagnosis_steps||[]).map((s,i)=>`<li><span style="color:var(--blue2);font-family:var(--mono)">0${i+1}</span> ${s}</li>`).join('');
+  const brandsH=(d.brands||d.brands_affected||[]).map(b=>`<span class="tag tag-r" style="margin:2px">${b}</span>`).join('');
+  const srcH=(d.sources||[]).map(s=>`<span class="src-chip off">${s}</span>`).join('');
+  document.getElementById('rResults').innerHTML=`
+  <div class="res-card" style="width:100%">
+    <div class="res-header">
+      <div class="res-code">${d.code}</div>
+      <div><div style="font-size:13px;font-weight:600;margin-bottom:5px">${d.title}</div>
+        <div style="display:flex;gap:7px"><span class="dtcsev ${sc}">${(d.severity||'').toUpperCase()}</span><span style="font-size:9px;color:var(--t2);font-family:var(--mono)">${d.system||''}</span></div></div>
+    </div>
+    <div class="res-body">
+      <div class="res-full"><div class="dlbl2">Descripción técnica</div><div class="res-txt">${d.description}</div></div>
+      <div><div class="dlbl2">Causas</div><ul class="dlist">${causesH}</ul></div>
+      <div><div class="dlbl2">Pasos diagnóstico</div><ul class="dlist">${stepsH||'<li>Ver descripción</li>'}</ul>
+        <div class="dlbl2" style="margin-top:8px">Marcas</div><div>${brandsH}</div></div>
+      ${d.brand_specific?`<div class="res-full"><div class="dlbl2">Notas TSB</div><div style="padding:9px 11px;border-left:2px solid var(--yel);background:rgba(251,191,36,0.04);font-size:11px;color:var(--text);border-radius:0 8px 8px 0">${d.brand_specific}</div></div>`:''}
+      ${d.latam_notes&&d.latam_notes!=='N/A'?`<div class="res-full"><div class="dlbl2">Disponibilidad LATAM / Argentina</div><div style="padding:9px 11px;border-left:2px solid var(--grn);background:rgba(52,211,153,0.04);font-size:11px;color:var(--text);border-radius:0 8px 8px 0">${d.latam_notes}</div></div>`:''}
+      <div><div class="dlbl2">Costos estimados</div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--b1);font-size:10px"><span style="color:var(--t2)">Diagnóstico</span><span style="color:var(--blue2);font-family:var(--mono)">${d.costs?.diagnostic||'–'}</span></div>
+          <div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--b1);font-size:10px"><span style="color:var(--t2)">Mínima</span><span style="color:var(--grn);font-family:var(--mono)">${d.costs?.repair_low||'–'}</span></div>
+          <div style="display:flex;justify-content:space-between;padding:3px 0;font-size:10px"><span style="color:var(--t2)">Máxima</span><span style="color:var(--red);font-family:var(--mono)">${d.costs?.repair_high||'–'}</span></div>
+          ${d.costs?.latam_parts_usd&&d.costs.latam_parts_usd!=='N/A'?`<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:10px;border-top:1px solid var(--b1)"><span style="color:var(--t2)">Repuesto LATAM</span><span style="color:var(--mag);font-family:var(--mono)">${d.costs.latam_parts_usd}</span></div>`:''}
+        </div>
+      </div>
+    </div>
+    <div class="sources-bar"><span style="font-size:8px;color:var(--t3);font-family:var(--mono)">Fuentes:</span>${srcH||'<span class="src-chip">Web Search</span>'}<span style="margin-left:auto;font-size:8px;color:var(--t3);font-family:var(--mono)">Via Claude + Web Search · ${new Date().toLocaleTimeString()}</span></div>
+  </div>`;
+}
+
+// ── CHAT ──
+async function sendChat(){
+  const inp=document.getElementById('chatIn');
+  const msg=inp.value.trim();if(!msg)return;
+  const chat=document.getElementById('chatMsgs');
+  chat.innerHTML+=`<div class="msg"><div class="mavatar usr">Yo</div><div class="mbub usr">${msg}</div></div>`;
+  inp.value='';chat.scrollTop=chat.scrollHeight;
+  chat.innerHTML+=`<div class="msg typing-ind"><div class="mavatar ai">AI</div><div class="mbub ai"><div class="typing-dots"><span></span><span></span><span></span></div></div></div>`;
+  chat.scrollTop=chat.scrollHeight;
+  try{
+    const res=await API.post('/api/ai/chat',{message:msg,context:{vehicle:activeVehicleName,dtcs:wsClient.ws?'según datos actuales':''}});
+    document.querySelectorAll('.typing-ind').forEach(e=>e.remove());
+    chat.innerHTML+=`<div class="msg"><div class="mavatar ai">AI</div><div class="mbub ai">${res.ok?res.data.response:'Error al conectar con IA.'}</div></div>`;
+  }catch(e){
+    document.querySelectorAll('.typing-ind').forEach(e=>e.remove());
+    const low=msg.toLowerCase();
+    const resp=low.includes('p0171')?'P0171: limpiar MAF con spray específico es la solución en el 68% de casos. Fuel trim largo >+15% confirma el diagnóstico.':low.includes('p0420')?'P0420: verificar sensor O2 trasero antes de reemplazar catalizador. Toyota tiene TSB conocido.':'Consultame sobre códigos DTC o síntomas del vehículo.';
+    chat.innerHTML+=`<div class="msg"><div class="mavatar ai">AI</div><div class="mbub ai">${resp}</div></div>`;
+  }
+  chat.scrollTop=chat.scrollHeight;
+}
+
+// ── LEARNING ──
+function updateTotalCases(){const el=document.getElementById('totalCases');if(el)el.textContent=learningDB.length;}
+async function confirmResolution(code,veh){
+  const cause=prompt(`${code} en ${veh}\n¿Cuál fue la causa y cómo se resolvió?`);
+  if(!cause)return;
+  const cost=prompt('¿Cuánto costó? (USD)');
+  try{
+    await API.post('/api/resolutions',{dtc_code:code,cause_found:cause,fix_applied:cause,cost_usd:cost?parseFloat(cost):null,confirmed:true});
+    addLearningEntry(code,veh,cause,cost||'N/A');
+    showNotif('✓ Resolución guardada en DB','success');
+  }catch(e){addLearningEntry(code,veh,cause,cost||'N/A');showNotif('✓ Guardada localmente');}
+}
+async function addLearning(){
+  const code=document.getElementById('lCode').value.trim().toUpperCase();
+  const veh=document.getElementById('lVeh').value.trim();
+  const cause=document.getElementById('lCause').value.trim();
+  const cost=document.getElementById('lCost').value.trim();
+  if(!code||!cause){showNotif('Completá código y causa','error');return;}
+  try{
+    await API.post('/api/resolutions',{dtc_code:code,cause_found:cause,fix_applied:cause,cost_usd:cost?parseFloat(cost):null,confirmed:true});
+    addLearningEntry(code,veh,cause,cost);
+    showNotif('✓ Guardado en DB','success');
+  }catch(e){addLearningEntry(code,veh,cause,cost);showNotif('✓ Guardado localmente');}
+  ['lCode','lVeh','lCause','lCost'].forEach(id=>document.getElementById(id).value='');
+}
+function addLearningEntry(code,veh,cause,cost){
+  learningDB.push({id:Date.now(),code,veh,cause,cost,ts:new Date().toLocaleDateString()});
+  localStorage.setItem('autodiag_learning',JSON.stringify(learningDB));
+  renderLearning();updateTotalCases();
+}
+function renderLearning(){
+  const list=document.getElementById('learnList');if(!list)return;
+  if(!learningDB.length){list.innerHTML='<div style="font-size:11px;color:var(--t3);text-align:center;padding:14px">Confirmá resoluciones desde los detalles de cada DTC</div>';return;}
+  list.innerHTML=learningDB.slice().reverse().map(e=>`
+    <div class="learn-row">
+      <div class="learn-code">${e.code}</div>
+      <div class="learn-info"><div class="learn-name">${e.cause}</div><div class="learn-meta">${e.veh||'Sin especificar'} · ${e.ts}</div></div>
+      ${e.cost&&e.cost!=='N/A'?`<span style="font-family:var(--mono);font-size:10px;color:var(--grn)">$${e.cost}</span>`:''}
+    </div>`).join('');
+}
+
+// ── PDF ──
+function generatePDF(){
+  const veh=activeVehicleName||'Vehículo';
+  const date=new Date().toLocaleDateString('es-AR');
+  document.getElementById('pdfPreviewContent').innerHTML=`
+    <div style="display:flex;justify-content:space-between;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #2563eb">
+      <div><div style="font-size:18px;font-weight:700;color:#2563eb">⚙ AutoDiag Pro</div><div style="font-size:10px;color:#666">Reporte de diagnóstico · ${date}</div></div>
+      <div style="text-align:right;font-size:10px;color:#666">${veh}</div></div>
+    <div style="margin-bottom:12px"><div style="font-size:10px;font-weight:700;color:#2563eb;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid #eee;padding-bottom:3px;margin-bottom:6px">Sistema activo</div>
+    <div style="font-size:11px;line-height:1.7">Generado por: ${currentUser?.tallerName||'AutoDiag Pro'}<br>Vehículo: ${veh}<br>Fecha: ${date}</div></div>
+    <div style="margin-top:16px;padding-top:10px;border-top:1px solid #eee;font-size:9px;color:#999;text-align:center">AutoDiag Pro v2.0 · Reporte informativo</div>`;
+  openModal('modal-pdf');
+}
+function downloadPDF(){
+  try{
+    const{jsPDF}=window.jspdf;const doc=new jsPDF();
+    const veh=activeVehicleName||'Vehículo';
+    const date=new Date().toLocaleDateString('es-AR');
+    doc.setFontSize(20);doc.setTextColor(37,99,235);doc.text('AutoDiag Pro',20,20);
+    doc.setFontSize(10);doc.setTextColor(100,100,100);doc.text('Reporte de Diagnóstico — '+date,20,28);
+    doc.setDrawColor(37,99,235);doc.setLineWidth(0.5);doc.line(20,32,190,32);
+    doc.setFontSize(12);doc.setTextColor(0,0,0);doc.text('Vehículo: '+veh,20,42);
+    doc.setFontSize(10);doc.setTextColor(37,99,235);doc.text('Generado por: '+(currentUser?.tallerName||'AutoDiag Pro'),20,52);
+    doc.setTextColor(150,150,150);doc.setFontSize(8);doc.text('AutoDiag Pro v2.0 · Reporte informativo.',20,280);
+    doc.save('autodiag-'+veh.replace(/\s/g,'-').toLowerCase()+'.pdf');
+    showNotif('PDF descargado','success');
+  }catch(e){showNotif('Error generando PDF','error');}
+}
+
+// ── HEALTH CHECK ──
+async function checkHealth(){
+  const res=await API.get('/health');
+  if(res.status==='ok'){
+    const txt=document.getElementById('statusText');
+    if(txt)txt.textContent=res.sim_mode?'Simulación activa':'OBD-II conectado';
+  }
+}
+
+// ── NOTIF ──
+function showNotif(msg,type='info'){
+  const n=document.getElementById('notif');
+  n.textContent=msg;
+  n.className='notif show '+(type==='success'?'success':type==='error'?'error':'');
+  setTimeout(()=>n.classList.remove('show'),3200);
+}
+
+
+
+// ── DIAGNÓSTICO DIFERENCIAL ──
+let localDTCData = null;
+
+async function searchLocalDTC(code) {
+  if (code.length < 4) { document.getElementById('localDTCPreview').style.display='none'; return; }
+  try {
+    const res = await API.get(`/api/dtc/${code}`);
+    if (res.ok && res.data) {
+      localDTCData = res.data;
+      showLocalDTCPreview(res.data);
+    } else {
+      localDTCData = null;
+      document.getElementById('localDTCPreview').style.display='none';
+    }
+  } catch(e) {}
+}
+
+function showLocalDTCPreview(dtc) {
+  const el = document.getElementById('localDTCPreview');
+  el.style.display = 'block';
+  el.innerHTML = `<div style="padding:10px 12px;border-radius:10px;border:1px solid rgba(52,211,153,0.25);background:rgba(52,211,153,0.05)">
+    <div style="font-size:9px;font-family:var(--mono);color:var(--grn);letter-spacing:1px;margin-bottom:4px">✓ ENCONTRADO EN BASE LOCAL</div>
+    <div style="font-size:12px;font-weight:600">${dtc.title}</div>
+    <div style="font-size:10px;color:var(--t2);margin-top:3px">${dtc.system} · Prioridad ${dtc.repair_priority || 2}</div>
+    ${dtc.latam_cost_usd ? `<div style="font-size:10px;color:var(--grn);margin-top:3px;font-family:var(--mono)">Costo estimado: $${dtc.latam_cost_usd} USD</div>` : ''}
+  </div>`;
+}
+
+function loadFromLiveData() {
+  // Load current live data values into the form
+  const ld = obd_latest;
+  if (!ld || !Object.keys(ld).length) { showNotif('Sin datos live disponibles — conectá el adaptador OBD-II', 'error'); return; }
+  if (ld.rpm)              document.getElementById('dd-rpm').value  = ld.rpm.value || '';
+  if (ld.coolant)          document.getElementById('dd-temp').value = ld.coolant.value || '';
+  if (ld.fuel_trim_short)  document.getElementById('dd-ftc').value  = '+' + ld.fuel_trim_short.value || '';
+  if (ld.fuel_trim_long)   document.getElementById('dd-ftl').value  = '+' + ld.fuel_trim_long.value || '';
+  if (ld.o2_b1s1)          document.getElementById('dd-o2').value   = ld.o2_b1s1.value || '';
+  if (ld.maf)              document.getElementById('dd-maf').value   = ld.maf.value || '';
+  if (ld.map)              document.getElementById('dd-map').value   = ld.map.value || '';
+  if (ld.engine_load)      document.getElementById('dd-load').value  = ld.engine_load.value || '';
+  showNotif('✓ Datos del scanner cargados', 'success');
+}
+
+async function runDifferentialDiagnosis() {
+  const code  = document.getElementById('ddCode').value.trim().toUpperCase();
+  const brand = document.getElementById('ddBrand').value;
+  const model = document.getElementById('ddModel').value.trim();
+  if (!code) { showNotif('Ingresá un código DTC', 'error'); return; }
+
+  const btn = document.getElementById('ddBtn');
+  btn.disabled = true; btn.textContent = 'Analizando...';
+
+  const live_data = obd_latest;
+  const scanner_manual = {
+    rpm:    { value: document.getElementById('dd-rpm').value,  unit:'rpm', label:'RPM' },
+    coolant:{ value: document.getElementById('dd-temp').value, unit:'°C',  label:'Temp. Motor' },
+    fuel_trim_short:{ value: document.getElementById('dd-ftc').value, unit:'%', label:'Fuel Trim Corto' },
+    fuel_trim_long: { value: document.getElementById('dd-ftl').value, unit:'%', label:'Fuel Trim Largo' },
+    o2_b1s1:{ value: document.getElementById('dd-o2').value,  unit:'V',   label:'O2 B1S1' },
+    maf:    { value: document.getElementById('dd-maf').value, unit:'g/s', label:'MAF' },
+    map:    { value: document.getElementById('dd-map').value, unit:'kPa', label:'MAP' },
+    engine_load:{ value: document.getElementById('dd-load').value, unit:'%', label:'Carga Motor' },
+  };
+
+  // Use live data if available, otherwise use manual input
+  const effectiveData = Object.keys(live_data).length > 0 ? live_data : scanner_manual;
+
+  const el = document.getElementById('diagResults');
+  el.innerHTML = `<div class="lsteps">
+    <div class="lstep"><div class="lspin" id="ds1"></div><div class="lstep-txt"><div class="lstep-title">CONSULTANDO BASE DE DATOS LOCAL</div><div>Buscando datos técnicos del código ${code}...</div></div></div>
+    <div class="lstep" style="opacity:0.3" id="ds2w"><div class="lspin" id="ds2" style="border-top-color:rgba(59,130,246,0.2)"></div><div class="lstep-txt"><div class="lstep-title">ANALIZANDO DATOS DEL SCANNER</div><div>Interpretando valores en relación al código...</div></div></div>
+    <div class="lstep" style="opacity:0.3" id="ds3w"><div class="lspin" id="ds3" style="border-top-color:rgba(59,130,246,0.2)"></div><div class="lstep-txt"><div class="lstep-title">DIAGNÓSTICO DIFERENCIAL IA</div><div>Calculando probabilidades con datos de comunidad...</div></div></div>
+  </div>`;
+
+  setTimeout(()=>{ document.getElementById('ds1').classList.add('done'); document.getElementById('ds2w').style.opacity='1'; }, 600);
+  setTimeout(()=>{ document.getElementById('ds2').classList.add('done'); document.getElementById('ds3w').style.opacity='1'; }, 1400);
+
+  try {
+    const res = await API.post('/api/ai/diagnose', {
+      code, brand, model,
+      live_data: effectiveData,
+      freeze_frame: effectiveData,
+    });
+
+    if (res.ok) {
+      renderDifferentialDiagnosis(res.data, effectiveData);
+    } else {
+      el.innerHTML = `<div style="padding:14px;border:1px solid rgba(248,113,113,0.25);border-radius:10px;font-size:11px;color:var(--red)">Error: ${res.error}</div>`;
+    }
+  } catch(e) {
+    el.innerHTML = `<div style="padding:14px;border:1px solid rgba(248,113,113,0.25);border-radius:10px;font-size:11px;color:var(--red)">Error: ${e.message}</div>`;
+  } finally {
+    btn.disabled = false; btn.textContent = '⚡ Diagnóstico diferencial con IA';
+  }
+}
+
+function renderDifferentialDiagnosis(d, scannerData) {
+  const confColor = d.confidence >= 80 ? 'var(--grn)' : d.confidence >= 60 ? 'var(--yel)' : 'var(--red)';
+  
+  // Build scanner panel with live values
+  const scannerItems = Object.entries(scannerData)
+    .filter(([k,v]) => v?.value && v.value !== '')
+    .map(([k,v]) => {
+      const val = parseFloat(v.value);
+      let cls = '';
+      if (k === 'fuel_trim_short' || k === 'fuel_trim_long') cls = val > 15 ? 'crit' : val > 8 ? 'warn' : 'ok';
+      if (k === 'o2_b1s1') cls = (val < 0.1 || val > 0.95) ? 'warn' : 'ok';
+      if (k === 'coolant') cls = val > 100 ? 'crit' : val < 70 ? 'warn' : 'ok';
+      return `<div class="scanner-item ${cls}">
+        <div class="scanner-item-val">${v.value}${v.unit}</div>
+        <div class="scanner-item-lbl">${v.label}</div>
+      </div>`;
+    }).join('');
+
+  let html = `
+    <!-- Scanner visualization -->
+    ${scannerItems ? `<div class="scanner-panel">
+      <div class="scanner-title">◈ Valores del scanner al momento del diagnóstico</div>
+      <div class="scanner-grid">${scannerItems}</div>
+    </div>` : ''}
+
+    <!-- Primary diagnosis -->
+    <div class="primary-diag">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div class="gcard-title">Diagnóstico principal</div>
+        <span class="confidence-badge" style="background:${confColor}18;color:${confColor};border:1px solid ${confColor}30">
+          ${d.confidence || 0}% confianza
+        </span>
+      </div>
+      <div class="primary-diag-title">${d.primary_diagnosis}</div>
+      ${d.scanner_interpretation ? `<div style="font-size:11px;color:var(--t2);margin-top:6px;line-height:1.6">${d.scanner_interpretation}</div>` : ''}
+      ${d.recommended_action ? `<div style="margin-top:10px;padding:8px 12px;border-radius:8px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);font-size:11px;color:var(--blue2)">
+        <strong>→ Primer paso:</strong> ${d.recommended_action}
+      </div>` : ''}
+    </div>
+
+    <!-- Differential diagnosis -->
+    ${(d.differential || []).map(cause => {
+      const probColor = cause.probability >= 70 ? 'var(--red)' : cause.probability >= 40 ? 'var(--yel)' : 'var(--grn)';
+      return `<div class="diag-card">
+        <div class="diag-cause">
+          <span>${cause.cause}</span>
+          <span class="diag-prob" style="color:${probColor}">${cause.probability}%</span>
+        </div>
+        <div class="prob-bar-track">
+          <div class="prob-bar-fill" style="width:${cause.probability}%;background:${probColor}"></div>
+        </div>
+        <div class="diag-evidence">
+          <div class="evidence-box ev-for"><strong>A favor</strong><br>${cause.evidence_for || '—'}</div>
+          <div class="evidence-box ev-against"><strong>En contra</strong><br>${cause.evidence_against || '—'}</div>
+        </div>
+        ${cause.confirming_test ? `<div style="margin-top:8px;font-size:10px;color:var(--blue2);font-family:var(--mono)">🔧 Prueba confirmatoria: ${cause.confirming_test}</div>` : ''}
+        ${cause.estimated_cost_usd ? `<div style="font-size:10px;color:var(--grn);margin-top:4px;font-family:var(--mono)">Costo: $${cause.estimated_cost_usd} USD</div>` : ''}
+      </div>`;
+    }).join('')}
+
+    <!-- Parts and tools -->
+    ${(d.parts_to_check?.length || d.tools_needed?.length) ? `<div class="gcard">
+      <div class="gcard-head"><div class="gcard-title">Herramientas y repuestos</div></div>
+      <div class="gcard-body" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        ${d.parts_to_check?.length ? `<div>
+          <div style="font-size:9px;font-family:var(--mono);color:var(--blue2);letter-spacing:1px;margin-bottom:6px">VERIFICAR</div>
+          ${d.parts_to_check.map(p=>`<div style="font-size:11px;color:var(--text);padding:3px 0;border-bottom:1px solid var(--b1)">→ ${p}</div>`).join('')}
+        </div>` : ''}
+        ${d.tools_needed?.length ? `<div>
+          <div style="font-size:9px;font-family:var(--mono);color:var(--yel);letter-spacing:1px;margin-bottom:6px">HERRAMIENTAS</div>
+          ${d.tools_needed.map(t=>`<div style="font-size:11px;color:var(--text);padding:3px 0;border-bottom:1px solid var(--b1)">→ ${t}</div>`).join('')}
+        </div>` : ''}
+      </div>
+      ${d.latam_availability ? `<div style="padding:0 18px 14px;font-size:11px;color:var(--t2)">🇦🇷 ${d.latam_availability}</div>` : ''}
+    </div>` : ''}
+
+    <!-- Community data -->
+    ${d.community_data?.length ? `<div class="gcard">
+      <div class="gcard-head"><div class="gcard-title">Resoluciones confirmadas comunidad</div><span class="gcard-tag">${d.community_data.length} causas registradas</span></div>
+      <div class="gcard-body" style="display:flex;flex-direction:column;gap:5px">
+        ${d.community_data.map(r=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--b1)">
+          <span style="font-size:11px">${r.cause_found}</span>
+          <div style="display:flex;gap:10px;align-items:center">
+            <span style="font-family:var(--mono);font-size:10px;color:var(--blue2)">${r.count} casos</span>
+            ${r.avg_cost ? `<span style="font-family:var(--mono);font-size:10px;color:var(--grn)">~$${Math.round(r.avg_cost)} USD</span>` : ''}
+          </div>
+        </div>`).join('')}
+      </div>
+    </div>` : ''}
+  `;
+
+  document.getElementById('diagResults').innerHTML = html;
+}
+
+// DTC DB search
+async function searchDTCDB(q) {
+  if (q.length < 2) {
+    document.getElementById('dtcSearchResults').innerHTML = '<div style="font-size:10px;color:var(--t3);text-align:center;padding:10px">Escribí para buscar</div>';
+    return;
+  }
+  try {
+    const res = await API.get(`/api/dtc/search?q=${encodeURIComponent(q)}`);
+    const el = document.getElementById('dtcSearchResults');
+    if (!res.ok || !res.data?.length) {
+      el.innerHTML = '<div style="font-size:10px;color:var(--t3);text-align:center;padding:10px">Sin resultados</div>';
+      return;
+    }
+    el.innerHTML = res.data.map(d => `
+      <div class="dtc-search-result" onclick="selectFromSearch('${d.code}')">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-family:var(--syne);font-size:12px;font-weight:700;color:var(--blue2)">${d.code}</span>
+          <span class="dtcsev ${d.severity==='Crítico'?'sev-c':d.severity==='Moderado'?'sev-m':'sev-l'}">${d.severity||''}</span>
+        </div>
+        <div style="font-size:11px;font-weight:500;margin-top:3px">${d.title||''}</div>
+        <div style="font-size:9px;color:var(--t2);font-family:var(--mono)">${d.system||''}</div>
+        ${d.latam_cost_usd ? `<div style="font-size:9px;color:var(--grn);font-family:var(--mono)">$${d.latam_cost_usd} USD</div>` : ''}
+      </div>`).join('');
+  } catch(e) {}
+}
+
+function selectFromSearch(code) {
+  document.getElementById('ddCode').value = code;
+  searchLocalDTC(code);
+  // Also fill in the IA Research
+  document.getElementById('rCode').value = code;
+}
+
+// ── FICHA TECNICA ──
+function openFicha() {
+  if (!activeVehicleId) { showNotif('Seleccioná un vehículo primero', 'error'); return; }
+  const navBtns = document.querySelectorAll('.tb-btn');
+  // Find ficha button (last one)
+  const fichaBtn = navBtns[navBtns.length - 1];
+  goView('ficha', fichaBtn);
+  // Find vehicle data
+  const v = vehiclesList.find(x => x.id === activeVehicleId);
+  loadFicha(activeVehicleId, v);
+}
+
+
+let currentProfile = null;
+let fichaVehicleId = null;
+
+async function loadFicha(vehicleId, vehicleData) {
+  fichaVehicleId = vehicleId;
+  const el = document.getElementById('fichaContent');
+  
+  // Try to load existing profile first
+  el.innerHTML = '<div class="generating-overlay"><div class="gen-spinner"></div><div>Cargando ficha técnica...</div></div>';
+  
+  try {
+    const res = await API.get(`/api/vehicles/${vehicleId}/profile`);
+    if (res.ok && res.data?.profile) {
+      currentProfile = res.data.profile;
+      renderFicha(currentProfile, vehicleData);
+    } else {
+      // Auto-generate if no profile exists
+      await generateFicha(vehicleId, vehicleData);
+    }
+  } catch(e) {
+    await generateFicha(vehicleId, vehicleData);
+  }
+}
+
+async function generateFicha(vehicleId, vehicleData) {
+  const el = document.getElementById('fichaContent');
+  el.innerHTML = `<div class="generating-overlay">
+    <div class="gen-spinner"></div>
+    <div style="font-family:var(--syne);font-size:14px;font-weight:600;color:var(--text)">Generando ficha técnica con IA...</div>
+    <div style="font-size:10px;color:var(--t3);text-align:center">Buscando información del vehículo en fuentes técnicas,<br>historial de fallas y datos del mercado argentino</div>
+    <div class="lstep" style="max-width:320px;margin-top:8px">
+      <div class="lspin"></div>
+      <div class="lstep-txt"><div class="lstep-title">IA RESEARCH + WEB SEARCH ACTIVO</div><div>Consultando bases de datos técnicas...</div></div>
+    </div>
+  </div>`;
+  
+  try {
+    const res = await API.post(`/api/vehicles/${vehicleId}/profile/generate`, vehicleData || {});
+    if (res.ok && res.data) {
+      currentProfile = res.data;
+      renderFicha(currentProfile, vehicleData);
+      showNotif('✓ Ficha técnica generada con IA', 'success');
+    } else {
+      el.innerHTML = `<div class="generating-overlay">
+        <span style="font-size:32px">⚠️</span>
+        <div style="color:var(--red)">${res.error || 'Error generando ficha'}</div>
+        <button class="btn btn-blue" onclick="generateFicha(${vehicleId})">Reintentar</button>
+      </div>`;
+    }
+  } catch(e) {
+    el.innerHTML = `<div class="generating-overlay">
+      <span style="font-size:32px">⚠️</span>
+      <div style="color:var(--red)">Error de conexión: ${e.message}</div>
+      <button class="btn btn-blue" onclick="generateFicha(${vehicleId})">Reintentar</button>
+    </div>`;
+  }
+}
+
+function renderFicha(p, vData) {
+  const rel = p.reliability_score || 7;
+  const relColor = rel >= 8 ? 'var(--grn)' : rel >= 6 ? 'var(--yel)' : 'var(--red)';
+  const relLabel = rel >= 8 ? 'Muy confiable' : rel >= 6 ? 'Confiable' : rel >= 4 ? 'Regular' : 'Problemático';
+  
+  const issuesHTML = (p.common_issues || []).map(issue => {
+    const freqClass = issue.frequency?.includes('Muy') ? 'freq-h' : issue.frequency?.includes('Frecuente') ? 'freq-m' : 'freq-l';
+    return `<div class="issue-card">
+      <div class="issue-title">
+        <span>${issue.title}</span>
+        <span class="freq-badge ${freqClass}">${issue.frequency || 'Ocasional'}</span>
+      </div>
+      <div class="issue-desc">${issue.description}</div>
+      ${issue.estimated_cost ? `<div class="issue-cost">Costo estimado: ${issue.estimated_cost}</div>` : ''}
+    </div>`;
+  }).join('');
+
+  const specsHTML = p.specs ? `
+    <div class="spec-grid">
+      ${p.specs.fuel_type ? `<div class="spec-row"><span class="spec-k">Combustible</span><span class="spec-v">${p.specs.fuel_type}</span></div>` : ''}
+      ${p.specs.fuel_capacity_liters ? `<div class="spec-row"><span class="spec-k">Tanque</span><span class="spec-v">${p.specs.fuel_capacity_liters}L</span></div>` : ''}
+      ${p.specs.oil_type ? `<div class="spec-row"><span class="spec-k">Aceite</span><span class="spec-v">${p.specs.oil_type}</span></div>` : ''}
+      ${p.specs.oil_capacity_liters ? `<div class="spec-row"><span class="spec-k">Cap. aceite</span><span class="spec-v">${p.specs.oil_capacity_liters}L</span></div>` : ''}
+      ${p.specs.tire_size ? `<div class="spec-row"><span class="spec-k">Neumáticos</span><span class="spec-v">${p.specs.tire_size}</span></div>` : ''}
+      ${p.specs.coolant_type ? `<div class="spec-row"><span class="spec-k">Refrigerante</span><span class="spec-v">${p.specs.coolant_type}</span></div>` : ''}
+    </div>` : '';
+
+  const maintHTML = p.maintenance_schedule ? [
+    {km: p.maintenance_schedule.oil_change_km, label: 'Cambio de aceite'},
+    {km: p.maintenance_schedule.timing_belt_km, label: 'Correa de distribución'},
+    {km: p.maintenance_schedule.spark_plugs_km, label: 'Bujías'},
+  ].filter(m => m.km).map(m => `
+    <div class="maint-item">
+      <div class="maint-km">c/ ${(m.km/1000).toFixed(0)}k km</div>
+      <div class="maint-label">${m.label}</div>
+    </div>`).join('') : '';
+
+  const dtcHistoryHTML = (p.dtc_history || []).map(code => 
+    `<span class="dtc-history-chip" onclick="researchDTC('${code}','','')">
+      ${code} <span style="opacity:0.5">→</span>
+    </span>`).join('') || '<span style="font-size:10px;color:var(--t3)">Sin DTCs registrados aún</span>';
+
+  const vehicle = p.vehicle || vData || {};
+  const fichaTitle = `${vehicle.make || ''} ${vehicle.model || ''}`.trim() || 'Vehículo';
+  const fichaSub = [vehicle.year, vehicle.engine].filter(Boolean).join(' · ');
+
+  document.getElementById('fichaContent').innerHTML = `
+    <!-- HERO -->
+    <div class="ficha-hero">
+      <div class="ficha-car-icon">🚗</div>
+      <div style="flex:1">
+        <div class="ficha-title">${fichaTitle}</div>
+        <div class="ficha-sub">${fichaSub}</div>
+        <div class="ficha-badges">
+          <span class="tag tag-b">${p.specs?.fuel_type || 'Nafta'}</span>
+          ${p.scan_count ? `<span class="tag tag-b">${p.scan_count} escaneos</span>` : ''}
+          <span class="tag ${rel>=8?'tag-g':rel>=6?'tag-y':'tag-r'}">${relLabel}</span>
+        </div>
+        <div class="reliability-bar">
+          <span style="font-size:9px;color:var(--t2);font-family:var(--mono);min-width:70px">CONFIABILIDAD</span>
+          <div class="rel-track"><div class="rel-fill" style="width:${rel*10}%;background:${relColor}"></div></div>
+          <span class="rel-label" style="color:${relColor}">${rel}/10</span>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end;flex-shrink:0">
+        <button class="btn btn-blue" onclick="generateFicha(${fichaVehicleId})" style="font-size:10px;padding:7px 14px">⚡ Regenerar con IA</button>
+        <span style="font-size:8px;color:var(--t3);font-family:var(--mono)">Generado: ${p.generated_at ? new Date(p.generated_at).toLocaleDateString('es-AR') : 'ahora'}</span>
+      </div>
+    </div>
+
+    <!-- GRID PRINCIPAL -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      
+      <!-- Overview + Issues -->
+      <div style="display:flex;flex-direction:column;gap:12px">
+        ${p.overview ? `<div class="gcard">
+          <div class="gcard-head"><div class="gcard-title">Resumen técnico</div></div>
+          <div class="gcard-body"><div style="font-size:12px;color:var(--text);line-height:1.75">${p.overview}</div>
+          ${p.argentina_notes ? `<div style="margin-top:10px;padding:10px;border-radius:8px;border-left:2px solid var(--grn);background:rgba(52,211,153,0.04);font-size:11px;color:var(--t2)">${p.argentina_notes}</div>` : ''}
+          </div>
+        </div>` : ''}
+
+        <div class="gcard">
+          <div class="gcard-head"><div class="gcard-title">Historial de DTCs detectados</div><span class="gcard-tag">Click para investigar</span></div>
+          <div class="gcard-body">
+            <div style="display:flex;flex-wrap:wrap;gap:2px">${dtcHistoryHTML}</div>
+            ${p.dtc_patterns && p.dtc_patterns !== 'Sin patrones de falla detectados aún' ? `<div style="margin-top:10px;font-size:11px;color:var(--t2);line-height:1.6;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid var(--b1)">${p.dtc_patterns}</div>` : ''}
+          </div>
+        </div>
+
+        ${issuesHTML ? `<div class="gcard">
+          <div class="gcard-head"><div class="gcard-title">Problemas conocidos del modelo</div></div>
+          <div class="gcard-body">${issuesHTML}</div>
+        </div>` : ''}
+      </div>
+
+      <!-- Specs + Maintenance -->
+      <div style="display:flex;flex-direction:column;gap:12px">
+        ${specsHTML ? `<div class="gcard">
+          <div class="gcard-head"><div class="gcard-title">Especificaciones técnicas</div></div>
+          <div class="gcard-body">${specsHTML}</div>
+        </div>` : ''}
+
+        ${maintHTML ? `<div class="gcard">
+          <div class="gcard-head"><div class="gcard-title">Plan de mantenimiento</div></div>
+          <div class="gcard-body">
+            ${maintHTML}
+            ${p.maintenance_schedule?.notes ? `<div style="margin-top:8px;font-size:10px;color:var(--t2);font-style:italic">${p.maintenance_schedule.notes}</div>` : ''}
+          </div>
+        </div>` : ''}
+
+        ${(p.sources?.length) ? `<div class="gcard">
+          <div class="gcard-head"><div class="gcard-title">Fuentes consultadas</div></div>
+          <div class="gcard-body" style="display:flex;flex-wrap:wrap;gap:5px">
+            ${p.sources.map(s=>`<span class="src-chip off">${s}</span>`).join('')}
+          </div>
+        </div>` : ''}
+      </div>
+    </div>
+  `;
+}
+
+// ── MODALS ──
+document.querySelectorAll('.modal-bg').forEach(bg=>bg.addEventListener('click',e=>{if(e.target===bg)bg.classList.remove('open');}));
+
+
+// ═══════════════════════════════════════════════════════════
+// HISTORIAL COMPLETO DEL VEHÍCULO
+// ═══════════════════════════════════════════════════════════
+
+let historialData = { scans:[], resolutions:[], dtc_stats:[], cost_by_month:[] };
+let historialFilter = 'all';
+let historialSearch = '';
+
+async function loadHistorial(vehicleId) {
+  if (!vehicleId) return;
+
+  const veh = vehiclesList.find(v => v.id === vehicleId);
+  const labelEl = document.getElementById('histVehLabel');
+  if (labelEl) labelEl.textContent = veh ? (veh.make + ' ' + veh.model + ' ' + veh.year).toUpperCase() : '';
+
+  // Show loading
+  const timeline = document.getElementById('histTimeline');
+  if (timeline) timeline.innerHTML = '<div class="hist-empty"><div class="hist-empty-icon" style="animation:spin .8s linear infinite;display:inline-block">⚙</div><div class="hist-empty-text">Cargando historial...</div></div>';
+
+  try {
+    const res = await API.get('/api/vehicles/' + vehicleId + '/history');
+    if (!res.ok) throw new Error(res.error);
+    historialData = res.data;
+    renderHistorial();
+  } catch(e) {
+    // Fallback: use existing scan data
+    const scansRes = await API.get('/api/vehicles/' + vehicleId + '/scans');
+    historialData = {
+      scans: scansRes.ok ? scansRes.data : [],
+      resolutions: [],
+      dtc_stats: [],
+      cost_by_month: [],
+    };
+    renderHistorial();
+  }
+}
+
+function renderHistorial() {
+  renderHistSummary();
+  renderHistTimeline();
+  renderHistDTCFreq();
+  renderHistCostBars();
+}
+
+function renderHistSummary() {
+  const d = historialData;
+  const totalDTCs = new Set(d.scans.flatMap(s => s.dtcs || [])).size;
+  const totalResolved = d.resolutions.length;
+  const totalCost = d.resolutions.reduce((sum, r) => sum + (parseFloat(r.cost_usd)||0), 0);
+
+  const setEl = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
+  setEl('hs-scans',    d.scans.length);
+  setEl('hs-dtcs',     totalDTCs);
+  setEl('hs-resolved', totalResolved);
+  setEl('hs-cost',     '$' + Math.round(totalCost));
+}
+
+function renderHistTimeline() {
+  const timeline = document.getElementById('histTimeline');
+  if (!timeline) return;
+
+  let scans = [...historialData.scans];
+
+  // Apply filter
+  if (historialFilter === 'critical') {
+    scans = scans.filter(s => (s.dtcs||[]).length > 0);
+  } else if (historialFilter === 'resolved') {
+    const resolvedDates = new Set(historialData.resolutions.map(r => r.created_at?.substring(0,10)));
+    scans = scans.filter(s => resolvedDates.has(s.created_at?.substring(0,10)));
+  } else if (historialFilter === 'cost') {
+    scans = scans.filter(s => s.total_cost_usd || 
+      historialData.resolutions.some(r => r.created_at?.substring(0,10) === s.created_at?.substring(0,10) && r.cost_usd));
+  }
+
+  // Apply search
+  if (historialSearch) {
+    const q = historialSearch.toLowerCase();
+    scans = scans.filter(s => 
+      (s.dtcs||[]).some(d => d.toLowerCase().includes(q)) ||
+      (s.notes||'').toLowerCase().includes(q) ||
+      (s.created_at||'').includes(q)
+    );
+  }
+
+  if (!scans.length) {
+    timeline.innerHTML = '<div class="hist-empty"><div class="hist-empty-icon">🔍</div><div class="hist-empty-text">Sin resultados para este filtro</div></div>';
+    return;
+  }
+
+  // Build timeline
+  timeline.innerHTML = scans.map(function(scan, idx) {
+    const dtcs = scan.dtcs || [];
+    const hasCritical = dtcs.length > 0;
+    const date = scan.created_at ? new Date(scan.created_at) : new Date();
+    const dateStr = date.toLocaleDateString('es-AR', { day:'2-digit', month:'short', year:'numeric' });
+    const timeStr = date.toLocaleTimeString('es-AR', { hour:'2-digit', minute:'2-digit' });
+
+    // Find resolutions on same day
+    const scanDay = scan.created_at?.substring(0,10);
+    const dayResolutions = historialData.resolutions.filter(r => r.created_at?.substring(0,10) === scanDay);
+
+    // Severity
+    let dotClass = 'info', dotIcon = '🔌';
+    if (dtcs.length >= 3) { dotClass = 'critical'; dotIcon = '🚨'; }
+    else if (dtcs.length > 0) { dotClass = 'moderate'; dotIcon = '⚠'; }
+    else if (dayResolutions.length > 0) { dotClass = 'ok'; dotIcon = '✅'; }
+
+    // Live data highlights
+    const ld = scan.live_data || {};
+    const rpm  = ld.rpm?.value  || ld.RPM  || null;
+    const temp = ld.coolant?.value || ld.temp || null;
+    const ftl  = ld.fuel_trim_long?.value || null;
+    const volt = ld.voltage?.value || null;
+
+    const liveItems = [
+      rpm  ? {val: rpm,        unit:'rpm', lbl:'RPM'} : null,
+      temp ? {val: temp+'°',   unit:'',    lbl:'Temp'} : null,
+      ftl  ? {val: '+'+ftl+'%',unit:'',   lbl:'FT L', warn:parseFloat(ftl)>15} : null,
+      volt ? {val: volt+'V',   unit:'',    lbl:'Volt'} : null,
+    ].filter(Boolean);
+
+    const totalCostDay = dayResolutions.reduce((s,r) => s+(parseFloat(r.cost_usd)||0), 0);
+
+    return '<div class="tl-item">'
+      + '<div class="tl-dot-wrap">'
+      + '<div class="tl-dot ' + dotClass + '">' + dotIcon + '</div>'
+      + (idx < scans.length-1 ? '<div class="tl-connector"></div>' : '')
+      + '</div>'
+      + '<div class="tl-card" id="tlcard-'+scan.id+'" onclick="toggleTLCard('+scan.id+')">'
+      + '<div class="tl-card-top">'
+      + '<div style="flex:1">'
+      + '<div class="tl-title">'
+      + (dtcs.length > 0 ? dtcs.length + ' DTC' + (dtcs.length>1?'s':'') + ' detectado' + (dtcs.length>1?'s':'') : 'Escaneo sin errores')
+      + (dayResolutions.length > 0 ? ' · ✅ Resuelto' : '')
+      + '</div>'
+      + '<div class="tl-sub">'
+      + (scan.protocol || 'OBD-II')
+      + (scan.notes ? ' · ' + scan.notes : '')
+      + '</div>'
+      + '<div class="tl-tags">'
+      + dtcs.map(function(d){ return '<span class="tl-tag dtc">' + d + '</span>'; }).join('')
+      + dayResolutions.map(function(r){ return '<span class="tl-tag res">✅ ' + (r.cause_found||'Resuelto') + '</span>'; }).join('')
+      + (totalCostDay > 0 ? '<span class="tl-tag cost">$' + totalCostDay + ' USD</span>' : '')
+      + (scan.protocol ? '<span class="tl-tag prot">' + scan.protocol + '</span>' : '')
+      + '</div>'
+      + '</div>'
+      + '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">'
+      + '<div class="tl-date">' + dateStr + '</div>'
+      + '<div class="tl-date">' + timeStr + '</div>'
+      + '<span class="tl-chevron">›</span>'
+      + '</div>'
+      + '</div>'
+      // Detail (expanded)
+      + '<div class="tl-detail">'
+      + (dtcs.length > 0 ? '<div class="tl-dlbl" style="margin-bottom:6px">Códigos DTC</div>'
+        + '<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px">'
+        + dtcs.map(function(code){
+            return '<span class="tl-tag dtc" style="cursor:pointer;font-size:11px;font-weight:700" data-dtccode="'+code+'" onclick="event.stopPropagation();openDTCFromHistory(this.dataset.dtccode)">'+code+' ↗</span>';
+          }).join('')
+        + '</div>' : '')
+      + (liveItems.length > 0 ? '<div class="tl-dlbl" style="margin-bottom:6px">Datos del scanner</div>'
+        + '<div class="tl-live-mini" style="margin-bottom:12px">'
+        + liveItems.map(function(item){
+            return '<div class="tl-lm-item"><div class="tl-lm-val" style="' + (item.warn ? 'color:var(--red)' : '') + '">' + item.val + '</div><div class="tl-lm-lbl">' + item.lbl + '</div></div>';
+          }).join('')
+        + '</div>' : '')
+      + (dayResolutions.length > 0 ? '<div class="tl-dlbl" style="margin-bottom:6px">Resoluciones</div>'
+        + dayResolutions.map(function(r){
+            return '<div style="padding:8px 10px;border-radius:9px;background:rgba(52,211,153,.06);border:1px solid rgba(52,211,153,.15);margin-bottom:6px;font-size:11px">'
+              + '<div style="font-weight:600;color:var(--grn);margin-bottom:3px">✅ ' + (r.cause_found||'Resuelto') + '</div>'
+              + (r.fix_applied ? '<div style="color:var(--t2)">Solución: ' + r.fix_applied + '</div>' : '')
+              + (r.cost_usd ? '<div style="color:var(--yel);font-family:var(--mono);font-size:10px;margin-top:3px">Costo: $' + r.cost_usd + ' USD</div>' : '')
+              + '</div>';
+          }).join('') : '')
+      + '<div class="tl-dlbl" style="margin-bottom:5px">Notas</div>'
+      + '<div class="tl-note-row">'
+      + '<input class="tl-note-in" id="note-'+scan.id+'" placeholder="Agregar nota a este escaneo..." value="' + (scan.notes||'') + '" onclick="event.stopPropagation()">'
+      + '<button class="tl-save-btn" onclick="event.stopPropagation();saveScanNote('+scan.id+')">Guardar</button>'
+      + '</div>'
+      + '</div>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+function toggleTLCard(scanId) {
+  const card = document.getElementById('tlcard-' + scanId);
+  if (!card) return;
+  card.classList.toggle('expanded');
+}
+
+async function saveScanNote(scanId) {
+  const input = document.getElementById('note-' + scanId);
+  if (!input) return;
+  const note = input.value.trim();
+  try {
+    await API.patch('/api/scans/' + scanId + '/note', { note });
+    showNotif('✓ Nota guardada', 'success');
+    // Update local data
+    const scan = historialData.scans.find(s => s.id === scanId);
+    if (scan) scan.notes = note;
+  } catch(e) { showNotif('Error al guardar nota', 'error'); }
+}
+
+function renderHistDTCFreq() {
+  const el = document.getElementById('histDTCFreq');
+  if (!el) return;
+
+  // Build freq from scans if dtc_stats not available
+  let stats = historialData.dtc_stats || [];
+  if (!stats.length && historialData.scans.length) {
+    const freq = {};
+    historialData.scans.forEach(s => (s.dtcs||[]).forEach(d => { freq[d] = (freq[d]||0)+1; }));
+    stats = Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([code,count])=>({code,appearances:count}));
+  }
+
+  if (!stats.length) {
+    el.innerHTML = '<div style="font-size:10px;color:var(--t3);text-align:center;padding:10px">Sin datos de DTCs</div>';
+    return;
+  }
+
+  const max = Math.max(...stats.map(s => parseInt(s.appearances)||0)) || 1;
+  el.innerHTML = '<div class="dtc-freq">'
+    + stats.slice(0,6).map(function(s) {
+        const pct = Math.round(((parseInt(s.appearances)||0) / max) * 100);
+        const code = s.code || s.dtc_code || '';
+        return '<div class="dtc-freq-row">'
+          + '<span class="dtc-freq-code">' + code + '</span>'
+          + '<div class="dtc-freq-bar-wrap"><div class="dtc-freq-bar" style="width:' + pct + '%"></div></div>'
+          + '<span class="dtc-freq-count">' + (s.appearances||0) + 'x</span>'
+          + '</div>';
+      }).join('')
+    + '</div>';
+}
+
+function renderHistCostBars() {
+  const el = document.getElementById('histCostBars');
+  if (!el) return;
+
+  let months = historialData.cost_by_month || [];
+  // Build from resolutions if not available
+  if (!months.length && historialData.resolutions.length) {
+    const byMonth = {};
+    historialData.resolutions.forEach(r => {
+      if (!r.cost_usd) return;
+      const m = (r.created_at||'').substring(0,7);
+      if (m) byMonth[m] = (byMonth[m]||0) + parseFloat(r.cost_usd);
+    });
+    months = Object.entries(byMonth).sort().slice(-6).map(([month,total])=>({month, total_cost:total}));
+  }
+
+  if (!months.length) {
+    el.innerHTML = '<div style="font-size:10px;color:var(--t3);text-align:center;width:100%;padding:10px">Sin datos de costos</div>';
+    return;
+  }
+
+  const max = Math.max(...months.map(m => parseFloat(m.total_cost)||0)) || 1;
+  el.innerHTML = months.slice(-6).map(function(m) {
+    const cost = parseFloat(m.total_cost)||0;
+    const pct = Math.round((cost/max)*100);
+    const monthLabel = m.month ? m.month.substring(5) : '';
+    return '<div class="cost-bar-wrap">'
+      + '<div class="cost-bar-val">$'+Math.round(cost)+'</div>'
+      + '<div class="cost-bar" style="height:'+Math.max(4,pct*0.6)+'px"></div>'
+      + '<div class="cost-bar-lbl">'+monthLabel+'</div>'
+      + '</div>';
+  }).join('');
+}
+
+
+function openDTCFromHistory(code) {
+  const inp = document.getElementById('rCode');
+  if (inp) inp.value = code;
+  const btn = document.querySelectorAll('.tb-btn')[6];
+  goView('research', btn);
+}
+
+function filterHist(type, btn) {
+  historialFilter = type;
+  document.querySelectorAll('.hf-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderHistTimeline();
+}
+
+function searchHist(val) {
+  historialSearch = val;
+  renderHistTimeline();
+}
+
+async function saveHistResolution() {
+  const code  = document.getElementById('hr-code')?.value.trim().toUpperCase();
+  const cause = document.getElementById('hr-cause')?.value.trim();
+  const cost  = document.getElementById('hr-cost')?.value.trim();
+  const parts = document.getElementById('hr-parts')?.value.trim();
+
+  if (!code || !cause) { showNotif('Completá código y causa', 'error'); return; }
+
+  const veh = vehiclesList.find(v => v.id === activeVehicleId);
+  try {
+    await API.post('/api/learn/case', {
+      vehicle_id: activeVehicleId,
+      dtc_code: code,
+      brand: veh?.make || '',
+      model: veh?.model || '',
+      year: veh?.year || null,
+      cause_found: cause,
+      fix_applied: cause,
+      cost_usd: cost ? parseFloat(cost) : null,
+      parts_replaced: parts ? parts.split(',').map(p=>p.trim()).filter(Boolean) : [],
+      confirmed: true,
+    });
+    showNotif('✅ Reparación guardada en el historial', 'success');
+    ['hr-code','hr-cause','hr-cost','hr-parts'].forEach(id => {
+      const el = document.getElementById(id); if(el) el.value='';
+    });
+    // Reload historial
+    if (activeVehicleId) setTimeout(() => loadHistorial(activeVehicleId), 500);
+  } catch(e) { showNotif('Error al guardar', 'error'); }
+}
+
+// Hook into vehicle selection to auto-load historial
+const _origSelectVehicle = window.selectVehicle;
+window.selectVehicle = function(id) {
+  if (typeof _origSelectVehicle === 'function') _origSelectVehicle(id);
+  // Auto-load historial if that view is active
+  if (document.getElementById('view-historial')?.classList.contains('active')) {
+    loadHistorial(id);
+  }
+};
+
+// Load when switching to historial view
+const _origGoView2 = window.goView;
+window.goView = function(name, btn) {
+  _origGoView2(name, btn);
+  if (name === 'historial' && activeVehicleId) {
+    loadHistorial(activeVehicleId);
+  }
+};
+
+// ── PWA ──────────────────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').then(reg => {
+      // Force check for SW updates
+      reg.update();
+      console.log('✓ SW registrado');
+    }).catch(e => console.log('SW error:', e));
+  });
+  // If SW controls the page, check for updates on navigation
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    console.log('SW updated — new version active');
+  });
+}
+
+// Splash handled by inline script above
+
+// PWA install (deferredPrompt declared in PWA section above)
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault(); deferredPrompt = e;
+  setTimeout(() => {
+    if (!localStorage.getItem('pwa_dismissed')) {
+      const b = document.getElementById('installBanner');
+      if (b) b.classList.add('show');
+    }
+  }, 4000);
+});
+async function installPWA() {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  const { outcome } = await deferredPrompt.userChoice;
+  if (outcome === 'accepted') { localStorage.setItem('pwa_dismissed','1'); }
+  const b = document.getElementById('installBanner');
+  if (b) b.classList.remove('show');
+  deferredPrompt = null;
+}
+window.addEventListener('appinstalled', () => { localStorage.setItem('pwa_dismissed','1'); showNotif('✓ App instalada','success'); });
+
+
+// ═══════════════════════════════════════════════════════════
+// NHTSA — RECALLS, QUEJAS Y RATINGS OFICIALES
+// Fuente: api.nhtsa.dot.gov (gobierno de EEUU)
+// ═══════════════════════════════════════════════════════════
+
+let nhtsaCache = {}; // cache por make+model+year
+
+// MARCA → NHTSA name mapping (marcas comunes en Argentina)
+const MAKE_MAP = {
+  'toyota':'toyota','ford':'ford','chevrolet':'chevrolet','gm':'chevrolet',
+  'volkswagen':'volkswagen','vw':'volkswagen','honda':'honda','nissan':'nissan',
+  'hyundai':'hyundai','kia':'kia','bmw':'bmw','mercedes':'mercedes-benz',
+  'mercedes-benz':'mercedes-benz','renault':'renault','peugeot':'peugeot',
+  'fiat':'fiat','jeep':'jeep','dodge':'dodge','ram':'ram','chrysler':'chrysler',
+  'subaru':'subaru','mazda':'mazda','mitsubishi':'mitsubishi','suzuki':'suzuki',
+  'volvo':'volvo','audi':'audi','lexus':'lexus','acura':'acura','infiniti':'infiniti',
+  'mini':'mini','land rover':'land rover','jaguar':'jaguar','porsche':'porsche',
+  'alfa romeo':'alfa romeo','seat':'seat','skoda':'skoda',
+};
+
+function normalizeForNHTSA(make, model) {
+  const m = make?.toLowerCase().trim();
+  const nhtsaMake = MAKE_MAP[m] || m;
+  // Some model name normalizations
+  const modelMap = {
+    'gol':'gol','golf':'golf','polo':'polo','jetta':'jetta','vento':'jetta',
+    'hilux':'hilux','sw4':'4runner','corolla':'corolla','camry':'camry',
+    'rav4':'rav4','yaris':'yaris','etios':'etios',
+    'civic':'civic','fit':'fit','hr-v':'hr-v','cr-v':'cr-v',
+    'frontier':'frontier','np300':'np300','sentra':'sentra','kicks':'kicks',
+    'f-150':'f-150','f150':'f-150','ranger':'ranger','focus':'focus','fiesta':'fiesta',
+    'clio':'clio','sandero':'sandero','duster':'duster','kangoo':'kangoo','logan':'logan',
+    'cronos':'cronos','mobi':'mobi','argo':'argo','toro':'toro','strada':'strada',
+    'punto':'punto','bravo':'bravo','onix':'onix','tracker':'tracker','cruze':'cruze',
+  };
+  const nhtsaModel = modelMap[model?.toLowerCase().trim()] || model?.trim();
+  return { make: nhtsaMake, model: nhtsaModel };
+}
+
+async function fetchNHTSA(make, model, year) {
+  const { make: nhtsaMake, model: nhtsaModel } = normalizeForNHTSA(make, model);
+  const key = `${nhtsaMake}_${nhtsaModel}_${year}`.toLowerCase();
+  
+  if (nhtsaCache[key]) return nhtsaCache[key];
+  
+  try {
+    const res = await API.get(
+      `/api/nhtsa/full?make=${encodeURIComponent(nhtsaMake)}&model=${encodeURIComponent(nhtsaModel)}&year=${encodeURIComponent(year)}`
+    );
+    if (res.ok) {
+      nhtsaCache[key] = res;
+      return res;
+    }
+  } catch(e) {}
+  return { ok: false, recalls: [], complaints: [], ratings: [] };
+}
+
+function renderStars(rating) {
+  const n = parseInt(rating) || 0;
+  let html = '';
+  for (let i = 1; i <= 5; i++) {
+    html += `<span class="star ${i <= n ? 'on' : 'off'}">★</span>`;
+  }
+  return html;
+}
+
+function renderNHTSASection(data, containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  
+  const totalRecalls    = data.recalls?.length    || 0;
+  const totalComplaints = data.complaints?.length || 0;
+  const totalRatings    = data.ratings?.length    || 0;
+  const hasParkit       = data.recalls?.some(r => r.park_it === 'Yes');
+
+  let html = `
+    <div class="nhtsa-section" id="nhtsa-${containerId}">
+      <div class="nhtsa-header">
+        <div class="nhtsa-logo">🏛</div>
+        <div>
+          <div class="nhtsa-title">Información oficial NHTSA — Gobierno de EEUU</div>
+          <div class="nhtsa-sub">National Highway Traffic Safety Administration · api.nhtsa.dot.gov</div>
+        </div>
+        ${hasParkit ? '<div class="recall-park-badge">⚠ PARK IT — No conducir</div>' : ''}
+      </div>`;
+
+  // Tabs
+  html += `<div class="nhtsa-tabs">
+    <button class="nhtsa-tab active" onclick="switchNHTSATab('recalls','${containerId}')">
+      ⚠ Recalls
+      <span class="nhtsa-tab-count ${totalRecalls === 0 ? 'ok' : ''}">${totalRecalls}</span>
+    </button>
+    <button class="nhtsa-tab" onclick="switchNHTSATab('complaints','${containerId}')">
+      📋 Quejas
+      <span class="nhtsa-tab-count ok">${totalComplaints}</span>
+    </button>
+    ${totalRatings > 0 ? `<button class="nhtsa-tab" onclick="switchNHTSATab('ratings','${containerId}')">⭐ Seguridad</button>` : ''}
+  </div>`;
+
+  // Recalls tab
+  html += `<div class="nhtsa-tab-pane active" id="nhtsa-recalls-${containerId}">`;
+  if (totalRecalls === 0) {
+    html += `<div class="nhtsa-empty">✅ Sin recalls oficiales registrados para ${data.make} ${data.model} ${data.year}</div>`;
+  } else {
+    data.recalls.forEach(r => {
+      const date = r.date ? new Date(r.date).toLocaleDateString('es-AR', {year:'numeric',month:'short'}) : '';
+      html += `<div class="recall-card ${r.park_it === 'Yes' ? 'park' : ''}">
+        ${r.park_it === 'Yes' ? '<div class="recall-park-badge">🚫 PARK IT — No conducir hasta resolver</div>' : ''}
+        <div class="recall-id">Campaña NHTSA: ${r.id || '—'} ${date ? '· ' + date : ''}</div>
+        <div class="recall-subject">${r.subject || 'Sin título'}</div>
+        ${r.component ? `<span class="recall-component">Sistema: ${r.component}</span>` : ''}
+        ${r.summary ? `<div class="recall-text"><strong style="color:var(--t2)">Problema:</strong> ${r.summary}</div>` : ''}
+        ${r.consequence ? `<div class="recall-text"><strong style="color:var(--red)">Consecuencia:</strong> ${r.consequence}</div>` : ''}
+        ${r.remedy ? `<div class="recall-remedy">✅ Solución oficial: ${r.remedy}</div>` : ''}
+      </div>`;
+    });
+  }
+  html += '</div>';
+
+  // Complaints tab
+  html += `<div class="nhtsa-tab-pane" id="nhtsa-complaints-${containerId}">`;
+  if (totalComplaints === 0) {
+    html += `<div class="nhtsa-empty">Sin quejas registradas en este período.</div>`;
+  } else {
+    html += `<div style="font-size:10px;color:var(--t2);margin-bottom:10px;font-family:var(--mono)">${totalComplaints} quejas de propietarios registradas</div>`;
+    data.complaints.forEach(comp => {
+      html += `<div class="complaint-card">
+        <div class="complaint-stats">
+          ${comp.crash === 'Yes' ? '<span class="cstat crash">🚗 Choque</span>' : ''}
+          ${comp.fire === 'Yes' ? '<span class="cstat fire">🔥 Incendio</span>' : ''}
+          ${comp.injuries > 0 ? `<span class="cstat inj">👤 ${comp.injuries} heridos</span>` : ''}
+          ${comp.deaths > 0 ? `<span class="cstat crash">💀 ${comp.deaths} fallecidos</span>` : ''}
+          ${comp.components ? `<span class="cstat comp">${comp.components}</span>` : ''}
+        </div>
+        <div class="complaint-text">${(comp.summary || '').substring(0, 280)}${comp.summary?.length > 280 ? '...' : ''}</div>
+      </div>`;
+    });
+  }
+  html += '</div>';
+
+  // Ratings tab
+  if (totalRatings > 0) {
+    html += `<div class="nhtsa-tab-pane" id="nhtsa-ratings-${containerId}">`;
+    data.ratings.forEach(v => {
+      html += `<div class="rating-card">
+        <div class="rating-vehicle">${v.desc || ''}</div>
+        <div class="rating-stars">
+          <div class="rstar"><span class="rstar-lbl">General</span><div class="rstar-val">${renderStars(v.overall)}</div></div>
+          <div class="rstar"><span class="rstar-lbl">Choque frontal</span><div class="rstar-val">${renderStars(v.front)}</div></div>
+          <div class="rstar"><span class="rstar-lbl">Choque lateral</span><div class="rstar-val">${renderStars(v.side)}</div></div>
+          <div class="rstar"><span class="rstar-lbl">Vuelco</span><div class="rstar-val">${renderStars(v.rollover)}</div></div>
+        </div>
+      </div>`;
+    });
+    html += '</div>';
+  }
+
+  html += '</div>';
+  container.innerHTML += html;
+}
+
+function switchNHTSATab(tab, containerId) {
+  // Update tab buttons
+  document.querySelectorAll(`#nhtsa-${containerId} .nhtsa-tab`).forEach(t => t.classList.remove('active'));
+  const activeBtn = document.querySelector(`#nhtsa-${containerId} .nhtsa-tab[onclick*="${tab}"]`);
+  if (activeBtn) activeBtn.classList.add('active');
+  
+  // Update panes
+  document.querySelectorAll(`#nhtsa-${containerId} .nhtsa-tab-pane`).forEach(p => p.classList.remove('active'));
+  const activePane = document.getElementById(`nhtsa-${tab}-${containerId}`);
+  if (activePane) activePane.classList.add('active');
+}
+
+// Called from ficha renderFicha
+async function loadNHTSAForFicha(make, model, year, containerId) {
+  const container = document.getElementById(containerId);
+  if (!container || !make || !year) return;
+  
+  // Show loading
+  const loadingDiv = document.createElement('div');
+  loadingDiv.className = 'nhtsa-loading';
+  loadingDiv.id = 'nhtsa-loading-' + containerId;
+  loadingDiv.innerHTML = '<div class="lspin"></div>Consultando base de datos NHTSA (gobierno EEUU)...';
+  container.appendChild(loadingDiv);
+  
+  const data = await fetchNHTSA(make, model, year);
+  
+  // Remove loading
+  const loadEl = document.getElementById('nhtsa-loading-' + containerId);
+  if (loadEl) loadEl.remove();
+  
+  if (data.ok !== false) {
+    renderNHTSASection({ ...data, make, model, year }, containerId);
+  } else {
+    const errDiv = document.createElement('div');
+    errDiv.className = 'nhtsa-section';
+    errDiv.innerHTML = `<div class="nhtsa-err">⚠ No se pudo conectar con NHTSA. ${data.error || 'Verificá la conexión.'}</div>`;
+    container.appendChild(errDiv);
+  }
+}
+
+// Called from IA Research "Recalls NHTSA" button
+async function lookupNHTSA() {
+  const make  = document.getElementById('rBrand')?.value;
+  const model = document.getElementById('rModel')?.value;
+  const year  = model?.match(/\d{4}/)?.[0];
+  
+  if (!make || !model) { showNotif('Ingresá marca y modelo/año para consultar recalls', 'error'); return; }
+  if (!year) { showNotif('Incluí el año en el campo Modelo/Año (ej: Corolla 2019)', 'error'); return; }
+  
+  const modelName = model.replace(/\d{4}/, '').trim();
+  const btn = document.querySelector('button[onclick="lookupNHTSA()"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Consultando NHTSA...'; }
+  
+  const resultsEl = document.getElementById('rResults');
+  resultsEl.innerHTML = `<div class="lsteps" style="width:100%">
+    <div class="lstep"><div class="lspin"></div>
+      <div class="lstep-txt"><div class="lstep-title">CONSULTANDO NHTSA — GOBIERNO DE EEUU</div>
+        <div>Buscando recalls, quejas y ratings para ${make} ${modelName} ${year}...</div>
+      </div>
+    </div>
+  </div>`;
+  
+  const data = await fetchNHTSA(make, modelName, year);
+  
+  if (btn) { btn.disabled = false; btn.textContent = '🏛 Recalls NHTSA'; }
+  
+  const totalRecalls    = data.recalls?.length    || 0;
+  const totalComplaints = data.complaints?.length || 0;
+  
+  // Create a container and render NHTSA section
+  resultsEl.innerHTML = `
+    <div style="margin-bottom:10px;padding:10px 14px;border-radius:10px;background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.2)">
+      <div style="font-family:var(--syne);font-size:13px;font-weight:700;color:var(--yel);margin-bottom:3px">
+        ${make} ${modelName} ${year} — Datos NHTSA
+      </div>
+      <div style="font-size:10px;color:var(--t2)">
+        ${totalRecalls} recall${totalRecalls!==1?'s':''} oficiales · ${totalComplaints} quejas de propietarios
+        ${data.recalls?.some(r=>r.park_it==='Yes') ? ' · <span style="color:var(--red);font-weight:600">⚠ PARK IT</span>' : ''}
+      </div>
+    </div>
+    <div id="nhtsa-research-panel"></div>`;
+  
+  renderNHTSASection({ ...data, make, model: modelName, year }, 'nhtsa-research-panel');
+}
+
+// Hook into renderFicha to auto-load NHTSA
+const _origRenderFicha = window.renderFicha;
+window.renderFicha = function(p, vData) {
+  _origRenderFicha(p, vData);
+  // After ficha renders, load NHTSA data
+  const vehicle = p.vehicle || vData || {};
+  const make  = vehicle.make  || '';
+  const model = vehicle.model || '';
+  const year  = vehicle.year  || '';
+  if (make && year) {
+    setTimeout(() => loadNHTSAForFicha(make, model, year, 'fichaContent'), 300);
+  }
+};
+
+
+// Fix sidebar close button visibility on mobile
+function _updateSidebarCloseBtn() {
+  const btn = document.getElementById('sbClose');
+  if (!btn) return;
+  const isMobile = window.innerWidth <= 1024;
+  btn.style.display = isMobile ? 'flex' : 'none';
+}
+window.addEventListener('resize', _updateSidebarCloseBtn);
+_updateSidebarCloseBtn();
+
+// Wake lock during scan
+let _wakeLock = null;
+async function _requestWakeLock() {
+  try { if ('wakeLock' in navigator) _wakeLock = await navigator.wakeLock.request('screen'); } catch(e) {}
+}
+async function _releaseWakeLock() {
+  try { if (_wakeLock) { await _wakeLock.release(); _wakeLock = null; } } catch(e) {}
+}
+const _origRunScan = window.runScan;
+if (typeof _origRunScan === 'function') {
+  window.runScan = async function() { await _requestWakeLock(); _origRunScan(); setTimeout(_releaseWakeLock, 15000); };
+}
+</script>
+</body>
+</html>
