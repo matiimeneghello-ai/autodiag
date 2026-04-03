@@ -1433,7 +1433,12 @@ a, button, [role=button], .btn, .vcard, .dtcrow, .ws-card,
 
       <!-- DASHBOARD -->
       <div id="view-dashboard" class="view active">
-        <div class="stitle">Dashboard <span class="stitle-sub" id="activeVehLabel">SIN VEHÍCULO</span></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:2px">
+          <div class="stitle" style="margin:0">Dashboard <span class="stitle-sub" id="activeVehLabel">SIN VEHÍCULO</span></div>
+          <button class="btn btn-blue" onclick="downloadPDF()" style="display:flex;align-items:center;gap:6px;font-size:12px;padding:8px 16px;flex-shrink:0">
+            📄 Reporte PDF
+          </button>
+        </div>
         <div class="help-banner" id="help-dashboard">
           <span class="help-icon">📊</span>
           <div class="help-content">
@@ -3257,20 +3262,367 @@ function generatePDF(){
     <div style="margin-top:16px;padding-top:10px;border-top:1px solid #eee;font-size:9px;color:#999;text-align:center">AutoDiag Pro v2.0 · Reporte informativo</div>`;
   openModal('modal-pdf');
 }
-function downloadPDF(){
-  try{
-    const{jsPDF}=window.jspdf;const doc=new jsPDF();
-    const veh=activeVehicleName||'Vehículo';
-    const date=new Date().toLocaleDateString('es-AR');
-    doc.setFontSize(20);doc.setTextColor(37,99,235);doc.text('AutoDiag Pro',20,20);
-    doc.setFontSize(10);doc.setTextColor(100,100,100);doc.text('Reporte de Diagnóstico — '+date,20,28);
-    doc.setDrawColor(37,99,235);doc.setLineWidth(0.5);doc.line(20,32,190,32);
-    doc.setFontSize(12);doc.setTextColor(0,0,0);doc.text('Vehículo: '+veh,20,42);
-    doc.setFontSize(10);doc.setTextColor(37,99,235);doc.text('Generado por: '+(currentUser?.tallerName||'AutoDiag Pro'),20,52);
-    doc.setTextColor(150,150,150);doc.setFontSize(8);doc.text('AutoDiag Pro v2.0 · Reporte informativo.',20,280);
-    doc.save('autodiag-'+veh.replace(/\s/g,'-').toLowerCase()+'.pdf');
-    showNotif('PDF descargado','success');
-  }catch(e){showNotif('Error generando PDF','error');}
+function downloadPDF() {
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const W = 210, M = 15;
+    let y = 0;
+
+    // — Colores —
+    const C_BLUE   = [37, 99, 235];
+    const C_DARK   = [15, 23, 42];
+    const C_GRAY   = [100, 116, 139];
+    const C_LGRAY  = [241, 245, 249];
+    const C_RED    = [239, 68, 68];
+    const C_GREEN  = [34, 197, 94];
+    const C_YEL    = [234, 179, 8];
+    const C_WHITE  = [255, 255, 255];
+    const C_LINE   = [226, 232, 240];
+
+    // Datos base
+    const tallerName = currentUser?.tallerName || 'AutoDiag Pro';
+    const mechEmail  = currentUser?.email || '';
+    const veh        = activeVehicleName || 'Vehículo no especificado';
+    const vehObj     = vehiclesList?.find(v => v.id === activeVehicleId) || {};
+    const dateStr    = new Date().toLocaleDateString('es-AR', { day:'2-digit', month:'long', year:'numeric' });
+    const timeStr    = new Date().toLocaleTimeString('es-AR', { hour:'2-digit', minute:'2-digit' });
+    const reportNum  = 'RPT-' + Date.now().toString().slice(-6);
+
+    // Leer DTCs activos de la UI
+    const dtcEls = document.querySelectorAll('.dtcrow');
+    const dtcs   = [];
+    dtcEls.forEach(el => {
+      const code = el.querySelector('.dtc-code')?.textContent?.trim();
+      const desc = el.querySelector('.dtc-name, .dtc-desc')?.textContent?.trim();
+      const sev  = el.querySelector('.dtc-sev, .sev-badge')?.textContent?.trim();
+      if (code) dtcs.push({ code, desc: desc || '', sev: sev || '' });
+    });
+
+    // Leer live data
+    const liveData = [];
+    const liveRows = document.querySelectorAll('.ld-row, .live-row');
+    liveRows.forEach(el => {
+      const lbl = el.querySelector('.ld-lbl, .live-lbl')?.textContent?.trim();
+      const val = el.querySelector('.ld-val, .live-val')?.textContent?.trim();
+      if (lbl && val) liveData.push({ lbl, val });
+    });
+
+    // ══════════════════════════════════
+    // HEADER — Banda azul
+    // ══════════════════════════════════
+    doc.setFillColor(...C_BLUE);
+    doc.rect(0, 0, W, 42, 'F');
+
+    // Logo ⚙ (círculo blanco)
+    doc.setFillColor(...C_WHITE);
+    doc.circle(M + 8, 21, 8, 'F');
+    doc.setTextColor(...C_BLUE);
+    doc.setFontSize(14);
+    doc.text('⚙', M + 5.5, 24.5);
+
+    // Nombre del taller
+    doc.setTextColor(...C_WHITE);
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text(tallerName, M + 22, 18);
+
+    // Subtítulo
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Plataforma de Diagnóstico Automotriz · AutoDiag Pro', M + 22, 25);
+
+    // Email
+    if (mechEmail) {
+      doc.setFontSize(8);
+      doc.setTextColor(187, 210, 255);
+      doc.text(mechEmail, M + 22, 31);
+    }
+
+    // N° reporte y fecha (derecha)
+    doc.setFontSize(8);
+    doc.setTextColor(...C_WHITE);
+    doc.text('Reporte: ' + reportNum, W - M, 16, { align: 'right' });
+    doc.text('Fecha: ' + dateStr, W - M, 22, { align: 'right' });
+    doc.text('Hora: ' + timeStr, W - M, 28, { align: 'right' });
+
+    y = 50;
+
+    // ══════════════════════════════════
+    // INFO DEL VEHÍCULO
+    // ══════════════════════════════════
+    // Sección título
+    doc.setFillColor(...C_LGRAY);
+    doc.roundedRect(M, y, W - M*2, 8, 2, 2, 'F');
+    doc.setTextColor(...C_BLUE);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text('INFORMACIÓN DEL VEHÍCULO', M + 4, y + 5.5);
+    y += 12;
+
+    // Grid de datos del vehículo
+    const vehFields = [
+      ['Marca', vehObj.make || '-'],
+      ['Modelo', vehObj.model || '-'],
+      ['Año', vehObj.year ? String(vehObj.year) : '-'],
+      ['Motor', vehObj.engine || '-'],
+      ['VIN', vehObj.vin || '-'],
+      ['Propietario', vehObj.owner_name || '-'],
+    ];
+
+    doc.setFont('helvetica', 'normal');
+    const colW = (W - M*2) / 3;
+    let col = 0, rowY = y;
+    vehFields.forEach(([lbl, val]) => {
+      const x = M + col * colW;
+      doc.setFontSize(7);
+      doc.setTextColor(...C_GRAY);
+      doc.text(lbl.toUpperCase(), x, rowY);
+      doc.setFontSize(10);
+      doc.setTextColor(...C_DARK);
+      doc.setFont('helvetica', 'bold');
+      doc.text(val, x, rowY + 5);
+      doc.setFont('helvetica', 'normal');
+      col++;
+      if (col >= 3) { col = 0; rowY += 14; }
+    });
+    y = rowY + (col > 0 ? 14 : 0) + 4;
+
+    // Línea divisora
+    doc.setDrawColor(...C_LINE);
+    doc.setLineWidth(0.3);
+    doc.line(M, y, W - M, y);
+    y += 8;
+
+    // ══════════════════════════════════
+    // CÓDIGOS DTC DETECTADOS
+    // ══════════════════════════════════
+    doc.setFillColor(...C_LGRAY);
+    doc.roundedRect(M, y, W - M*2, 8, 2, 2, 'F');
+    doc.setTextColor(...C_BLUE);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text('CÓDIGOS DTC DETECTADOS', M + 4, y + 5.5);
+
+    // Badge con cantidad
+    const dtcCount = dtcs.length;
+    const badgeColor = dtcCount > 0 ? C_RED : C_GREEN;
+    doc.setFillColor(...badgeColor);
+    doc.roundedRect(W - M - 22, y + 1, 22, 6, 2, 2, 'F');
+    doc.setTextColor(...C_WHITE);
+    doc.setFontSize(8);
+    doc.text(dtcCount + (dtcCount === 1 ? ' código' : ' códigos'), W - M - 11, y + 5.5, { align: 'center' });
+    y += 12;
+
+    if (dtcCount === 0) {
+      doc.setTextColor(...C_GREEN);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text('✓ Sin códigos de error activos', M + 4, y + 5);
+      y += 12;
+    } else {
+      // Tabla de DTCs
+      const tableW = W - M*2;
+      const colWs = [28, 90, 32, 30];
+
+      // Header tabla
+      doc.setFillColor(...C_DARK);
+      doc.rect(M, y, tableW, 7, 'F');
+      doc.setTextColor(...C_WHITE);
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'bold');
+      let tx = M + 3;
+      ['CÓDIGO', 'DESCRIPCIÓN', 'SEVERIDAD', 'SISTEMA'].forEach((h, i) => {
+        doc.text(h, tx, y + 4.8);
+        tx += colWs[i];
+      });
+      y += 7;
+
+      dtcs.forEach((dtc, idx) => {
+        const rowH = 8;
+        // Alternating rows
+        if (idx % 2 === 1) {
+          doc.setFillColor(...C_LGRAY);
+          doc.rect(M, y, tableW, rowH, 'F');
+        }
+
+        // Severity color
+        let sevColor = C_GRAY;
+        const sevLower = (dtc.sev || '').toLowerCase();
+        if (sevLower.includes('crít') || sevLower.includes('alto')) sevColor = C_RED;
+        else if (sevLower.includes('mod')) sevColor = C_YEL;
+        else if (sevLower.includes('bajo')) sevColor = C_GREEN;
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(...sevColor);
+        doc.text(dtc.code || '-', M + 3, y + 5.2);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...C_DARK);
+        doc.setFontSize(7.5);
+        const descStr = (dtc.desc || 'Sin descripción').substring(0, 52);
+        doc.text(descStr, M + 31, y + 5.2);
+
+        doc.setFontSize(7);
+        doc.setTextColor(...sevColor);
+        doc.text(dtc.sev || '-', M + 121, y + 5.2);
+
+        y += rowH;
+
+        // Page break check
+        if (y > 265) {
+          doc.addPage();
+          y = 20;
+        }
+      });
+      y += 4;
+    }
+
+    doc.setDrawColor(...C_LINE);
+    doc.setLineWidth(0.3);
+    doc.line(M, y, W - M, y);
+    y += 8;
+
+    // ══════════════════════════════════
+    // DATOS DEL SCANNER (LIVE DATA)
+    // ══════════════════════════════════
+    if (liveData.length > 0) {
+      doc.setFillColor(...C_LGRAY);
+      doc.roundedRect(M, y, W - M*2, 8, 2, 2, 'F');
+      doc.setTextColor(...C_BLUE);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text('DATOS DEL SCANNER OBD-II', M + 4, y + 5.5);
+      y += 12;
+
+      // Grid 4 columnas
+      const ldColW = (W - M*2) / 4;
+      let ldCol = 0, ldRowY = y;
+      liveData.slice(0, 12).forEach(({ lbl, val }) => {
+        const x = M + ldCol * ldColW;
+        doc.setFillColor(...C_LGRAY);
+        doc.roundedRect(x, ldRowY, ldColW - 2, 12, 1, 1, 'F');
+        doc.setFontSize(6.5);
+        doc.setTextColor(...C_GRAY);
+        doc.setFont('helvetica', 'normal');
+        doc.text(lbl, x + 3, ldRowY + 4.5);
+        doc.setFontSize(9);
+        doc.setTextColor(...C_DARK);
+        doc.setFont('helvetica', 'bold');
+        doc.text(val, x + 3, ldRowY + 9.5);
+        doc.setFont('helvetica', 'normal');
+        ldCol++;
+        if (ldCol >= 4) { ldCol = 0; ldRowY += 15; }
+      });
+      y = ldRowY + (ldCol > 0 ? 15 : 0) + 4;
+
+      doc.setDrawColor(...C_LINE);
+      doc.line(M, y, W - M, y);
+      y += 8;
+    }
+
+    // ══════════════════════════════════
+    // TRABAJOS REALIZADOS (Kanban done)
+    // ══════════════════════════════════
+    const doneJobs = (window.jobs || []).filter(j =>
+      j.status === 'done' && (!activeVehicleId || String(j.vehicle_id) === String(activeVehicleId))
+    );
+
+    if (doneJobs.length > 0) {
+      if (y > 230) { doc.addPage(); y = 20; }
+
+      doc.setFillColor(...C_LGRAY);
+      doc.roundedRect(M, y, W - M*2, 8, 2, 2, 'F');
+      doc.setTextColor(...C_BLUE);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text('TRABAJOS REALIZADOS', M + 4, y + 5.5);
+      y += 12;
+
+      doneJobs.forEach((job, i) => {
+        if (y > 265) { doc.addPage(); y = 20; }
+        doc.setFillColor(240, 253, 244);
+        doc.roundedRect(M, y, W - M*2, 10, 2, 2, 'F');
+        doc.setDrawColor(...C_GREEN);
+        doc.setLineWidth(0.5);
+        doc.line(M, y, M, y + 10);
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8.5);
+        doc.setTextColor(...C_DARK);
+        doc.text('✓ ' + (job.car_label || 'Trabajo ' + (i+1)), M + 5, y + 4.5);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(...C_GRAY);
+        let jobInfo = '';
+        if (job.dtcs && job.dtcs.length) jobInfo += 'DTCs: ' + job.dtcs.join(', ') + '  ';
+        if (job.mechanic) jobInfo += 'Mecánico: ' + job.mechanic;
+        if (jobInfo) doc.text(jobInfo, M + 5, y + 8.5);
+        y += 13;
+      });
+      y += 4;
+      doc.setDrawColor(...C_LINE);
+      doc.line(M, y, W - M, y);
+      y += 8;
+    }
+
+    // ══════════════════════════════════
+    // RESUMEN / PRESUPUESTO
+    // ══════════════════════════════════
+    if (y > 220) { doc.addPage(); y = 20; }
+
+    doc.setFillColor(...C_LGRAY);
+    doc.roundedRect(M, y, W - M*2, 8, 2, 2, 'F');
+    doc.setTextColor(...C_BLUE);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text('OBSERVACIONES Y RECOMENDACIONES', M + 4, y + 5.5);
+    y += 12;
+
+    // Caja de observaciones (para llenar a mano o con datos)
+    doc.setDrawColor(...C_LINE);
+    doc.setLineWidth(0.4);
+    doc.rect(M, y, W - M*2, 28, 'D');
+    doc.setFontSize(8);
+    doc.setTextColor(...C_GRAY);
+    doc.text('Observaciones del mecánico:', M + 4, y + 7);
+    // Líneas
+    for (let li = 0; li < 3; li++) {
+      doc.setDrawColor(...C_LINE);
+      doc.line(M + 4, y + 12 + li * 6, W - M - 4, y + 12 + li * 6);
+    }
+    y += 32;
+
+    // ══════════════════════════════════
+    // FOOTER
+    // ══════════════════════════════════
+    const pageCount = doc.getNumberOfPages();
+    for (let pg = 1; pg <= pageCount; pg++) {
+      doc.setPage(pg);
+      // Línea footer
+      doc.setDrawColor(...C_BLUE);
+      doc.setLineWidth(0.5);
+      doc.line(M, 285, W - M, 285);
+      // Texto footer
+      doc.setFontSize(7);
+      doc.setTextColor(...C_GRAY);
+      doc.text('AutoDiag Pro · Reporte N° ' + reportNum + ' · ' + dateStr, M, 289);
+      doc.text('Página ' + pg + ' de ' + pageCount, W - M, 289, { align: 'right' });
+      doc.setTextColor(187, 210, 255);
+      doc.text('Documento generado automáticamente — solo informativo', W/2, 293, { align: 'center' });
+    }
+
+    // — Guardar —
+    const filename = 'Reporte-' + (vehObj.make||'auto') + '-' + (vehObj.model||'') + '-' + reportNum + '.pdf';
+    doc.save(filename.replace(/\s+/g, '-'));
+    showNotif('✓ PDF descargado: ' + filename, 'success');
+
+  } catch(e) {
+    console.error('PDF error:', e);
+    showNotif('Error generando PDF: ' + e.message, 'error');
+  }
 }
 
 // ── HEALTH CHECK ──
