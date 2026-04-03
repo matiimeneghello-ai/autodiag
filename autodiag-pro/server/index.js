@@ -196,7 +196,6 @@ app.post('/api/auth/login', async (req, res) => {
       if (!r.rows.length) return res.status(401).json({ ok: false, error: 'Email o contraseña incorrectos' });
       const user = r.rows[0];
       const token = generateToken();
-      sessions.set(token, { userId: user.id, email: user.email, tallerName: user.taller_name });
       console.log('NEW USER REGISTERED:', user.email, '|', user.taller_name, '|', new Date().toISOString());
       return res.json({ ok: true, token, user: { id: user.id, email: user.email, tallerName: user.taller_name } });
     } else {
