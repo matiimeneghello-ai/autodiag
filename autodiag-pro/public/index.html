@@ -2,931 +2,1099 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoDiag Pro</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
-<!-- PWA -->
-<link rel="manifest" href="/manifest.json">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="AutoDiag Pro">
-<meta name="mobile-web-app-capable" content="yes">
-<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-title" content="AutoDiag">
 <meta name="theme-color" content="#060d1a">
-<meta name="msapplication-TileColor" content="#060d1a">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<title>AutoDiag Pro</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
-:root{
-  --bg:#060d1a;--bg2:#0a1628;--bg3:#0d1a30;
-  --glass:rgba(14,30,60,0.7);--glass2:rgba(20,45,85,0.5);
-  --b1:rgba(255,255,255,0.06);--b2:rgba(255,255,255,0.12);--b3:rgba(255,255,255,0.2);
-  --blue:#3b82f6;--blue2:#60a5fa;--cyan:#22d3ee;
-  --red:#f87171;--yel:#fbbf24;--grn:#34d399;--mag:#a78bfa;--ora:#fb923c;
-  --text:#e2eaf8;--t2:#7a9cc8;--t3:#3a5a8a;
-  --syne:'Syne',sans-serif;--sans:'DM Sans',sans-serif;--mono:'DM Mono',monospace;
-  --r:14px;--r2:20px;
+/* ═══════════════════════════════════════════════
+   TOKENS
+   ═══════════════════════════════════════════════ */
+:root {
+  --bg:     #060d1a;
+  --bg2:    #0a1628;
+  --bg3:    #0d1e38;
+  --glass:  rgba(10,22,45,0.75);
+  --glass2: rgba(14,28,55,0.6);
+  --b1:     rgba(255,255,255,0.06);
+  --b2:     rgba(255,255,255,0.11);
+  --b3:     rgba(255,255,255,0.18);
+  --blue:   #3b82f6;
+  --blue2:  #60a5fa;
+  --cyan:   #22d3ee;
+  --red:    #f87171;
+  --yel:    #fbbf24;
+  --grn:    #34d399;
+  --mag:    #a78bfa;
+  --ora:    #fb923c;
+  --text:   #e2eaf8;
+  --t2:     #7a9cc8;
+  --t3:     #3a5a8a;
+  --syne:   'Syne', sans-serif;
+  --sans:   'DM Sans', sans-serif;
+  --mono:   'DM Mono', monospace;
+  /* spacing */
+  --r:   12px;
+  --r2:  18px;
+  --r3:  24px;
+  /* safe areas */
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
 }
-*{box-sizing:border-box;margin:0;padding:0;}
-::-webkit-scrollbar{width:3px;}::-webkit-scrollbar-thumb{background:rgba(59,130,246,0.3);border-radius:2px;}
-body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh;overflow:hidden;}
 
-/* BG ORBS */
-.orbs{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden;}
-.orb{position:absolute;border-radius:50%;filter:blur(90px);opacity:0.3;}
-.o1{width:700px;height:700px;background:radial-gradient(circle,#1e3a8a,transparent);top:-150px;left:-200px;animation:of1 20s ease-in-out infinite;}
-.o2{width:500px;height:500px;background:radial-gradient(circle,#0e7490,transparent);bottom:-100px;right:-100px;animation:of2 25s ease-in-out infinite;}
-.o3{width:400px;height:400px;background:radial-gradient(circle,#1d4ed8,transparent);top:40%;left:35%;animation:of3 18s ease-in-out infinite;}
-@keyframes of1{0%,100%{transform:translate(0,0);}50%{transform:translate(70px,50px);}}
-@keyframes of2{0%,100%{transform:translate(0,0);}50%{transform:translate(-60px,-40px);}}
-@keyframes of3{0%,100%{transform:translate(0,0)scale(1);}50%{transform:translate(40px,-30px)scale(1.1);}}
-
-@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
-@keyframes scaleIn{from{opacity:0;transform:scale(0.96)}to{opacity:1;transform:scale(1)}}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
-@keyframes spin{to{transform:rotate(360deg)}}
-@keyframes slideUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:none}}
-
-/* ── LOGIN SCREEN ── */
-#loginScreen{
-  position:fixed;inset:0;z-index:1000;
-  display:flex;align-items:center;justify-content:center;
-  background:var(--bg);
+/* ═══════════════════════════════════════════════
+   RESET & BASE
+   ═══════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { height: 100%; font-size: 16px; }
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100%;
+  min-height: 100dvh;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
 }
-.login-card{
-  width:420px;padding:40px;
-  background:rgba(10,22,40,0.9);
-  border:1px solid var(--b2);border-radius:24px;
-  box-shadow:0 40px 100px rgba(0,0,0,0.6),0 0 0 1px rgba(255,255,255,0.05);
-  backdrop-filter:blur(20px);animation:scaleIn 0.3s ease;
+button { font-family: var(--sans); cursor: pointer; border: none; background: none; }
+input, select, textarea { font-family: var(--sans); }
+::-webkit-scrollbar { width: 3px; height: 3px; }
+::-webkit-scrollbar-thumb { background: var(--b2); border-radius: 2px; }
+::selection { background: rgba(59,130,246,0.3); }
+
+/* Prevent iOS zoom on input focus */
+input, select, textarea { font-size: 16px !important; }
+
+/* Touch optimization */
+a, button, [role=button], .btn, .vcard, .dtcrow, .ws-card,
+.proto-card, .sym-btn, .bnav-item, .ap-chip {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
-.login-logo{text-align:center;margin-bottom:32px;}
-.login-logo-mark{width:52px;height:52px;border-radius:16px;background:linear-gradient(135deg,var(--blue),var(--cyan));display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto 12px;box-shadow:0 0 30px rgba(59,130,246,0.4);}
-.login-title{font-family:var(--syne);font-size:22px;font-weight:700;margin-bottom:4px;}
-.login-sub{font-size:12px;color:var(--t2);}
-.login-tabs{display:flex;background:var(--b1);border-radius:10px;padding:3px;margin-bottom:24px;}
-.login-tab{flex:1;padding:8px;text-align:center;border-radius:8px;font-size:12px;font-weight:500;cursor:pointer;transition:all 0.2s;color:var(--t2);}
-.login-tab.active{background:var(--blue);color:#fff;box-shadow:0 2px 8px rgba(59,130,246,0.4);}
-.lfield{margin-bottom:14px;}
-.lfield label{display:block;font-size:10px;font-family:var(--mono);color:var(--t2);letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;}
-.lfield input{width:100%;padding:11px 14px;border-radius:10px;background:rgba(255,255,255,0.05);border:1px solid var(--b2);font-family:var(--sans);font-size:13px;color:var(--text);outline:none;transition:all 0.2s;}
-.lfield input:focus{border-color:rgba(59,130,246,0.5);background:rgba(59,130,246,0.06);box-shadow:0 0 0 3px rgba(59,130,246,0.1);}
-.lfield input::placeholder{color:var(--t3);}
-.login-btn{width:100%;padding:13px;border-radius:12px;border:none;background:linear-gradient(135deg,#2563eb,#0891b2);color:#fff;font-family:var(--sans);font-size:14px;font-weight:600;cursor:pointer;transition:all 0.2s;box-shadow:0 4px 20px rgba(37,99,235,0.35);}
-.login-btn:hover{box-shadow:0 8px 30px rgba(37,99,235,0.5);transform:translateY(-1px);}
-.login-demo{text-align:center;margin-top:16px;font-size:11px;color:var(--t3);font-family:var(--mono);}
-.login-demo span{color:var(--blue2);cursor:pointer;}
-.login-demo span:hover{text-decoration:underline;}
-.lerror{background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.25);border-radius:8px;padding:8px 12px;font-size:11px;color:var(--red);margin-bottom:14px;display:none;}
-.lerror.show{display:block;}
 
-/* ── ONBOARDING ── */
-#onboardingScreen{
-  position:fixed;inset:0;z-index:999;display:none;
-  align-items:center;justify-content:center;
-  background:rgba(6,13,26,0.95);backdrop-filter:blur(10px);
+/* ═══════════════════════════════════════════════
+   BACKGROUND
+   ═══════════════════════════════════════════════ */
+.orbs {
+  position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden;
 }
-#onboardingScreen.show{display:flex;}
-.ob-card{width:520px;padding:40px;background:rgba(10,22,40,0.95);border:1px solid var(--b2);border-radius:24px;box-shadow:0 40px 100px rgba(0,0,0,0.5);animation:scaleIn 0.3s ease;}
-.ob-steps{display:flex;gap:8px;margin-bottom:32px;}
-.ob-step{flex:1;height:3px;border-radius:2px;background:var(--b1);}
-.ob-step.done{background:var(--blue);}
-.ob-step.active{background:linear-gradient(90deg,var(--blue),var(--cyan));}
-.ob-icon{font-size:40px;margin-bottom:16px;display:block;}
-.ob-title{font-family:var(--syne);font-size:22px;font-weight:700;margin-bottom:8px;}
-.ob-desc{font-size:13px;color:var(--t2);line-height:1.7;margin-bottom:24px;}
-.ob-btn{width:100%;padding:13px;border-radius:12px;border:none;background:linear-gradient(135deg,#2563eb,#0891b2);color:#fff;font-family:var(--sans);font-size:14px;font-weight:600;cursor:pointer;transition:all 0.2s;box-shadow:0 4px 20px rgba(37,99,235,0.35);}
-.ob-skip{text-align:center;margin-top:12px;font-size:11px;color:var(--t3);cursor:pointer;}
-.ob-skip:hover{color:var(--t2);}
+.orb {
+  position: absolute; border-radius: 50%;
+  filter: blur(90px); opacity: 0.28;
+}
+.o1 { width: 60vw; height: 60vw; max-width: 700px; max-height: 700px;
+      background: radial-gradient(circle, #1e3a8a, transparent);
+      top: -15%; left: -15%;
+      animation: ofloat1 20s ease-in-out infinite; }
+.o2 { width: 50vw; height: 50vw; max-width: 550px; max-height: 550px;
+      background: radial-gradient(circle, #0e7490, transparent);
+      bottom: -10%; right: -10%;
+      animation: ofloat2 25s ease-in-out infinite; }
+.o3 { width: 40vw; height: 40vw; max-width: 400px; max-height: 400px;
+      background: radial-gradient(circle, #1d4ed8, transparent);
+      top: 40%; left: 35%;
+      animation: ofloat3 18s ease-in-out infinite; }
+@keyframes ofloat1 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(5%,4%)} }
+@keyframes ofloat2 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-5%,-4%)} }
+@keyframes ofloat3 { 0%,100%{transform:translate(0,0)scale(1)} 50%{transform:translate(3%,-3%)scale(1.08)} }
 
-/* ── APP SHELL ── */
-.shell{position:relative;z-index:2;display:flex;flex-direction:column;height:100vh;overflow:hidden;}
+/* ═══════════════════════════════════════════════
+   ANIMATIONS
+   ═══════════════════════════════════════════════ */
+@keyframes fadeUp   { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
+@keyframes scaleIn  { from{opacity:0;transform:scale(0.95)} to{opacity:1;transform:scale(1)} }
+@keyframes slideIn  { from{opacity:0;transform:translateX(-8px)} to{opacity:1;transform:none} }
+@keyframes pulse    { 0%,100%{opacity:1} 50%{opacity:0.35} }
+@keyframes spin     { to{transform:rotate(360deg)} }
+@keyframes shimmer  { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+@keyframes fabPop   { 0%,100%{box-shadow:0 6px 24px rgba(37,99,235,.5)}
+                      50%{box-shadow:0 6px 36px rgba(37,99,235,.9),0 0 0 8px rgba(37,99,235,.1)} }
 
-/* HEADER */
-.header{height:62px;flex-shrink:0;display:flex;align-items:center;padding:0 20px;gap:0;background:rgba(6,13,26,0.85);backdrop-filter:blur(20px);border-bottom:1px solid var(--b1);position:relative;z-index:100;}
-.header::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--blue),var(--cyan),var(--blue),transparent);opacity:0.4;}
-.logo{display:flex;align-items:center;gap:10px;padding-right:24px;border-right:1px solid var(--b1);margin-right:24px;flex-shrink:0;}
-.logo-mark{width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,var(--blue),var(--cyan));display:flex;align-items:center;justify-content:center;font-size:15px;box-shadow:0 0 18px rgba(59,130,246,0.4);}
-.logo-name{font-family:var(--syne);font-size:15px;font-weight:700;background:linear-gradient(135deg,#e2eaf8,var(--blue2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
-.logo-ver{font-size:9px;color:var(--t3);font-family:var(--mono);margin-top:1px;letter-spacing:1px;}
-.nav{display:flex;gap:1px;}
-.nav-btn{padding:6px 14px;border-radius:8px;border:none;font-family:var(--sans);font-size:12px;font-weight:500;color:var(--t2);background:transparent;cursor:pointer;transition:all 0.2s;}
-.nav-btn:hover{color:var(--text);background:var(--b1);}
-.nav-btn.active{color:#fff;background:rgba(59,130,246,0.2);box-shadow:0 0 0 1px rgba(59,130,246,0.3);}
-.header-right{margin-left:auto;display:flex;align-items:center;gap:14px;}
-.status-pill{display:flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.2);font-size:10px;color:var(--grn);font-family:var(--mono);letter-spacing:0.5px;}
-.sdot{width:5px;height:5px;border-radius:50%;background:var(--grn);box-shadow:0 0 6px var(--grn);animation:pulse 2s infinite;}
-.hclock{font-family:var(--mono);font-size:12px;color:var(--blue2);letter-spacing:2px;}
-.user-badge{display:flex;align-items:center;gap:8px;padding:5px 12px;border-radius:20px;background:var(--b1);border:1px solid var(--b1);cursor:pointer;transition:all 0.2s;}
-.user-badge:hover{background:var(--b2);}
-.user-av{width:24px;height:24px;border-radius:8px;background:linear-gradient(135deg,var(--blue),var(--cyan));display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;}
-.user-name{font-size:11px;font-weight:500;}
+/* ═══════════════════════════════════════════════
+   LOADING SPLASH
+   ═══════════════════════════════════════════════ */
+#splash {
+  position: fixed; inset: 0; z-index: 9000;
+  background: var(--bg);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 16px;
+  transition: opacity .4s;
+}
+#splash.gone { opacity: 0; pointer-events: none; }
+.splash-logo {
+  width: 72px; height: 72px; border-radius: 22px;
+  background: linear-gradient(135deg, var(--blue), var(--cyan));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 36px;
+  box-shadow: 0 0 48px rgba(59,130,246,.5);
+  animation: scaleIn .4s ease;
+}
+.splash-name { font-family: var(--syne); font-size: 20px; font-weight: 700;
+               background: linear-gradient(135deg,#e2eaf8,var(--blue2));
+               -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.splash-sub { font-size: 11px; color: var(--t3); font-family: var(--mono); letter-spacing: 2px; }
+.splash-bar {
+  width: 180px; height: 2px; background: rgba(255,255,255,.05); border-radius: 2px; overflow: hidden;
+}
+.splash-fill {
+  height: 2px; border-radius: 2px;
+  background: linear-gradient(90deg, var(--blue), var(--cyan));
+  animation: shimmer 1.4s ease-in-out infinite;
+  background-size: 200% 100%;
+}
 
-/* BODY */
-.body{display:flex;flex:1;overflow:hidden;}
+/* ═══════════════════════════════════════════════
+   LOGIN
+   ═══════════════════════════════════════════════ */
+#loginScreen {
+  position: fixed; inset: 0; z-index: 500;
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+  padding-top: calc(16px + var(--sat));
+  padding-bottom: calc(16px + var(--sab));
+}
+.login-card {
+  width: 100%; max-width: 420px;
+  background: rgba(10,22,40,.96);
+  border: 1px solid var(--b2); border-radius: var(--r3);
+  box-shadow: 0 32px 80px rgba(0,0,0,.6);
+  backdrop-filter: blur(20px);
+  animation: scaleIn .3s ease;
+  overflow: hidden;
+}
+.login-top {
+  padding: 32px 28px 24px;
+  background: linear-gradient(180deg, rgba(37,99,235,.12), transparent);
+  text-align: center;
+  border-bottom: 1px solid var(--b1);
+}
+.login-icon {
+  width: 56px; height: 56px; border-radius: 18px;
+  background: linear-gradient(135deg, var(--blue), var(--cyan));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 28px; margin: 0 auto 14px;
+  box-shadow: 0 0 32px rgba(59,130,246,.45);
+}
+.login-title { font-family: var(--syne); font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+.login-sub { font-size: 12px; color: var(--t2); }
+.login-body { padding: 24px 28px; }
+.login-tabs {
+  display: flex; background: var(--b1); border-radius: 10px;
+  padding: 3px; margin-bottom: 20px;
+}
+.login-tab {
+  flex: 1; padding: 9px; text-align: center; border-radius: 8px;
+  font-size: 13px; font-weight: 500; cursor: pointer; transition: all .2s; color: var(--t2);
+}
+.login-tab.active { background: var(--blue); color: #fff; box-shadow: 0 2px 10px rgba(59,130,246,.4); }
+.lfield { margin-bottom: 14px; }
+.lfield label { display: block; font-size: 11px; font-family: var(--mono); color: var(--t2);
+                letter-spacing: 1px; text-transform: uppercase; margin-bottom: 5px; }
+.lfield input {
+  width: 100%; padding: 12px 14px; border-radius: 10px;
+  background: rgba(255,255,255,.05); border: 1px solid var(--b2);
+  color: var(--text); outline: none; transition: all .2s;
+}
+.lfield input:focus { border-color: rgba(59,130,246,.5); background: rgba(59,130,246,.06); }
+.lfield input::placeholder { color: var(--t3); }
+.login-btn {
+  width: 100%; padding: 14px; border-radius: 12px;
+  background: linear-gradient(135deg, #2563eb, #0891b2);
+  color: #fff; font-size: 15px; font-weight: 600;
+  box-shadow: 0 4px 20px rgba(37,99,235,.35);
+  transition: all .2s; margin-bottom: 12px;
+}
+.login-btn:active { transform: scale(.98); }
+.login-demo { text-align: center; font-size: 12px; color: var(--t3); font-family: var(--mono); }
+.login-demo span { color: var(--blue2); cursor: pointer; }
+.lerror {
+  background: rgba(248,113,113,.1); border: 1px solid rgba(248,113,113,.25);
+  border-radius: 8px; padding: 9px 12px; font-size: 12px; color: var(--red);
+  margin-bottom: 14px; display: none;
+}
+.lerror.show { display: block; }
 
-/* SIDEBAR */
-.sidebar{width:224px;min-width:224px;flex-shrink:0;background:rgba(6,13,26,0.6);backdrop-filter:blur(20px);border-right:1px solid var(--b1);display:flex;flex-direction:column;overflow-y:auto;padding:12px;gap:4px;}
-.sb-label{font-size:8px;font-family:var(--mono);letter-spacing:2px;color:var(--t3);text-transform:uppercase;padding:8px 8px 4px;}
-.vcard{padding:10px 12px;border-radius:12px;border:1px solid var(--b1);background:rgba(255,255,255,0.02);cursor:pointer;transition:all 0.2s;position:relative;overflow:hidden;margin-bottom:3px;}
-.vcard:hover{border-color:var(--b2);background:rgba(255,255,255,0.04);}
-.vcard.sel{border-color:rgba(59,130,246,0.5);background:rgba(59,130,246,0.08);box-shadow:0 0 18px rgba(59,130,246,0.08);}
-.vcard.sel::after{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,var(--blue),var(--cyan));border-radius:3px 0 0 3px;}
-.vcard-make{font-size:11px;font-weight:600;color:var(--text);}
-.vcard-sub{font-size:9px;color:var(--t2);margin-top:2px;font-family:var(--mono);}
-.vcard-tags{display:flex;gap:3px;margin-top:7px;flex-wrap:wrap;}
-.tag{font-size:8px;padding:2px 7px;border-radius:20px;font-family:var(--mono);letter-spacing:0.5px;font-weight:500;}
-.tag-r{background:rgba(248,113,113,0.12);color:var(--red);border:1px solid rgba(248,113,113,0.2);}
-.tag-y{background:rgba(251,191,36,0.1);color:var(--yel);border:1px solid rgba(251,191,36,0.2);}
-.tag-g{background:rgba(52,211,153,0.08);color:var(--grn);border:1px solid rgba(52,211,153,0.18);}
-.tag-b{background:rgba(59,130,246,0.1);color:var(--blue2);border:1px solid rgba(59,130,246,0.2);}
-.add-veh-btn{width:100%;padding:8px;border-radius:10px;border:1px dashed var(--b2);background:transparent;font-size:11px;color:var(--t3);cursor:pointer;transition:all 0.2s;font-family:var(--sans);}
-.add-veh-btn:hover{border-color:rgba(59,130,246,0.4);color:var(--blue2);}
-.sb-stats{padding:10px;border-radius:12px;background:rgba(255,255,255,0.02);border:1px solid var(--b1);}
-.sb-stat{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04);}
-.sb-stat:last-child{border:none;}
-.sb-stat-k{font-size:9px;color:var(--t2);}
-.sb-stat-v{font-family:var(--mono);font-size:12px;font-weight:500;}
-.sv-r{color:var(--red);}
-.sv-y{color:var(--yel);}
-.sv-g{color:var(--grn);}
-.sv-b{color:var(--blue2);}
+/* ═══════════════════════════════════════════════
+   ONBOARDING
+   ═══════════════════════════════════════════════ */
+#onboardingScreen {
+  position: fixed; inset: 0; z-index: 490;
+  background: rgba(6,13,26,.95); backdrop-filter: blur(10px);
+  display: none; align-items: center; justify-content: center; padding: 16px;
+}
+#onboardingScreen.show { display: flex; }
+.ob-card {
+  width: 100%; max-width: 480px;
+  background: rgba(10,22,40,.97); border: 1px solid var(--b2);
+  border-radius: var(--r3); padding: 32px 28px;
+  animation: scaleIn .3s ease;
+}
+.ob-steps { display: flex; gap: 8px; margin-bottom: 28px; }
+.ob-step { flex: 1; height: 3px; border-radius: 2px; background: var(--b1); transition: background .3s; }
+.ob-step.done { background: var(--blue); }
+.ob-step.active { background: linear-gradient(90deg, var(--blue), var(--cyan)); }
+.ob-icon { font-size: 40px; display: block; margin-bottom: 14px; }
+.ob-title { font-family: var(--syne); font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+.ob-desc { font-size: 13px; color: var(--t2); line-height: 1.75; margin-bottom: 24px; }
+.ob-btn {
+  width: 100%; padding: 14px; border-radius: 12px;
+  background: linear-gradient(135deg, #2563eb, #0891b2);
+  color: #fff; font-size: 14px; font-weight: 600;
+  box-shadow: 0 4px 20px rgba(37,99,235,.35); margin-bottom: 10px;
+}
+.ob-skip { text-align: center; font-size: 12px; color: var(--t3); cursor: pointer; }
+.ob-skip:hover { color: var(--t2); }
 
-/* Radar chart container */
-.radar-wrap{padding:10px;border-radius:12px;background:rgba(255,255,255,0.02);border:1px solid var(--b1);}
+/* ═══════════════════════════════════════════════
+   APP SHELL — LAYOUT ENGINE
+   ═══════════════════════════════════════════════ */
+#app {
+  position: fixed; inset: 0; display: flex; flex-direction: column;
+  padding-top: var(--sat);
+  padding-bottom: var(--sab);
+  padding-left: var(--sal);
+  padding-right: var(--sar);
+}
 
-.sb-actions{display:flex;flex-direction:column;gap:5px;margin-top:4px;}
-.sb-btn{padding:8px 12px;border-radius:10px;border:none;font-family:var(--sans);font-size:11px;font-weight:500;cursor:pointer;transition:all 0.2s;text-align:left;display:flex;align-items:center;gap:7px;}
-.sb-btn-blue{background:rgba(59,130,246,0.15);color:var(--blue2);border:1px solid rgba(59,130,246,0.2);}
-.sb-btn-blue:hover{background:rgba(59,130,246,0.25);}
-.sb-btn-ghost{background:rgba(255,255,255,0.02);color:var(--t2);border:1px solid var(--b1);}
-.sb-btn-ghost:hover{background:rgba(255,255,255,0.05);color:var(--text);}
+/* ─── TOPBAR ─── */
+.topbar {
+  height: 56px; flex-shrink: 0;
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 16px;
+  background: rgba(6,13,26,.9); backdrop-filter: blur(24px);
+  border-bottom: 1px solid var(--b1);
+  position: relative; z-index: 100;
+}
+.topbar::after {
+  content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--blue), var(--cyan), var(--blue), transparent);
+  opacity: .4;
+}
+.tb-logo {
+  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+  border-right: 1px solid var(--b1); padding-right: 14px; margin-right: 4px;
+}
+.tb-logo-mark {
+  width: 30px; height: 30px; border-radius: 9px;
+  background: linear-gradient(135deg, var(--blue), var(--cyan));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; box-shadow: 0 0 16px rgba(59,130,246,.4); flex-shrink: 0;
+}
+.tb-logo-name {
+  font-family: var(--syne); font-size: 14px; font-weight: 700;
+  background: linear-gradient(135deg,#e2eaf8,var(--blue2));
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+  white-space: nowrap;
+}
+/* Desktop tabs inside topbar */
+.tb-nav { display: flex; gap: 1px; flex: 1; overflow: hidden; }
+.tb-btn {
+  padding: 6px 13px; border-radius: 8px;
+  font-size: 12px; font-weight: 500; color: var(--t2);
+  transition: all .2s; white-space: nowrap; flex-shrink: 0;
+}
+.tb-btn:hover { color: var(--text); background: var(--b1); }
+.tb-btn.active { color: #fff; background: rgba(59,130,246,.22); box-shadow: 0 0 0 1px rgba(59,130,246,.3); }
+/* Mobile: page title */
+.tb-page-title {
+  flex: 1; font-family: var(--syne); font-size: 14px; font-weight: 700;
+  color: var(--text); text-align: center;
+  display: none;
+}
+.tb-right { margin-left: auto; display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.tb-status {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 20px;
+  background: rgba(52,211,153,.1); border: 1px solid rgba(52,211,153,.2);
+  font-size: 10px; color: var(--grn); font-family: var(--mono); letter-spacing: .5px;
+}
+.tb-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--grn);
+           box-shadow: 0 0 6px var(--grn); animation: pulse 2s infinite; }
+.tb-clock { font-family: var(--mono); font-size: 11px; color: var(--blue2); letter-spacing: 2px; }
+.tb-user {
+  display: flex; align-items: center; gap: 7px;
+  padding: 4px 10px; border-radius: 20px;
+  background: var(--b1); border: 1px solid var(--b1); cursor: pointer;
+  transition: all .2s;
+}
+.tb-user:hover { background: var(--b2); }
+.tb-av {
+  width: 22px; height: 22px; border-radius: 7px;
+  background: linear-gradient(135deg, var(--blue), var(--cyan));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700; flex-shrink: 0;
+}
+.tb-uname { font-size: 11px; font-weight: 500; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tb-menu-btn {
+  width: 36px; height: 36px; border-radius: 10px;
+  background: var(--b1); border: 1px solid var(--b1);
+  display: none; align-items: center; justify-content: center;
+  font-size: 17px; color: var(--text); flex-shrink: 0;
+}
 
-/* CONTENT */
-.content{flex:1;overflow:hidden;display:flex;flex-direction:column;}
-.view{display:none;flex:1;overflow-y:auto;padding:18px;animation:fadeIn 0.25s ease;}
-.view.active{display:flex;flex-direction:column;gap:14px;}
-.stitle{font-family:var(--syne);font-size:17px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:10px;flex-shrink:0;}
-.stitle-sub{font-family:var(--mono);font-size:9px;color:var(--t3);letter-spacing:1px;font-weight:400;}
+/* ─── MAIN AREA ─── */
+.main {
+  flex: 1; display: flex; overflow: hidden; min-height: 0;
+}
 
-/* GLASS CARD */
-.gcard{background:var(--glass);backdrop-filter:blur(20px);border:1px solid var(--b1);border-radius:var(--r2);overflow:hidden;position:relative;}
-.gcard::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.1),transparent);}
-.gcard-head{padding:14px 18px;border-bottom:1px solid var(--b1);display:flex;align-items:center;justify-content:space-between;}
-.gcard-title{font-family:var(--syne);font-size:13px;font-weight:600;letter-spacing:0.3px;}
-.gcard-tag{font-size:9px;font-family:var(--mono);letter-spacing:1px;padding:2px 9px;border-radius:20px;background:rgba(59,130,246,0.1);color:var(--blue2);border:1px solid rgba(59,130,246,0.18);}
-.gcard-body{padding:16px 18px;}
+/* ─── SIDEBAR ─── */
+.sidebar {
+  width: 220px; min-width: 220px; flex-shrink: 0;
+  background: rgba(6,13,26,.7); backdrop-filter: blur(20px);
+  border-right: 1px solid var(--b1);
+  display: flex; flex-direction: column;
+  overflow-y: auto; overflow-x: hidden;
+  padding: 12px; gap: 4px;
+  transition: transform .3s ease;
+  z-index: 50;
+}
+.sb-label {
+  font-size: 8px; font-family: var(--mono); letter-spacing: 2.5px;
+  color: var(--t3); text-transform: uppercase;
+  padding: 8px 8px 4px;
+}
+/* Vehicle cards */
+.vcard {
+  padding: 10px 12px; border-radius: var(--r);
+  border: 1px solid var(--b1); background: rgba(255,255,255,.02);
+  cursor: pointer; transition: all .2s; position: relative; overflow: hidden;
+  margin-bottom: 3px;
+}
+.vcard:hover { border-color: var(--b2); background: rgba(255,255,255,.04); }
+.vcard.sel {
+  border-color: rgba(59,130,246,.5); background: rgba(59,130,246,.08);
+  box-shadow: 0 0 18px rgba(59,130,246,.08);
+}
+.vcard.sel::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: linear-gradient(180deg, var(--blue), var(--cyan));
+  border-radius: 3px 0 0 3px;
+}
+.vc-make { font-size: 12px; font-weight: 600; color: var(--text); }
+.vc-sub  { font-size: 9px; color: var(--t2); margin-top: 2px; font-family: var(--mono); }
+.vc-tags { display: flex; gap: 3px; margin-top: 7px; flex-wrap: wrap; }
+.tag { font-size: 8px; padding: 2px 7px; border-radius: 20px; font-family: var(--mono); font-weight: 500; }
+.tag-r { background: rgba(248,113,113,.12); color: var(--red);  border: 1px solid rgba(248,113,113,.2); }
+.tag-y { background: rgba(251,191,36,.1);   color: var(--yel);  border: 1px solid rgba(251,191,36,.2); }
+.tag-g { background: rgba(52,211,153,.08);  color: var(--grn);  border: 1px solid rgba(52,211,153,.18); }
+.tag-b { background: rgba(59,130,246,.1);   color: var(--blue2);border: 1px solid rgba(59,130,246,.2); }
+.add-veh-btn {
+  width: 100%; padding: 9px; border-radius: var(--r);
+  border: 1px dashed var(--b2); color: var(--t3); font-size: 12px;
+  transition: all .2s; display: flex; align-items: center; justify-content: center; gap: 5px;
+}
+.add-veh-btn:hover { border-color: rgba(59,130,246,.4); color: var(--blue2); }
 
-/* METRICS */
-.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
-.metric{border-radius:var(--r2);padding:18px;position:relative;overflow:hidden;transition:transform 0.2s;border:1px solid var(--b1);}
-.metric:hover{transform:translateY(-2px);}
-.metric-bg{position:absolute;inset:0;background:var(--glass);backdrop-filter:blur(20px);}
-.metric-glow{position:absolute;top:-20px;right:-20px;width:80px;height:80px;border-radius:50%;filter:blur(35px);opacity:0.5;}
-.metric-content{position:relative;z-index:1;}
-.m-icon{font-size:16px;margin-bottom:8px;display:block;}
-.m-lbl{font-size:8px;font-family:var(--mono);letter-spacing:2px;color:var(--t2);text-transform:uppercase;}
-.m-val{font-family:var(--syne);font-size:30px;font-weight:800;line-height:1;margin:6px 0 3px;}
-.m-sub{font-size:10px;color:var(--t2);}
-.m-red .metric-glow{background:var(--red);}
-.m-red .m-val{color:var(--red);}
-.m-yel .metric-glow{background:var(--yel);}
-.m-yel .m-val{color:var(--yel);}
-.m-blue .metric-glow{background:var(--blue);}
-.m-blue .m-val{color:var(--blue2);}
-.m-grn .metric-glow{background:var(--grn);}
-.m-grn .m-val{color:var(--grn);}
+/* Sidebar stats */
+.sb-stats { padding: 10px 12px; border-radius: var(--r); background: var(--b1); border: 1px solid var(--b1); }
+.sb-stat {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,.03);
+}
+.sb-stat:last-child { border: none; }
+.sb-stat-k { font-size: 9px; color: var(--t2); }
+.sb-stat-v { font-family: var(--mono); font-size: 12px; font-weight: 500; }
 
-/* DTC */
-.dtclist{display:flex;flex-direction:column;gap:7px;}
-.dtcrow{padding:12px 14px;border-radius:12px;border:1px solid var(--b1);background:rgba(255,255,255,0.02);cursor:pointer;transition:all 0.2s;display:flex;align-items:center;gap:12px;position:relative;overflow:hidden;}
-.dtcrow:hover{border-color:rgba(59,130,246,0.3);background:rgba(59,130,246,0.04);}
-.dtcrow.open{border-color:rgba(59,130,246,0.4);background:rgba(59,130,246,0.06);}
-.dtccode{font-family:var(--syne);font-size:13px;font-weight:700;min-width:60px;}
-.dtccode.r{color:var(--red);}
-.dtccode.y{color:var(--yel);}
-.dtccode.b{color:var(--blue2);}
-.dtcinfo{flex:1;}
-.dtcname{font-size:12px;font-weight:500;}
-.dtcsys{font-size:9px;color:var(--t2);margin-top:1px;font-family:var(--mono);}
-.dtcsev{font-size:8px;font-family:var(--mono);padding:2px 9px;border-radius:20px;letter-spacing:0.5px;font-weight:500;}
-.sev-c{background:rgba(248,113,113,0.12);color:var(--red);border:1px solid rgba(248,113,113,0.2);}
-.sev-m{background:rgba(251,191,36,0.1);color:var(--yel);border:1px solid rgba(251,191,36,0.2);}
-.sev-l{background:rgba(59,130,246,0.1);color:var(--blue2);border:1px solid rgba(59,130,246,0.2);}
-.dtcchev{color:var(--t3);font-size:13px;transition:transform 0.2s;}
-.dtcrow.open .dtcchev{transform:rotate(90deg);color:var(--blue2);}
-.dtcdrawer{display:none;padding:14px 14px 14px 18px;border-left:2px solid var(--blue);margin-left:14px;background:rgba(59,130,246,0.03);border-radius:0 12px 12px 0;animation:fadeIn 0.2s ease;}
-.dtcdrawer.open{display:block;}
-.dg2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px;}
-.dlbl{font-size:8px;font-family:var(--mono);letter-spacing:1.5px;color:var(--blue2);text-transform:uppercase;margin-bottom:5px;}
-.dtxt{font-size:11px;color:var(--text);line-height:1.7;}
-.dlist{list-style:none;}
-.dlist li{font-size:10px;color:var(--t2);padding:3px 0;display:flex;gap:7px;align-items:baseline;border-bottom:1px solid rgba(255,255,255,0.03);}
-.dlist li::before{content:'→';color:var(--blue2);font-family:var(--mono);font-size:9px;flex-shrink:0;}
-.dlist li:last-child{border:none;}
-.cost-tag{display:inline-block;font-family:var(--mono);font-size:10px;font-weight:500;padding:3px 10px;border-radius:7px;}
-.ct-g{background:rgba(52,211,153,0.1);color:var(--grn);border:1px solid rgba(52,211,153,0.18);}
-.ct-y{background:rgba(251,191,36,0.1);color:var(--yel);border:1px solid rgba(251,191,36,0.2);}
-.ct-r{background:rgba(248,113,113,0.1);color:var(--red);border:1px solid rgba(248,113,113,0.2);}
+/* Health bars */
+.hbar { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; }
+.hbar-lbl { font-size: 8px; color: var(--t2); width: 60px; font-family: var(--mono); flex-shrink: 0; }
+.hbar-track { flex: 1; height: 3px; background: rgba(255,255,255,.05); border-radius: 2px; }
+.hbar-fill { height: 3px; border-radius: 2px; transition: width 1s ease; }
+.hbar-val { font-size: 8px; font-family: var(--mono); width: 24px; text-align: right; flex-shrink: 0; }
+.radar-wrap { padding: 8px; border-radius: var(--r); background: var(--b1); border: 1px solid var(--b1); }
 
-/* LIVE DATA */
-.livedata{display:flex;flex-direction:column;gap:5px;}
-.lrow{display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid var(--b1);}
-.llbl{font-size:9px;color:var(--t2);font-family:var(--mono);}
-.lval{font-family:var(--syne);font-size:12px;font-weight:700;color:var(--blue2);}
-.lval.warn{color:var(--yel);}
-.lval.crit{color:var(--red);}
-.lval.ok{color:var(--grn);}
+/* Sidebar buttons */
+.sb-btn {
+  width: 100%; padding: 9px 12px; border-radius: var(--r);
+  font-size: 11px; font-weight: 500; text-align: left;
+  display: flex; align-items: center; gap: 7px; transition: all .2s;
+}
+.sb-btn-blue { background: rgba(59,130,246,.15); color: var(--blue2); border: 1px solid rgba(59,130,246,.2); }
+.sb-btn-blue:hover { background: rgba(59,130,246,.25); }
+.sb-btn-ghost { background: var(--b1); color: var(--t2); border: 1px solid var(--b1); }
+.sb-btn-ghost:hover { background: var(--b2); color: var(--text); }
 
-/* CHARTS */
-.chart-wrap{position:relative;height:180px;}
-.chart-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+/* ─── CONTENT ─── */
+.content { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
+.view { display: none; flex: 1; overflow-y: auto; overflow-x: hidden; padding: 16px; animation: fadeUp .25s ease; }
+.view.active { display: flex; flex-direction: column; gap: 14px; }
 
-/* HISTORIAL */
-.hist-list{display:flex;flex-direction:column;gap:6px;}
-.hist-item{padding:10px 14px;border-radius:10px;border:1px solid var(--b1);background:rgba(255,255,255,0.02);display:flex;align-items:center;gap:12px;}
-.hist-date{font-family:var(--mono);font-size:9px;color:var(--t2);min-width:90px;}
-.hist-dtcs{display:flex;gap:4px;flex-wrap:wrap;flex:1;}
-.hist-dtc{font-size:8px;font-family:var(--mono);padding:1px 7px;border-radius:6px;border:1px solid rgba(59,130,246,0.2);color:var(--blue2);}
+/* ─── BOTTOM NAV (mobile/tablet) ─── */
+.bnav {
+  display: none; flex-shrink: 0;
+  background: rgba(6,13,26,.97); backdrop-filter: blur(20px);
+  border-top: 1px solid var(--b2);
+  padding: 6px 0; padding-bottom: max(6px, var(--sab));
+}
+.bnav-inner { display: flex; }
+.bnav-item {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 6px 4px; color: var(--t3); transition: color .2s;
+}
+.bnav-item.active { color: var(--blue2); }
+.bnav-icon { font-size: 21px; line-height: 1; }
+.bnav-lbl { font-size: 9px; font-family: var(--mono); letter-spacing: .3px; }
 
-/* FORM */
-.field{display:flex;flex-direction:column;gap:4px;}
-.flbl{font-size:9px;font-family:var(--mono);color:var(--t2);letter-spacing:1px;text-transform:uppercase;}
-.finput{padding:9px 12px;border-radius:10px;background:rgba(255,255,255,0.04);border:1px solid var(--b2);font-family:var(--sans);font-size:12px;color:var(--text);outline:none;transition:all 0.2s;}
-.finput:focus{border-color:rgba(59,130,246,0.5);background:rgba(59,130,246,0.05);box-shadow:0 0 0 3px rgba(59,130,246,0.08);}
-.finput::placeholder{color:var(--t3);}
-.fselect{padding:9px 12px;border-radius:10px;background:rgba(255,255,255,0.04);border:1px solid var(--b2);font-family:var(--sans);font-size:12px;color:var(--text);outline:none;cursor:pointer;appearance:none;}
-.fselect option{background:#0a1628;}
+/* Sidebar overlay */
+.sb-overlay {
+  display: none; position: fixed; inset: 0; z-index: 40;
+  background: rgba(0,0,0,.6); backdrop-filter: blur(3px);
+}
+.sb-close {
+  display: none; position: absolute; top: 12px; right: 12px;
+  width: 32px; height: 32px; border-radius: 8px;
+  background: rgba(255,255,255,.1); color: var(--text); font-size: 15px;
+  align-items: center; justify-content: center; z-index: 10;
+}
 
-/* BUTTONS */
-.btn{padding:9px 18px;border-radius:10px;border:none;font-family:var(--sans);font-size:12px;font-weight:500;cursor:pointer;transition:all 0.2s;display:inline-flex;align-items:center;gap:7px;}
-.btn-blue{background:linear-gradient(135deg,#2563eb,#0891b2);color:#fff;box-shadow:0 4px 16px rgba(37,99,235,0.3);}
-.btn-blue:hover{box-shadow:0 8px 24px rgba(37,99,235,0.45);transform:translateY(-1px);}
-.btn-blue:disabled{opacity:0.35;cursor:not-allowed;transform:none;}
-.btn-ghost{background:rgba(255,255,255,0.04);color:var(--t2);border:1px solid var(--b1);}
-.btn-ghost:hover{background:rgba(255,255,255,0.07);color:var(--text);border-color:var(--b2);}
+/* ─── SIDEBAR OVERLAY (mobile drawer) ─── */
+#sidebarOverlay { position: fixed; inset: 0; z-index: 45;
+  background: rgba(0,0,0,.6); backdrop-filter: blur(4px);
+  display: none; }
+#sidebarOverlay.show { display: block; }
 
-/* SCAN */
-.scan-hud{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 20px;min-height:360px;}
-.hud-ring-wrap{position:relative;width:160px;height:160px;margin-bottom:22px;}
-.hud-ring-wrap svg{width:100%;height:100%;}
-.ring-a{animation:spin 12s linear infinite;}
-.ring-b{animation:spin 7s linear infinite reverse;}
-.hud-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
-.hud-icon{font-size:28px;}
-.hud-pct{font-family:var(--syne);font-size:20px;font-weight:800;color:var(--blue2);}
-.proto-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;width:100%;margin-bottom:18px;}
-.proto-card{padding:12px 8px;text-align:center;border-radius:12px;border:1px solid var(--b1);background:rgba(255,255,255,0.02);cursor:pointer;transition:all 0.2s;}
-.proto-card:hover,.proto-card.sel{border-color:rgba(59,130,246,0.4);background:rgba(59,130,246,0.07);}
-.proto-icon{font-size:20px;margin-bottom:5px;}
-.proto-name{font-size:9px;font-weight:600;color:var(--text);letter-spacing:0.5px;}
-.log-panel{border-radius:var(--r2);background:rgba(6,13,26,0.8);backdrop-filter:blur(20px);border:1px solid var(--b1);display:flex;flex-direction:column;overflow:hidden;min-height:360px;}
-.log-head{padding:12px 14px;border-bottom:1px solid var(--b1);font-family:var(--syne);font-size:12px;font-weight:600;}
-.log-body{flex:1;overflow-y:auto;padding:10px 12px;font-family:var(--mono);font-size:9px;line-height:2.2;color:var(--t2);}
-.ll{display:flex;gap:8px;}
-.lts{color:var(--t3);}
-.lok{color:var(--grn);}
-.lerr2{color:var(--red);}
-.linfo{color:var(--blue2);}
-.lwarn{color:var(--yel);}
+/* ═══════════════════════════════════════════════
+   COMPONENT LIBRARY
+   ═══════════════════════════════════════════════ */
 
-/* WORKSHOP */
-.ws-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;flex:1;min-height:0;}
-.ws-col{background:var(--glass);backdrop-filter:blur(20px);border:1px solid var(--b1);border-radius:var(--r2);display:flex;flex-direction:column;overflow:hidden;}
-.ws-col-head{padding:12px 16px;border-bottom:1px solid var(--b1);font-family:var(--syne);font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:space-between;}
-.ws-col-head.diag{color:var(--yel);}
-.ws-col-head.repair{color:var(--blue2);}
-.ws-col-head.done{color:var(--grn);}
-.ws-col-body{flex:1;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:6px;}
-.ws-card{padding:10px;border-radius:10px;border:1px solid var(--b1);background:rgba(255,255,255,0.02);cursor:pointer;transition:all 0.2s;animation:fadeIn 0.2s ease;}
-.ws-card:hover{border-color:var(--b2);background:rgba(255,255,255,0.04);}
-.ws-car{font-size:11px;font-weight:600;}
-.ws-mec{font-size:9px;color:var(--t2);margin-top:2px;font-family:var(--mono);}
-.ws-dtcs{display:flex;gap:3px;flex-wrap:wrap;margin-top:7px;}
-.ws-dtc{font-size:8px;font-family:var(--mono);padding:1px 6px;border-radius:5px;border:1px solid var(--b2);color:var(--t2);}
-.ws-time{font-size:8px;color:var(--t3);margin-top:5px;font-family:var(--mono);}
+/* Section title */
+.stitle {
+  font-family: var(--syne); font-size: 17px; font-weight: 700;
+  display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+}
+.stitle-sub {
+  font-family: var(--mono); font-size: 9px; color: var(--t3);
+  letter-spacing: 1px; font-weight: 400;
+}
 
-/* SYM */
-.sym-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
-.sym-btn{padding:9px 7px;border-radius:10px;border:1px solid var(--b1);background:rgba(255,255,255,0.02);font-size:10px;color:var(--t2);cursor:pointer;transition:all 0.2s;text-align:center;line-height:1.4;font-family:var(--sans);}
-.sym-btn:hover,.sym-btn.sel{border-color:rgba(59,130,246,0.4);color:var(--blue2);background:rgba(59,130,246,0.07);}
+/* Glass card */
+.gcard {
+  background: var(--glass); backdrop-filter: blur(20px);
+  border: 1px solid var(--b1); border-radius: var(--r2);
+  overflow: hidden; position: relative;
+}
+.gcard::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.1), transparent);
+}
+.gcard-head {
+  padding: 13px 16px; border-bottom: 1px solid var(--b1);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.gcard-title { font-family: var(--syne); font-size: 12px; font-weight: 600; letter-spacing: .3px; }
+.gcard-tag {
+  font-size: 8px; font-family: var(--mono); letter-spacing: 1px; padding: 2px 8px;
+  border-radius: 20px; background: rgba(59,130,246,.1); color: var(--blue2);
+  border: 1px solid rgba(59,130,246,.18);
+}
+.gcard-body { padding: 14px 16px; }
 
-/* CHAT */
-.ai-layout{display:grid;grid-template-columns:1fr 320px;gap:14px;flex:1;min-height:0;}
-.chat-wrap{display:flex;flex-direction:column;border-radius:var(--r2);border:1px solid var(--b1);background:var(--glass);backdrop-filter:blur(20px);overflow:hidden;}
-.chat-msgs{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:9px;max-height:340px;}
-.msg{display:flex;gap:9px;align-items:flex-start;}
-.mavatar{width:26px;height:26px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;}
-.mavatar.ai{background:rgba(59,130,246,0.2);color:var(--blue2);border:1px solid rgba(59,130,246,0.25);}
-.mavatar.usr{background:rgba(255,255,255,0.06);color:var(--t2);border:1px solid var(--b1);}
-.mbub{font-size:11px;line-height:1.7;padding:9px 12px;border-radius:10px;flex:1;}
-.mbub.ai{background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.1);}
-.mbub.usr{background:rgba(255,255,255,0.03);border:1px solid var(--b1);}
-.typing-dots{display:flex;gap:3px;padding:4px;}
-.typing-dots span{width:5px;height:5px;border-radius:50%;background:var(--blue2);animation:pulse 1s infinite;}
-.typing-dots span:nth-child(2){animation-delay:.2s;}
-.typing-dots span:nth-child(3){animation-delay:.4s;}
-.chat-input-row{padding:10px;border-top:1px solid var(--b1);display:flex;gap:7px;}
-.chat-in{flex:1;padding:9px 12px;border-radius:10px;background:rgba(255,255,255,0.04);border:1px solid var(--b2);font-family:var(--sans);font-size:11px;color:var(--text);outline:none;transition:border-color 0.2s;}
-.chat-in:focus{border-color:rgba(59,130,246,0.4);}
+/* Metrics */
+.metrics { display: grid; gap: 10px; grid-template-columns: repeat(4,1fr); }
+.metric {
+  border-radius: var(--r2); padding: 16px; position: relative;
+  overflow: hidden; transition: transform .2s; border: 1px solid var(--b1);
+}
+.metric:hover { transform: translateY(-2px); }
+.metric-bg { position: absolute; inset: 0; background: var(--glass); backdrop-filter: blur(20px); }
+.metric-glow { position: absolute; top: -20px; right: -20px; width: 80px; height: 80px;
+               border-radius: 50%; filter: blur(35px); opacity: .5; }
+.metric-c { position: relative; z-index: 1; }
+.m-icon  { font-size: 16px; display: block; margin-bottom: 8px; }
+.m-lbl   { font-size: 8px; font-family: var(--mono); letter-spacing: 2px; color: var(--t2); text-transform: uppercase; }
+.m-val   { font-family: var(--syne); font-size: 28px; font-weight: 800; line-height: 1; margin: 6px 0 3px; }
+.m-sub   { font-size: 10px; color: var(--t2); }
+.m-red .metric-glow { background: var(--red); }  .m-red .m-val { color: var(--red); }
+.m-yel .metric-glow { background: var(--yel); }  .m-yel .m-val { color: var(--yel); }
+.m-blue .metric-glow { background: var(--blue); } .m-blue .m-val { color: var(--blue2); }
+.m-grn .metric-glow { background: var(--grn); }  .m-grn .m-val { color: var(--grn); }
 
-/* RESEARCH RESULT */
-.res-card{border-radius:var(--r2);background:var(--glass);backdrop-filter:blur(20px);border:1px solid var(--b1);overflow:hidden;position:relative;}
-.res-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--blue),var(--cyan),var(--mag));}
-.res-header{padding:14px 18px;border-bottom:1px solid var(--b1);display:flex;align-items:flex-start;gap:14px;}
-.res-code{font-family:var(--syne);font-size:26px;font-weight:800;color:var(--blue2);line-height:1;}
-.res-body{padding:16px 18px;display:grid;grid-template-columns:1fr 1fr;gap:14px;}
-.res-full{grid-column:1/-1;}
-.dlbl2{font-size:8px;font-family:var(--mono);letter-spacing:1.5px;color:var(--blue2);text-transform:uppercase;margin-bottom:5px;padding-bottom:3px;border-bottom:1px solid var(--b1);}
-.res-txt{font-size:11px;color:var(--text);line-height:1.75;}
-.sources-bar{padding:8px 18px;border-top:1px solid var(--b1);display:flex;align-items:center;gap:7px;flex-wrap:wrap;}
-.src-chip{font-size:8px;font-family:var(--mono);padding:2px 7px;border-radius:5px;border:1px solid var(--b1);color:var(--t2);}
-.src-chip.off{border-color:rgba(52,211,153,0.2);color:var(--grn);}
+/* DTC rows */
+.dtc-list { display: flex; flex-direction: column; gap: 6px; }
+.dtc-row {
+  padding: 11px 13px; border-radius: var(--r); border: 1px solid var(--b1);
+  background: rgba(255,255,255,.02); cursor: pointer; transition: all .2s;
+  display: flex; align-items: center; gap: 11px;
+}
+.dtc-row:hover  { border-color: rgba(59,130,246,.3); background: rgba(59,130,246,.04); }
+.dtc-row.open   { border-color: rgba(59,130,246,.4); background: rgba(59,130,246,.06); }
+.dtc-code { font-family: var(--syne); font-size: 13px; font-weight: 700; min-width: 56px; }
+.dtc-code.r { color: var(--red); } .dtc-code.y { color: var(--yel); } .dtc-code.b { color: var(--blue2); }
+.dtc-info { flex: 1; min-width: 0; }
+.dtc-name { font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dtc-sys  { font-size: 9px; color: var(--t2); margin-top: 1px; font-family: var(--mono); }
+.dtc-sev  { font-size: 8px; font-family: var(--mono); padding: 2px 8px; border-radius: 20px; font-weight: 500; flex-shrink: 0; }
+.sev-c { background: rgba(248,113,113,.12); color: var(--red);  border: 1px solid rgba(248,113,113,.2); }
+.sev-m { background: rgba(251,191,36,.1);   color: var(--yel);  border: 1px solid rgba(251,191,36,.2); }
+.sev-l { background: rgba(59,130,246,.1);   color: var(--blue2);border: 1px solid rgba(59,130,246,.2); }
+.dtc-chev { color: var(--t3); font-size: 13px; transition: transform .2s; flex-shrink: 0; }
+.dtc-row.open .dtc-chev { transform: rotate(90deg); color: var(--blue2); }
+.dtc-drawer {
+  display: none; margin-left: 14px; padding: 12px 12px 12px 14px;
+  border-left: 2px solid var(--blue); border-radius: 0 10px 10px 0;
+  background: rgba(59,130,246,.03); animation: fadeUp .2s ease;
+}
+.dtc-drawer.open { display: block; }
+.dd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px; }
+.dlbl { font-size: 8px; font-family: var(--mono); letter-spacing: 1.5px; color: var(--blue2); text-transform: uppercase; margin-bottom: 4px; }
+.dtxt { font-size: 11px; color: var(--text); line-height: 1.7; }
+.dlist { list-style: none; }
+.dlist li { font-size: 10px; color: var(--t2); padding: 3px 0; display: flex; gap: 6px; border-bottom: 1px solid rgba(255,255,255,.03); }
+.dlist li::before { content: '→'; color: var(--blue2); font-family: var(--mono); font-size: 9px; flex-shrink: 0; }
+.dlist li:last-child { border: none; }
+.cost-tag { display: inline-block; font-family: var(--mono); font-size: 10px; font-weight: 500; padding: 3px 9px; border-radius: 7px; }
+.ct-g { background: rgba(52,211,153,.1); color: var(--grn); border: 1px solid rgba(52,211,153,.18); }
+.ct-y { background: rgba(251,191,36,.1); color: var(--yel); border: 1px solid rgba(251,191,36,.2); }
+.ct-r { background: rgba(248,113,113,.1); color: var(--red); border: 1px solid rgba(248,113,113,.2); }
 
-/* LEARNING */
-.learn-row{display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;border:1px solid var(--b1);background:rgba(255,255,255,0.02);}
-.learn-code{font-family:var(--syne);font-size:12px;font-weight:700;color:var(--blue2);min-width:52px;}
-.learn-info{flex:1;}
-.learn-name{font-size:11px;font-weight:500;}
-.learn-meta{font-size:9px;color:var(--t2);margin-top:1px;font-family:var(--mono);}
+/* Live data */
+.live-list { display: flex; flex-direction: column; gap: 4px; }
+.lrow { display: flex; justify-content: space-between; align-items: center;
+        padding: 7px 10px; border-radius: 8px; background: var(--b1); }
+.llbl { font-size: 9px; color: var(--t2); font-family: var(--mono); }
+.lval { font-family: var(--syne); font-size: 12px; font-weight: 700; color: var(--blue2); }
+.lval.warn { color: var(--yel); } .lval.crit { color: var(--red); } .lval.ok { color: var(--grn); }
 
-/* MODAL */
-.modal-bg{display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,0.7);backdrop-filter:blur(8px);align-items:center;justify-content:center;}
-.modal-bg.open{display:flex;}
-.modal{background:rgba(10,22,40,0.95);border:1px solid var(--b2);border-radius:20px;width:500px;max-width:95vw;max-height:85vh;overflow-y:auto;animation:scaleIn 0.2s ease;box-shadow:0 24px 80px rgba(0,0,0,0.5);}
-.modal-head{padding:18px 22px;border-bottom:1px solid var(--b1);font-family:var(--syne);font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:space-between;}
-.modal-close{background:none;border:none;color:var(--t2);cursor:pointer;font-size:17px;width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;}
-.modal-close:hover{background:rgba(255,255,255,0.06);color:var(--red);}
-.modal-body{padding:18px 22px;display:flex;flex-direction:column;gap:11px;}
-.mrow{display:grid;grid-template-columns:1fr 1fr;gap:9px;}
+/* Buttons */
+.btn {
+  padding: 9px 16px; border-radius: 10px; font-size: 12px; font-weight: 500;
+  display: inline-flex; align-items: center; gap: 7px; transition: all .2s;
+}
+.btn-blue {
+  background: linear-gradient(135deg, #2563eb, #0891b2);
+  color: #fff; box-shadow: 0 4px 14px rgba(37,99,235,.3);
+}
+.btn-blue:hover { box-shadow: 0 6px 22px rgba(37,99,235,.5); transform: translateY(-1px); }
+.btn-blue:active { transform: scale(.97); }
+.btn-blue:disabled { opacity: .35; cursor: not-allowed; transform: none; }
+.btn-ghost { background: rgba(255,255,255,.04); color: var(--t2); border: 1px solid var(--b1); }
+.btn-ghost:hover { background: rgba(255,255,255,.07); color: var(--text); border-color: var(--b2); }
+.btn-red { background: rgba(220,38,38,.2); color: var(--red); border: 1px solid rgba(248,113,113,.25); }
 
-/* LOADING */
-.lsteps{display:flex;flex-direction:column;gap:7px;width:100%;}
-.lstep{display:flex;align-items:flex-start;gap:9px;padding:10px 12px;border-radius:10px;border:1px solid var(--b1);background:rgba(255,255,255,0.02);}
-.lspin{width:13px;height:13px;border:1.5px solid rgba(59,130,246,0.25);border-top-color:var(--blue2);border-radius:50%;animation:spin 0.7s linear infinite;flex-shrink:0;margin-top:1px;}
-.lspin.done{animation:none;border-color:var(--grn);background:rgba(52,211,153,0.1);}
-.lstep-txt{font-family:var(--mono);font-size:9px;color:var(--t2);line-height:1.6;}
-.lstep-title{color:var(--blue2);font-size:8px;letter-spacing:1px;margin-bottom:2px;}
+/* Form fields */
+.field { display: flex; flex-direction: column; gap: 4px; }
+.flbl { font-size: 9px; font-family: var(--mono); color: var(--t2); letter-spacing: 1px; text-transform: uppercase; }
+.finput, .fsel {
+  padding: 10px 12px; border-radius: 10px;
+  background: rgba(255,255,255,.04); border: 1px solid var(--b2);
+  color: var(--text); outline: none; transition: all .2s; width: 100%;
+  -webkit-appearance: none; appearance: none;
+}
+.finput:focus, .fsel:focus { border-color: rgba(59,130,246,.5); background: rgba(59,130,246,.05); }
+.finput::placeholder { color: var(--t3); }
+.fsel option { background: #0a1628; }
 
-/* NOTIF */
-.notif{position:fixed;bottom:20px;right:20px;z-index:3000;padding:11px 18px;border-radius:12px;background:rgba(10,22,40,0.95);border:1px solid rgba(59,130,246,0.3);color:var(--blue2);font-size:11px;font-family:var(--sans);box-shadow:0 8px 30px rgba(0,0,0,0.4);display:none;animation:scaleIn 0.2s ease;backdrop-filter:blur(20px);}
-.notif.show{display:block;}
-.notif.success{border-color:rgba(52,211,153,0.3);color:var(--grn);}
-.notif.error{border-color:rgba(248,113,113,0.3);color:var(--red);}
+/* Charts */
+.chart-wrap { position: relative; height: 170px; }
 
-/* CODE TAG */
-.codetag{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:7px;font-family:var(--mono);font-size:9px;border:1px solid var(--b2);background:rgba(255,255,255,0.02);margin:2px;}
-.codetag .rm{cursor:pointer;color:var(--t3);font-size:11px;}
-.codetag .rm:hover{color:var(--red);}
+/* Historial */
+.hist-item {
+  display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px;
+  border-radius: 9px; border: 1px solid var(--b1); background: var(--b1);
+}
+.hist-date { font-family: var(--mono); font-size: 9px; color: var(--t2); min-width: 70px; flex-shrink: 0; }
+.hist-dtcs { display: flex; gap: 3px; flex-wrap: wrap; flex: 1; }
+.hist-dtc {
+  font-size: 8px; font-family: var(--mono); padding: 1px 6px; border-radius: 5px;
+  border: 1px solid rgba(59,130,246,.2); color: var(--blue2);
+}
 
-/* COMP CARD */
-.comp-card{border-radius:var(--r2);border:1px solid var(--b1);overflow:hidden;background:var(--glass);backdrop-filter:blur(20px);position:relative;margin-bottom:10px;}
-.comp-card::before{content:'';display:block;height:2px;background:linear-gradient(90deg,var(--blue),var(--cyan));}
-.comp-card.root::before{background:linear-gradient(90deg,var(--red),var(--ora));}
-.comp-card.root{border-color:rgba(248,113,113,0.25);}
-.root-badge{position:absolute;top:12px;right:12px;font-size:8px;font-family:var(--mono);padding:2px 7px;border-radius:5px;background:rgba(248,113,113,0.12);color:var(--red);border:1px solid rgba(248,113,113,0.2);}
-.comp-h{padding:14px 18px;border-bottom:1px solid var(--b1);display:flex;align-items:center;gap:12px;}
-.comp-code{font-family:var(--syne);font-size:22px;font-weight:800;color:var(--blue2);}
-.comp-body{padding:14px 18px;display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+/* Scan */
+.scan-hud {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 28px 16px; min-height: 320px;
+}
+.hud-ring { position: relative; width: 150px; height: 150px; margin-bottom: 20px; }
+.hud-ring svg { width: 100%; height: 100%; }
+.ring-a { animation: spin 12s linear infinite; }
+.ring-b { animation: spin 8s linear infinite reverse; }
+.hud-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.hud-icon { font-size: 28px; }
+.hud-pct  { font-family: var(--syne); font-size: 20px; font-weight: 800; color: var(--blue2); }
+.proto-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px; width: 100%; margin-bottom: 16px; }
+.proto-card {
+  padding: 12px 8px; text-align: center; border-radius: var(--r);
+  border: 1px solid var(--b1); background: rgba(255,255,255,.02); cursor: pointer; transition: all .2s;
+}
+.proto-card:hover, .proto-card.sel { border-color: rgba(59,130,246,.4); background: rgba(59,130,246,.07); }
+.proto-icon { font-size: 20px; margin-bottom: 5px; }
+.proto-name { font-size: 9px; font-weight: 600; color: var(--text); letter-spacing: .5px; }
+.log-panel { border-radius: var(--r2); background: rgba(6,13,26,.85); border: 1px solid var(--b1); display: flex; flex-direction: column; overflow: hidden; min-height: 200px; }
+.log-head { padding: 11px 13px; border-bottom: 1px solid var(--b1); font-family: var(--syne); font-size: 12px; font-weight: 600; }
+.log-body { flex: 1; overflow-y: auto; padding: 8px 12px; font-family: var(--mono); font-size: 10px; line-height: 2.1; color: var(--t2); }
+.ll { display: flex; gap: 8px; }
+.lts { color: var(--t3); } .lok { color: var(--grn); } .lerr2 { color: var(--red); }
+.linfo { color: var(--blue2); } .lwarn { color: var(--yel); }
+
+/* Workshop kanban */
+.ws-board { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; flex: 1; min-height: 0; }
+.ws-col { background: var(--glass); border: 1px solid var(--b1); border-radius: var(--r2); display: flex; flex-direction: column; overflow: hidden; }
+.ws-col-head { padding: 11px 14px; border-bottom: 1px solid var(--b1); font-family: var(--syne); font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; }
+.ws-col-head.diag  { color: var(--yel); }
+.ws-col-head.repair { color: var(--blue2); }
+.ws-col-head.done  { color: var(--grn); }
+.ws-col-body { flex: 1; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.ws-card { padding: 10px; border-radius: 10px; border: 1px solid var(--b1); background: rgba(255,255,255,.02); cursor: pointer; transition: all .2s; animation: slideIn .2s ease; }
+.ws-card:hover { border-color: var(--b2); background: rgba(255,255,255,.04); }
+.ws-car  { font-size: 12px; font-weight: 600; }
+.ws-mec  { font-size: 10px; color: var(--t2); margin-top: 2px; font-family: var(--mono); }
+.ws-dtcs { display: flex; gap: 3px; flex-wrap: wrap; margin-top: 7px; }
+.ws-dtc  { font-size: 8px; font-family: var(--mono); padding: 1px 6px; border-radius: 5px; border: 1px solid var(--b2); color: var(--t2); }
+.ws-time { font-size: 8px; color: var(--t3); margin-top: 4px; font-family: var(--mono); }
+
+/* Symptoms grid */
+.sym-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 6px; }
+.sym-btn {
+  padding: 9px 6px; border-radius: 9px; border: 1px solid var(--b1);
+  background: rgba(255,255,255,.02); font-size: 11px; color: var(--t2); cursor: pointer;
+  transition: all .2s; text-align: center; line-height: 1.4;
+}
+.sym-btn:hover, .sym-btn.sel { border-color: rgba(59,130,246,.4); color: var(--blue2); background: rgba(59,130,246,.07); }
+
+/* Chat */
+.chat-wrap { display: flex; flex-direction: column; border-radius: var(--r2); border: 1px solid var(--b1); background: var(--glass); overflow: hidden; }
+.chat-msgs { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; min-height: 200px; max-height: 320px; }
+.msg { display: flex; gap: 8px; align-items: flex-start; }
+.mavatar { width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; }
+.mavatar.ai  { background: rgba(59,130,246,.2); color: var(--blue2); border: 1px solid rgba(59,130,246,.25); }
+.mavatar.usr { background: rgba(255,255,255,.06); color: var(--t2); border: 1px solid var(--b1); }
+.mbub { font-size: 12px; line-height: 1.7; padding: 9px 12px; border-radius: 10px; flex: 1; }
+.mbub.ai  { background: rgba(59,130,246,.06); border: 1px solid rgba(59,130,246,.12); }
+.mbub.usr { background: rgba(255,255,255,.04); border: 1px solid var(--b1); }
+.typing-dots { display: flex; gap: 3px; padding: 4px; }
+.typing-dots span { width: 5px; height: 5px; border-radius: 50%; background: var(--blue2); animation: pulse 1s infinite; }
+.typing-dots span:nth-child(2) { animation-delay: .2s; }
+.typing-dots span:nth-child(3) { animation-delay: .4s; }
+.chat-input-row { padding: 10px; border-top: 1px solid var(--b1); display: flex; gap: 7px; }
+.chat-in {
+  flex: 1; padding: 9px 12px; border-radius: 10px;
+  background: rgba(255,255,255,.04); border: 1px solid var(--b2);
+  color: var(--text); outline: none; transition: border-color .2s;
+}
+.chat-in:focus { border-color: rgba(59,130,246,.4); }
+
+/* Research result */
+.res-card { border-radius: var(--r2); background: var(--glass); border: 1px solid var(--b1); overflow: hidden; position: relative; }
+.res-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg,var(--blue),var(--cyan),var(--mag)); }
+.res-header { padding: 14px 16px; border-bottom: 1px solid var(--b1); display: flex; align-items: flex-start; gap: 12px; }
+.res-code { font-family: var(--syne); font-size: 26px; font-weight: 800; color: var(--blue2); line-height: 1; flex-shrink: 0; }
+.res-body { padding: 14px 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.res-full { grid-column: 1/-1; }
+.dlbl2 { font-size: 8px; font-family: var(--mono); letter-spacing: 1.5px; color: var(--blue2); text-transform: uppercase; margin-bottom: 5px; padding-bottom: 3px; border-bottom: 1px solid var(--b1); }
+.res-txt { font-size: 11px; color: var(--text); line-height: 1.75; }
+.src-chip { font-size: 8px; font-family: var(--mono); padding: 2px 7px; border-radius: 5px; border: 1px solid var(--b1); color: var(--t2); margin: 2px; display: inline-block; }
+.src-chip.on { border-color: rgba(52,211,153,.2); color: var(--grn); }
+.sources-bar { padding: 8px 16px; border-top: 1px solid var(--b1); display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+
+/* Learning */
+.learn-row { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 10px; border: 1px solid var(--b1); background: rgba(255,255,255,.02); }
+.learn-code { font-family: var(--syne); font-size: 12px; font-weight: 700; color: var(--blue2); min-width: 50px; }
+.learn-info { flex: 1; min-width: 0; }
+.learn-name { font-size: 11px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.learn-meta { font-size: 9px; color: var(--t2); margin-top: 1px; font-family: var(--mono); }
+.stat-bar { height: 3px; background: rgba(255,255,255,.05); border-radius: 2px; margin-top: 5px; }
+.stat-bar-fill { height: 3px; border-radius: 2px; background: var(--blue2); }
+
+/* Ficha técnica */
+.ficha-hero { padding: 20px; border-radius: var(--r2); background: var(--glass); border: 1px solid var(--b1); display: flex; align-items: center; gap: 20px; flex-shrink: 0; }
+.ficha-icon { width: 72px; height: 72px; border-radius: 18px; background: linear-gradient(135deg,rgba(59,130,246,.2),rgba(34,211,238,.1)); display: flex; align-items: center; justify-content: center; font-size: 34px; flex-shrink: 0; border: 1px solid rgba(59,130,246,.25); }
+.ficha-title { font-family: var(--syne); font-size: 20px; font-weight: 800; }
+.ficha-sub { font-size: 11px; color: var(--t2); font-family: var(--mono); margin-top: 4px; }
+.rel-bar { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.rel-track { flex: 1; height: 5px; background: rgba(255,255,255,.06); border-radius: 3px; }
+.rel-fill { height: 5px; border-radius: 3px; transition: width 1s ease; }
+.issue-card { padding: 12px; border-radius: 10px; border: 1px solid var(--b1); background: rgba(255,255,255,.02); margin-bottom: 7px; }
+.spec-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.spec-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 9px; border-radius: 8px; background: var(--b1); }
+.spec-k { font-size: 10px; color: var(--t2); }
+.spec-v { font-family: var(--mono); font-size: 11px; font-weight: 500; }
+.maint-item { display: flex; align-items: center; gap: 10px; padding: 7px 9px; border-radius: 8px; border: 1px solid var(--b1); background: var(--b1); margin-bottom: 5px; }
+.maint-km { font-family: var(--syne); font-size: 12px; font-weight: 700; color: var(--blue2); min-width: 70px; }
+.maint-lbl { font-size: 11px; color: var(--text); }
+.dtc-hist-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 7px; font-family: var(--mono); font-size: 9px; border: 1px solid rgba(248,113,113,.25); background: rgba(248,113,113,.08); color: var(--red); margin: 2px; cursor: pointer; }
+.gen-overlay { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px; gap: 14px; text-align: center; }
+.gen-spin { width: 44px; height: 44px; border: 2px solid rgba(59,130,246,.2); border-top-color: var(--blue2); border-radius: 50%; animation: spin .8s linear infinite; }
+
+/* Diagnóstico diferencial */
+.diag-card { padding: 14px; border-radius: var(--r); border: 1px solid var(--b1); background: rgba(255,255,255,.02); margin-bottom: 9px; }
+.diag-cause { font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; }
+.diag-prob { font-family: var(--syne); font-size: 16px; font-weight: 800; }
+.prob-bar { height: 5px; background: rgba(255,255,255,.06); border-radius: 3px; margin: 5px 0; }
+.prob-fill { height: 5px; border-radius: 3px; transition: width .8s ease; }
+.evidence-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 8px; }
+.ev-box { padding: 8px 10px; border-radius: 8px; font-size: 10px; line-height: 1.6; }
+.ev-for  { background: rgba(52,211,153,.06); border: 1px solid rgba(52,211,153,.15); }
+.ev-for strong { color: var(--grn); }
+.ev-against { background: rgba(248,113,113,.06); border: 1px solid rgba(248,113,113,.15); }
+.ev-against strong { color: var(--red); }
+.scanner-panel { background: rgba(59,130,246,.05); border: 1px solid rgba(59,130,246,.15); border-radius: var(--r); padding: 12px; margin-bottom: 12px; }
+.scanner-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 5px; }
+.scanner-item { padding: 8px 6px; border-radius: 8px; background: var(--b1); text-align: center; }
+.scanner-val { font-family: var(--syne); font-size: 13px; font-weight: 700; color: var(--blue2); }
+.scanner-lbl { font-size: 8px; color: var(--t2); font-family: var(--mono); margin-top: 2px; }
+.scanner-item.warn .scanner-val { color: var(--yel); }
+.scanner-item.crit .scanner-val { color: var(--red); }
+.scanner-item.ok   .scanner-val { color: var(--grn); }
+.primary-diag { padding: 14px; border-radius: var(--r); background: linear-gradient(135deg,rgba(59,130,246,.1),rgba(34,211,238,.05)); border: 1px solid rgba(59,130,246,.25); margin-bottom: 12px; }
+.dtc-search-res { padding: 9px 11px; border-radius: 9px; border: 1px solid var(--b1); background: rgba(255,255,255,.02); cursor: pointer; transition: all .2s; margin-bottom: 5px; }
+.dtc-search-res:hover { border-color: rgba(59,130,246,.3); background: rgba(59,130,246,.04); }
+
+/* Multi-DTC */
+.comp-card { border-radius: var(--r2); border: 1px solid var(--b1); overflow: hidden; background: var(--glass); position: relative; margin-bottom: 10px; }
+.comp-card::before { content: ''; display: block; height: 2px; background: linear-gradient(90deg,var(--blue),var(--cyan)); }
+.comp-card.root::before { background: linear-gradient(90deg,var(--red),var(--ora)); }
+.comp-card.root { border-color: rgba(248,113,113,.25); }
+.root-badge { position: absolute; top: 12px; right: 12px; font-size: 8px; font-family: var(--mono); padding: 2px 7px; border-radius: 5px; background: rgba(248,113,113,.12); color: var(--red); border: 1px solid rgba(248,113,113,.2); }
+.comp-h { padding: 13px 16px; border-bottom: 1px solid var(--b1); display: flex; align-items: center; gap: 12px; }
+.comp-code { font-family: var(--syne); font-size: 22px; font-weight: 800; color: var(--blue2); }
+.comp-body { padding: 13px 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.code-tag { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 7px; font-family: var(--mono); font-size: 9px; border: 1px solid var(--b2); background: rgba(255,255,255,.02); margin: 2px; }
+.code-tag .rm { cursor: pointer; color: var(--t3); }
+.code-tag .rm:hover { color: var(--red); }
+
+/* Modal */
+.modal-bg { display: none; position: fixed; inset: 0; z-index: 800; background: rgba(0,0,0,.75); backdrop-filter: blur(8px); align-items: center; justify-content: center; padding: 16px; }
+.modal-bg.open { display: flex; }
+.modal { background: rgba(10,22,40,.97); border: 1px solid var(--b2); border-radius: var(--r3); width: 100%; max-width: 480px; max-height: 88vh; overflow-y: auto; animation: scaleIn .2s ease; box-shadow: 0 24px 80px rgba(0,0,0,.5); }
+.modal-head { padding: 18px 22px; border-bottom: 1px solid var(--b1); font-family: var(--syne); font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: space-between; }
+.modal-close { background: none; color: var(--t2); font-size: 17px; width: 28px; height: 28px; border-radius: 7px; display: flex; align-items: center; justify-content: center; }
+.modal-close:hover { background: rgba(255,255,255,.06); color: var(--red); }
+.modal-body { padding: 18px 22px; display: flex; flex-direction: column; gap: 12px; }
+.mrow { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+
+/* Loading steps */
+.lsteps { display: flex; flex-direction: column; gap: 7px; width: 100%; }
+.lstep { display: flex; align-items: flex-start; gap: 9px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--b1); background: rgba(255,255,255,.02); }
+.lspin { width: 13px; height: 13px; border: 1.5px solid rgba(59,130,246,.25); border-top-color: var(--blue2); border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0; margin-top: 1px; }
+.lspin.done { animation: none; border-color: var(--grn); }
+.lstep-txt { font-family: var(--mono); font-size: 9px; color: var(--t2); line-height: 1.6; }
+.lstep-title { color: var(--blue2); font-size: 8px; letter-spacing: 1px; margin-bottom: 2px; }
+
+/* Notif */
+.notif {
+  position: fixed; bottom: 24px; right: 16px; z-index: 3000;
+  padding: 11px 18px; border-radius: 12px;
+  background: rgba(10,22,40,.97); border: 1px solid rgba(59,130,246,.3);
+  color: var(--blue2); font-size: 12px;
+  box-shadow: 0 8px 28px rgba(0,0,0,.4); display: none; animation: scaleIn .2s ease;
+  backdrop-filter: blur(20px); max-width: calc(100vw - 32px);
+}
+.notif.show { display: block; }
+.notif.success { border-color: rgba(52,211,153,.3); color: var(--grn); }
+.notif.error   { border-color: rgba(248,113,113,.3); color: var(--red); }
+
+/* Help banner */
+.help-banner {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 12px 14px; border-radius: var(--r);
+  background: rgba(59,130,246,.05); border: 1px solid rgba(59,130,246,.15);
+  flex-shrink: 0; position: relative;
+}
+.help-icon { font-size: 20px; flex-shrink: 0; margin-top: 2px; }
+.help-content { flex: 1; min-width: 0; }
+.help-title { font-size: 11px; font-weight: 600; color: var(--blue2); margin-bottom: 3px; font-family: var(--syne); }
+.help-text  { font-size: 10px; color: var(--t2); line-height: 1.65; }
+.help-tips  { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 8px; }
+.help-tip {
+  font-size: 9px; padding: 4px 9px; border-radius: 20px;
+  background: rgba(59,130,246,.1); color: var(--blue2);
+  border: 1px solid rgba(59,130,246,.2); cursor: pointer; font-family: var(--mono);
+}
+.help-tip:hover { background: rgba(59,130,246,.18); }
+.help-dismiss { position: absolute; top: 8px; right: 8px; background: none; color: var(--t3); font-size: 14px; width: 22px; height: 22px; border-radius: 6px; display: flex; align-items: center; justify-content: center; }
+.help-dismiss:hover { background: rgba(255,255,255,.06); color: var(--t2); }
+
+/* Floating assistant */
+.fab {
+  position: fixed; z-index: 300;
+  width: 50px; height: 50px; border-radius: 15px;
+  background: linear-gradient(135deg, #2563eb, #0891b2);
+  box-shadow: 0 6px 24px rgba(37,99,235,.5);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; transition: all .3s;
+  animation: fabPop 3s ease-in-out infinite;
+  bottom: 80px; right: 16px;
+}
+.fab:hover { transform: scale(1.08); }
+.fab:active { transform: scale(.94); }
+.fab-badge {
+  position: absolute; top: -4px; right: -4px;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: var(--red); border: 2px solid var(--bg);
+  font-size: 8px; color: #fff;
+  display: none; align-items: center; justify-content: center; font-family: var(--mono);
+}
+.fab-badge.show { display: flex; }
+.ap {
+  position: fixed; z-index: 301;
+  width: 340px; max-width: calc(100vw - 20px);
+  background: rgba(8,18,36,.98); border: 1px solid var(--b2);
+  border-radius: 20px; overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0,0,0,.6);
+  display: none; flex-direction: column;
+  animation: scaleIn .2s ease;
+  bottom: 80px; right: 16px;
+  max-height: 65vh;
+}
+.ap.open { display: flex; }
+.ap-head {
+  padding: 13px 14px; border-bottom: 1px solid var(--b1);
+  display: flex; align-items: center; gap: 9px;
+  background: linear-gradient(135deg,rgba(37,99,235,.15),rgba(8,145,178,.1));
+  flex-shrink: 0;
+}
+.ap-av { width: 30px; height: 30px; border-radius: 9px; background: linear-gradient(135deg,var(--blue),var(--cyan)); display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
+.ap-name { font-family: var(--syne); font-size: 12px; font-weight: 700; }
+.ap-status { font-size: 9px; color: var(--grn); font-family: var(--mono); display: flex; align-items: center; gap: 4px; }
+.ap-status::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--grn); animation: pulse 2s infinite; }
+.ap-close { margin-left: auto; background: none; color: var(--t2); font-size: 17px; width: 26px; height: 26px; border-radius: 7px; display: flex; align-items: center; justify-content: center; }
+.ap-close:hover { background: rgba(255,255,255,.06); color: var(--red); }
+.ap-msgs { flex: 1; overflow-y: auto; padding: 11px; display: flex; flex-direction: column; gap: 8px; min-height: 150px; }
+.ap-msg { display: flex; gap: 7px; align-items: flex-start; }
+.ap-bubble { font-size: 11px; line-height: 1.7; padding: 8px 11px; border-radius: 10px; max-width: 260px; }
+.ap-bubble.ai { background: rgba(59,130,246,.08); border: 1px solid rgba(59,130,246,.15); }
+.ap-bubble.user { background: rgba(255,255,255,.05); border: 1px solid var(--b1); margin-left: auto; }
+.ap-chips { padding: 8px 11px; border-top: 1px solid var(--b1); display: flex; gap: 4px; flex-wrap: wrap; flex-shrink: 0; }
+.ap-chip { font-size: 10px; padding: 5px 9px; border-radius: 20px; border: 1px solid var(--b2); background: rgba(255,255,255,.02); color: var(--t2); cursor: pointer; transition: all .2s; }
+.ap-chip:hover { border-color: rgba(59,130,246,.4); color: var(--blue2); background: rgba(59,130,246,.06); }
+.ap-input-row { padding: 9px 11px; border-top: 1px solid var(--b1); display: flex; gap: 6px; flex-shrink: 0; }
+.ap-in { flex: 1; padding: 8px 11px; border-radius: 9px; background: rgba(255,255,255,.04); border: 1px solid var(--b2); color: var(--text); outline: none; font-size: 12px; }
+.ap-in:focus { border-color: rgba(59,130,246,.4); }
+.ap-send { width: 32px; height: 32px; border-radius: 9px; background: var(--blue); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+.ap-send:hover { background: #1d4ed8; }
+
+/* Install banner */
+.install-banner {
+  display: none; position: fixed; bottom: 80px; left: 12px; right: 12px;
+  z-index: 400; background: rgba(10,22,40,.97); border: 1px solid rgba(59,130,246,.4);
+  border-radius: 16px; padding: 13px 15px; backdrop-filter: blur(20px);
+  box-shadow: 0 8px 32px rgba(0,0,0,.5); flex-direction: row; align-items: center; gap: 11px;
+}
+.install-banner.show { display: flex; }
+.ib-icon { width: 42px; height: 42px; border-radius: 11px; background: linear-gradient(135deg,var(--blue),var(--cyan)); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+.ib-text { flex: 1; min-width: 0; }
+.ib-title { font-size: 12px; font-weight: 600; }
+.ib-sub { font-size: 10px; color: var(--t2); }
+.ib-btn { padding: 8px 13px; border-radius: 9px; background: var(--blue); color: #fff; font-size: 11px; font-weight: 600; flex-shrink: 0; }
+.ib-close { background: none; color: var(--t3); font-size: 15px; flex-shrink: 0; }
+
+/* ═══════════════════════════════════════════════
+   LAYOUT HELPERS
+   ═══════════════════════════════════════════════ */
+.g2  { display: grid; grid-template-columns: 1fr 300px; gap: 12px; }
+.g3  { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+.g4  { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; }
+.g2s { display: grid; grid-template-columns: 1fr 260px; gap: 12px; }
+.scan-layout { display: grid; grid-template-columns: 1fr 260px; gap: 12px; flex: 1; min-height: 0; }
+.ai-layout { display: grid; grid-template-columns: 1fr 310px; gap: 12px; flex: 1; min-height: 0; }
 
 /* PDF */
-.pdf-preview{background:#fff;border-radius:10px;padding:22px;color:#111;font-family:sans-serif;font-size:12px;line-height:1.6;max-height:380px;overflow-y:auto;}
+.pdf-preview { background: #fff; border-radius: 10px; padding: 20px; color: #111; font-family: sans-serif; font-size: 12px; line-height: 1.6; max-height: 360px; overflow-y: auto; }
 
+/* ═══════════════════════════════════════════════
+   RESPONSIVE — MOBILE FIRST
+   ═══════════════════════════════════════════════ */
 
+/* ── TABLET ≤ 1024px ── */
+@media (max-width: 1024px) {
+  /* Show menu button, hide desktop nav */
+  .tb-menu-btn { display: flex; }
+  .tb-nav { display: none; }
+  .tb-page-title { display: block; }
+  .tb-status { display: none; }
+  .tb-uname { display: none; }
+  .tb-clock { display: none; }
 
-/* DIAGNOSTICO DIFERENCIAL */
-.diag-card{padding:16px;border-radius:14px;border:1px solid var(--b1);background:rgba(255,255,255,0.02);margin-bottom:10px;}
-.diag-cause{font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
-.diag-prob{font-family:var(--syne);font-size:16px;font-weight:800;}
-.prob-bar-track{height:6px;background:rgba(255,255,255,0.06);border-radius:3px;margin:6px 0;}
-.prob-bar-fill{height:6px;border-radius:3px;transition:width 0.8s ease;}
-.diag-evidence{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;}
-.evidence-box{padding:8px 10px;border-radius:8px;font-size:10px;line-height:1.6;}
-.ev-for{background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.15);color:var(--t2);}
-.ev-for strong{color:var(--grn);}
-.ev-against{background:rgba(248,113,113,0.06);border:1px solid rgba(248,113,113,0.15);color:var(--t2);}
-.ev-against strong{color:var(--red);}
-.scanner-panel{background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);border-radius:12px;padding:14px;margin-bottom:12px;}
-.scanner-title{font-size:9px;font-family:var(--mono);letter-spacing:1.5px;color:var(--blue2);margin-bottom:10px;text-transform:uppercase;}
-.scanner-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
-.scanner-item{padding:8px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid var(--b1);text-align:center;}
-.scanner-item-val{font-family:var(--syne);font-size:14px;font-weight:700;color:var(--blue2);}
-.scanner-item-lbl{font-size:8px;color:var(--t2);font-family:var(--mono);margin-top:2px;}
-.scanner-item.warn .scanner-item-val{color:var(--yel);}
-.scanner-item.crit .scanner-item-val{color:var(--red);}
-.scanner-item.ok .scanner-item-val{color:var(--grn);}
-.primary-diag{padding:16px;border-radius:14px;background:linear-gradient(135deg,rgba(59,130,246,0.1),rgba(34,211,238,0.05));border:1px solid rgba(59,130,246,0.25);margin-bottom:14px;}
-.primary-diag-title{font-family:var(--syne);font-size:16px;font-weight:700;margin-bottom:6px;}
-.confidence-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;font-family:var(--mono);font-size:10px;font-weight:600;}
-.dtc-search-result{padding:10px 12px;border-radius:10px;border:1px solid var(--b1);background:rgba(255,255,255,0.02);cursor:pointer;transition:all 0.2s;margin-bottom:5px;}
-.dtc-search-result:hover{border-color:rgba(59,130,246,0.3);background:rgba(59,130,246,0.04);}
-
-/* FICHA TECNICA */
-.ficha-hero{padding:24px;border-radius:var(--r2);background:var(--glass);backdrop-filter:blur(20px);border:1px solid var(--b1);display:flex;align-items:center;gap:24px;flex-shrink:0;}
-.ficha-car-icon{width:80px;height:80px;border-radius:18px;background:linear-gradient(135deg,rgba(59,130,246,0.2),rgba(34,211,238,0.1));display:flex;align-items:center;justify-content:center;font-size:38px;flex-shrink:0;border:1px solid rgba(59,130,246,0.25);}
-.ficha-title{font-family:var(--syne);font-size:22px;font-weight:800;}
-.ficha-sub{font-size:11px;color:var(--t2);font-family:var(--mono);margin-top:4px;}
-.ficha-badges{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;}
-.reliability-bar{display:flex;align-items:center;gap:10px;margin-top:8px;}
-.rel-track{flex:1;height:6px;background:rgba(255,255,255,0.06);border-radius:3px;}
-.rel-fill{height:6px;border-radius:3px;transition:width 1s ease;}
-.rel-label{font-family:var(--mono);font-size:10px;min-width:28px;}
-.issue-card{padding:14px;border-radius:12px;border:1px solid var(--b1);background:rgba(255,255,255,0.02);margin-bottom:8px;}
-.issue-title{font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:space-between;}
-.issue-desc{font-size:11px;color:var(--t2);margin-top:5px;line-height:1.6;}
-.issue-cost{font-family:var(--mono);font-size:10px;color:var(--grn);margin-top:5px;}
-.freq-badge{font-size:8px;font-family:var(--mono);padding:2px 8px;border-radius:20px;}
-.freq-h{background:rgba(248,113,113,0.12);color:var(--red);border:1px solid rgba(248,113,113,0.2);}
-.freq-m{background:rgba(251,191,36,0.1);color:var(--yel);border:1px solid rgba(251,191,36,0.2);}
-.freq-l{background:rgba(52,211,153,0.08);color:var(--grn);border:1px solid rgba(52,211,153,0.18);}
-.spec-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
-.spec-row{display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid var(--b1);}
-.spec-k{font-size:10px;color:var(--t2);}
-.spec-v{font-family:var(--mono);font-size:11px;font-weight:500;color:var(--text);}
-.maint-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;border:1px solid var(--b1);background:rgba(255,255,255,0.02);margin-bottom:5px;}
-.maint-km{font-family:var(--syne);font-size:13px;font-weight:700;color:var(--blue2);min-width:80px;}
-.maint-label{font-size:11px;color:var(--text);}
-.dtc-history-chip{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:8px;font-family:var(--mono);font-size:10px;border:1px solid rgba(248,113,113,0.25);background:rgba(248,113,113,0.08);color:var(--red);margin:2px;cursor:pointer;}
-.dtc-history-chip:hover{background:rgba(248,113,113,0.15);}
-.generating-overlay{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px;gap:16px;font-size:12px;color:var(--t2);}
-.gen-spinner{width:44px;height:44px;border:2px solid rgba(59,130,246,0.2);border-top-color:var(--blue2);border-radius:50%;animation:spin 0.8s linear infinite;}
-.no-vehicle-msg{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px;gap:12px;font-size:12px;color:var(--t3);}
-
-/* GRID HELPERS */
-.g2{display:grid;grid-template-columns:1fr 300px;gap:12px;}
-.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
-.scan-layout{display:grid;grid-template-columns:1fr 260px;gap:12px;flex:1;}
-
-/* ═══════════════════════════════════════════════════════════
-   MOBILE & TABLET — RESPONSIVE DESIGN
-   Optimizado para mecánico en taller con celular/iPad
-   ══════════════════════════════════════════════════════════ */
-
-/* BOTTOM NAV — mobile only */
-.bottom-nav{
-  display:none;
-  position:fixed;bottom:0;left:0;right:0;
-  background:rgba(6,13,26,0.97);
-  backdrop-filter:blur(20px);
-  border-top:1px solid var(--b2);
-  z-index:200;padding:8px 0 max(8px,env(safe-area-inset-bottom));
-  flex-direction:row;gap:0;
-}
-.bnav-item{
-  flex:1;display:flex;flex-direction:column;align-items:center;
-  gap:3px;padding:6px 4px;cursor:pointer;transition:all 0.2s;
-  border:none;background:none;color:var(--t3);
-  font-family:var(--sans);
-}
-.bnav-item.active{color:var(--blue2);}
-.bnav-item:active{background:rgba(59,130,246,0.1);}
-.bnav-icon{font-size:20px;line-height:1;}
-.bnav-label{font-size:9px;font-family:var(--mono);letter-spacing:0.5px;}
-
-/* MOBILE HEADER — slimmer */
-.mobile-header-title{
-  display:none;font-family:var(--syne);font-size:14px;font-weight:700;
-  color:var(--text);flex:1;text-align:center;
-}
-
-/* TABLET SIDEBAR — collapsible */
-.sidebar-overlay{
-  display:none;position:fixed;inset:0;
-  background:rgba(0,0,0,0.6);z-index:150;
-  backdrop-filter:blur(4px);
-}
-.sidebar-close-btn{
-  display:none;position:absolute;top:12px;right:12px;
-  background:rgba(255,255,255,0.1);border:none;color:var(--text);
-  width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;
-}
-.menu-btn{
-  display:none;width:36px;height:36px;border-radius:10px;
-  background:var(--b1);border:1px solid var(--b1);
-  color:var(--text);font-size:18px;cursor:pointer;
-  align-items:center;justify-content:center;flex-shrink:0;
-}
-
-/* PULL TO REFRESH indicator */
-.ptr-indicator{
-  position:fixed;top:0;left:0;right:0;height:3px;
-  background:linear-gradient(90deg,var(--blue),var(--cyan));
-  transform:scaleX(0);transform-origin:left;
-  transition:transform 0.3s;z-index:1000;
-}
-
-/* SCAN button — bigger on mobile for thumb */
-@media(max-width:768px){
-  body{overflow:auto;}
-
-  /* Header mobile */
-  .header{height:56px;padding:0 14px;gap:10px;}
-  .logo-ver,.nav,.status-pill{display:none;}
-  .menu-btn{display:flex;}
-  .mobile-header-title{display:block;}
-  .hclock{font-size:10px;letter-spacing:1px;}
-  .user-badge .user-name{display:none;}
-
-  /* Shell */
-  .shell{overflow:auto;}
-
-  /* Sidebar — drawer on mobile */
-  .body{overflow:visible;}
-  .sidebar{
-    position:fixed;left:-280px;top:0;bottom:0;z-index:160;
-    width:280px;transition:left 0.3s ease;
-    padding:60px 12px 100px;
+  /* Sidebar becomes a drawer */
+  .sidebar {
+    position: fixed; left: 0; top: 0; bottom: 0; z-index: 50;
+    transform: translateX(-100%);
+    width: 240px; min-width: 0;
+    padding-top: calc(56px + var(--sat));
+    box-shadow: none;
+    transition: transform .3s ease, box-shadow .3s ease;
   }
-  .sidebar.open{left:0;}
-  .sidebar-close-btn{display:flex;}
-  .sidebar-overlay.show{display:block;}
-
-  /* Content */
-  .content{width:100%;overflow:visible;}
-  .view{padding:12px 12px 100px;overflow:visible;}
-
-  /* Metrics — 2x2 grid */
-  .metrics{grid-template-columns:1fr 1fr;gap:8px;}
-  .m-val{font-size:22px;}
-  .m-icon{font-size:14px;}
-
-  /* DTC rows */
-  .dtcsev{display:none;}
-  .dtccode{font-size:12px;min-width:52px;}
-  .dtcname{font-size:11px;}
-
-  /* G2 layout — stack vertical */
-  .g2,.g3,.chart-row{grid-template-columns:1fr;}
-  .scan-layout{grid-template-columns:1fr;}
-  .ai-layout{grid-template-columns:1fr;}
-
-  /* Workshop kanban — horizontal scroll */
-  .ws-grid{
-    display:flex;gap:10px;overflow-x:auto;
-    scroll-snap-type:x mandatory;padding-bottom:8px;
-    min-height:0;
+  .sidebar.open {
+    transform: translateX(0);
+    box-shadow: 6px 0 40px rgba(0,0,0,.6);
   }
-  .ws-col{min-width:260px;scroll-snap-align:start;flex-shrink:0;}
+  #sidebarOverlay.show { display: block; }
 
-  /* Scanner grid */
-  .scanner-grid{grid-template-columns:repeat(2,1fr);}
-
-  /* Sym grid */
-  .sym-grid{grid-template-columns:repeat(3,1fr);}
-
-  /* Forms */
-  .mrow{grid-template-columns:1fr;}
-
-  /* Charts */
-  .chart-wrap{height:150px;}
-
-  /* Bottom nav */
-  .bottom-nav{display:flex;}
-
-  /* Hide desktop nav completely */
-  .nav{display:none;}
-
-  /* Modal */
-  .modal{width:95vw;margin:10px;}
-
-  /* Scan button bigger */
-  #scanBtn{font-size:15px;padding:16px 40px;width:100%;}
-
-  /* Ficha */
-  .ficha-hero{flex-direction:column;text-align:center;gap:16px;}
-  .ficha-car-icon{width:60px;height:60px;font-size:28px;}
-  .ficha-title{font-size:18px;}
-  .spec-grid{grid-template-columns:1fr;}
-
-  /* DTC drawer */
-  .dg2{grid-template-columns:1fr;}
-
-  /* Diagnóstico */
-  .diag-evidence{grid-template-columns:1fr;}
-
-  /* Live data */
-  .lrow{padding:6px 10px;}
-  .lval{font-size:11px;}
-
-  /* Stitle */
-  .stitle{font-size:14px;}
-
-  /* Add button bigger */
-  .btn-blue{padding:12px 20px;}
-
-  /* Proto grid */
-  .proto-grid{grid-template-columns:1fr 1fr 1fr;}
-
-  /* Historial */
-  .hist-item{flex-direction:column;align-items:flex-start;gap:4px;}
-}
-
-/* TABLET — iPad portrait/landscape */
-@media(min-width:769px) and (max-width:1100px){
-  .shell{overflow:auto;}
-
-  /* Sidebar collapsible en tablet */  
-  .sidebar{
-    position:fixed;left:-240px;top:0;bottom:0;z-index:160;
-    width:240px;transition:left 0.3s ease;
-  }
-  .sidebar.open{left:0;box-shadow:4px 0 30px rgba(0,0,0,0.5);}
-  .sidebar-overlay.show{display:block;}
-  .sidebar-close-btn{display:flex;}
-  .menu-btn{display:flex;}
-
-  .body{overflow:visible;}
-  .content{width:100%;}
-  .view{padding:14px 14px 80px;}
-
-  /* Nav — smaller text */
-  .nav-btn{padding:5px 10px;font-size:11px;}
-  .logo-ver{display:none;}
+  /* Show bottom nav */
+  .bnav { display: block; }
 
   /* Layouts */
-  .metrics{grid-template-columns:repeat(4,1fr);}
-  .g2{grid-template-columns:1fr 280px;}
-  .ws-grid{grid-template-columns:1fr 1fr 1fr;}
-  .scanner-grid{grid-template-columns:repeat(4,1fr);}
-  .chart-row{grid-template-columns:1fr 1fr;}
-  .ai-layout{grid-template-columns:1fr 280px;}
+  .g2, .g2s, .ai-layout { grid-template-columns: 1fr; }
+  .g3 { grid-template-columns: 1fr 1fr; }
+  .scan-layout { grid-template-columns: 1fr; }
+  .metrics { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .res-body { grid-template-columns: 1fr; }
+  .comp-body { grid-template-columns: 1fr; }
+  .dd-grid { grid-template-columns: 1fr; }
+  .mrow { grid-template-columns: 1fr; }
+  .spec-grid { grid-template-columns: 1fr 1fr; }
+  .sym-grid { grid-template-columns: repeat(3,1fr); }
+  .scanner-grid { grid-template-columns: repeat(2,1fr); }
+  .evidence-grid { grid-template-columns: 1fr; }
 
-  /* Bottom nav on tablet too */
-  .bottom-nav{display:flex;}
-  .nav{display:none;}
+  /* Workshop kanban — horizontal scroll */
+  .ws-board {
+    display: flex; overflow-x: auto; gap: 10px;
+    scroll-snap-type: x mandatory; flex: 0 0 auto;
+    padding-bottom: 4px;
+  }
+  .ws-col { min-width: 250px; flex-shrink: 0; scroll-snap-align: start; }
 
-  /* Status pill hidden */
-  .status-pill{display:none;}
+  /* FAB position */
+  .fab { bottom: 72px; right: 14px; }
+  .ap   { bottom: 72px; right: 14px; }
+
+  /* View padding with bottom nav */
+  .view { padding: 12px 12px 80px; }
+
+  /* Chart height */
+  .chart-wrap { height: 140px; }
 }
 
-/* LANDSCAPE MOBILE */
-@media(max-width:768px) and (orientation:landscape){
-  .view{padding:8px 12px 80px;}
-  .scan-hud{min-height:280px;padding:16px;}
-  .hud-ring-wrap{width:130px;height:130px;}
-  .metrics{grid-template-columns:repeat(4,1fr);}
+/* ── MOBILE ≤ 640px ── */
+@media (max-width: 640px) {
+  .topbar { height: 52px; padding: 0 12px; gap: 8px; }
+  .tb-logo-name { font-size: 13px; }
+  .tb-logo { padding-right: 10px; margin-right: 2px; }
+
+  .view { padding: 10px 10px 88px; gap: 10px; }
+
+  .stitle { font-size: 15px; }
+  .stitle-sub { display: none; }
+
+  .metrics { grid-template-columns: 1fr 1fr; gap: 7px; }
+  .m-val { font-size: 22px; }
+  .m-icon { font-size: 14px; margin-bottom: 5px; }
+  .m-sub { display: none; }
+
+  .g3 { grid-template-columns: 1fr; }
+  .sym-grid { grid-template-columns: repeat(2,1fr); }
+  .scanner-grid { grid-template-columns: repeat(2,1fr); }
+  .spec-grid { grid-template-columns: 1fr; }
+
+  .ficha-hero { flex-direction: column; text-align: center; gap: 14px; padding: 16px; }
+  .ficha-icon { width: 56px; height: 56px; font-size: 26px; }
+  .ficha-title { font-size: 16px; }
+
+  .dtc-sev { display: none; }
+  .dtc-name { font-size: 11px; }
+
+  .chart-wrap { height: 120px; }
+
+  .hud-ring { width: 130px; height: 130px; }
+  #scanBtn { width: 100%; padding: 14px; font-size: 14px; }
+
+  .res-code { font-size: 20px; }
+
+  .modal { max-height: 90vh; }
+  .modal-body { padding: 14px 16px; }
+  .modal-head { padding: 14px 16px; }
+
+  .fab { width: 46px; height: 46px; font-size: 20px; bottom: 74px; right: 12px; }
+  .ap { max-height: 60vh; }
+
+  .notif { bottom: 80px; right: 10px; left: 10px; }
+
+  .help-text { display: none; }
+  .help-banner { padding: 10px 12px; }
+
+  /* Bottom nav labels show/hide */
+  .bnav-lbl { display: none; }
+  .bnav-icon { font-size: 24px; }
+  .bnav-item { padding: 8px 4px; }
 }
 
-/* iPAD PRO landscape — full desktop experience */
-@media(min-width:1101px){
-  .bottom-nav{display:none;}
-  .menu-btn{display:none;}
-  .sidebar-close-btn{display:none;}
+/* ── LANDSCAPE PHONE ── */
+@media (max-width: 820px) and (orientation: landscape) {
+  .view { padding: 8px 10px 72px; gap: 8px; }
+  .scan-hud { min-height: 260px; padding: 16px; }
+  .hud-ring { width: 120px; height: 120px; }
+  .metrics { grid-template-columns: repeat(4,1fr); }
 }
 
-/* SAFE AREA — iPhone notch/home indicator */
-@supports(padding:max(0px)){
-  .header{padding-top:max(0px, env(safe-area-inset-top));}
-  .bottom-nav{padding-bottom:max(8px, env(safe-area-inset-bottom));}
+/* ── LARGE DESKTOP ≥ 1280px ── */
+@media (min-width: 1280px) {
+  .sidebar { width: 230px; }
+  .g2  { grid-template-columns: 1fr 320px; }
+  .g2s { grid-template-columns: 1fr 280px; }
+  .ai-layout { grid-template-columns: 1fr 330px; }
 }
-
-/* TOUCH — faster tap response */
-.btn,.nav-btn,.bnav-item,.vcard,.dtcrow,.ws-card,.proto-card,.sym-btn{
-  -webkit-tap-highlight-color:transparent;
-  touch-action:manipulation;
-}
-
-/* SWIPE hint for kanban */
-.ws-grid::-webkit-scrollbar{height:3px;}
-.ws-grid::-webkit-scrollbar-thumb{background:rgba(59,130,246,0.3);border-radius:2px;}
-
-/* LOADING STATE */
-.app-loading{
-  position:fixed;inset:0;background:var(--bg);
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:16px;z-index:5000;transition:opacity 0.3s;
-}
-.app-loading.hidden{opacity:0;pointer-events:none;}
-.app-loading-logo{width:64px;height:64px;border-radius:20px;background:linear-gradient(135deg,var(--blue),var(--cyan));display:flex;align-items:center;justify-content:center;font-size:32px;box-shadow:0 0 40px rgba(59,130,246,0.4);}
-.app-loading-text{font-family:var(--syne);font-size:16px;font-weight:700;color:var(--text);}
-.app-loading-sub{font-family:var(--mono);font-size:10px;color:var(--t3);letter-spacing:1px;}
-.app-loading-bar{width:200px;height:2px;background:rgba(255,255,255,0.05);border-radius:2px;overflow:hidden;}
-.app-loading-fill{height:2px;background:linear-gradient(90deg,var(--blue),var(--cyan));border-radius:2px;animation:loading-anim 1.5s ease-in-out infinite;}
-@keyframes loading-anim{0%{width:0;margin-left:0}50%{width:60%;margin-left:20%}100%{width:0;margin-left:100%}}
-
-/* INSTALL BANNER */
-.install-banner{
-  display:none;position:fixed;bottom:80px;left:12px;right:12px;z-index:400;
-  background:rgba(10,22,40,0.97);border:1px solid rgba(59,130,246,0.4);
-  border-radius:16px;padding:14px 16px;
-  box-shadow:0 8px 32px rgba(0,0,0,0.5);
-  backdrop-filter:blur(20px);
-  flex-direction:row;align-items:center;gap:12px;
-  animation:slideUp 0.3s ease;
-}
-.install-banner.show{display:flex;}
-.install-banner-icon{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,var(--blue),var(--cyan));display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;}
-.install-banner-text{flex:1;}
-.install-banner-title{font-size:12px;font-weight:600;margin-bottom:2px;}
-.install-banner-sub{font-size:10px;color:var(--t2);}
-.install-banner-btn{padding:8px 14px;border-radius:10px;border:none;background:var(--blue);color:#fff;font-size:11px;font-weight:600;cursor:pointer;flex-shrink:0;}
-.install-banner-close{background:none;border:none;color:var(--t3);cursor:pointer;font-size:16px;padding:4px;}
-
-
-/* iOS INPUT ZOOM FIX — font-size must be >= 16px on mobile */
-@media(max-width:768px){
-  .finput,.fselect,.chat-in,.lfield input{font-size:16px !important;}
-  /* Prevent double-tap zoom on buttons */
-  button{touch-action:manipulation;}
-  /* Better scrolling */
-  .view,.ws-col-body,.chat-msgs{-webkit-overflow-scrolling:touch;}
-}
-
-
-/* ── FLOATING ASSISTANT ─────────────────────────────────── */
-.fab{
-  position:fixed;bottom:90px;right:18px;z-index:300;
-  width:52px;height:52px;border-radius:16px;
-  background:linear-gradient(135deg,#2563eb,#0891b2);
-  border:none;cursor:pointer;
-  box-shadow:0 6px 24px rgba(37,99,235,0.5);
-  display:flex;align-items:center;justify-content:center;
-  font-size:22px;transition:all 0.3s;
-  animation:fabPulse 3s ease-in-out infinite;
-}
-.fab:hover{transform:scale(1.1);box-shadow:0 10px 32px rgba(37,99,235,0.6);}
-@keyframes fabPulse{0%,100%{box-shadow:0 6px 24px rgba(37,99,235,0.5)}50%{box-shadow:0 6px 32px rgba(37,99,235,0.8),0 0 0 8px rgba(37,99,235,0.1)}}
-.fab-badge{
-  position:absolute;top:-4px;right:-4px;
-  width:16px;height:16px;border-radius:50%;
-  background:var(--red);border:2px solid var(--bg);
-  font-size:8px;color:#fff;display:none;
-  align-items:center;justify-content:center;font-family:var(--mono);
-}
-.fab-badge.show{display:flex;}
-
-.assistant-panel{
-  position:fixed;bottom:90px;right:18px;z-index:301;
-  width:360px;max-width:calc(100vw - 24px);
-  background:rgba(8,18,36,0.98);border:1px solid var(--b2);
-  border-radius:20px;overflow:hidden;
-  box-shadow:0 20px 60px rgba(0,0,0,0.6),0 0 0 1px rgba(255,255,255,0.05);
-  display:none;flex-direction:column;
-  animation:scaleIn 0.2s ease;
-  max-height:70vh;
-}
-.assistant-panel.open{display:flex;}
-.ap-head{
-  padding:14px 16px;border-bottom:1px solid var(--b1);
-  display:flex;align-items:center;gap:10px;
-  background:linear-gradient(135deg,rgba(37,99,235,0.15),rgba(8,145,178,0.1));
-  flex-shrink:0;
-}
-.ap-avatar{
-  width:32px;height:32px;border-radius:10px;
-  background:linear-gradient(135deg,var(--blue),var(--cyan));
-  display:flex;align-items:center;justify-content:center;font-size:16px;
-  flex-shrink:0;box-shadow:0 0 16px rgba(59,130,246,0.4);
-}
-.ap-name{font-family:var(--syne);font-size:13px;font-weight:700;}
-.ap-status{font-size:9px;color:var(--grn);font-family:var(--mono);display:flex;align-items:center;gap:4px;}
-.ap-status::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--grn);animation:pulse 2s infinite;}
-.ap-close{margin-left:auto;background:none;border:none;color:var(--t2);cursor:pointer;font-size:18px;width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;}
-.ap-close:hover{background:rgba(255,255,255,0.06);color:var(--red);}
-
-.ap-msgs{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;min-height:200px;}
-.ap-msg{display:flex;gap:8px;align-items:flex-start;}
-.ap-bubble{font-size:11px;line-height:1.7;padding:8px 12px;border-radius:10px;max-width:280px;}
-.ap-bubble.ai{background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.15);color:var(--text);}
-.ap-bubble.user{background:rgba(255,255,255,0.05);border:1px solid var(--b1);color:var(--t2);margin-left:auto;}
-.ap-bubble.system{background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.15);color:var(--grn);font-family:var(--mono);font-size:10px;}
-
-.ap-suggestions{padding:8px 12px;border-top:1px solid var(--b1);display:flex;gap:5px;flex-wrap:wrap;flex-shrink:0;}
-.ap-chip{
-  font-size:10px;padding:5px 10px;border-radius:20px;border:1px solid var(--b2);
-  background:rgba(255,255,255,0.02);color:var(--t2);cursor:pointer;transition:all 0.2s;
-  font-family:var(--sans);
-}
-.ap-chip:hover{border-color:rgba(59,130,246,0.4);color:var(--blue2);background:rgba(59,130,246,0.06);}
-
-.ap-input-row{padding:10px 12px;border-top:1px solid var(--b1);display:flex;gap:7px;flex-shrink:0;}
-.ap-input{
-  flex:1;padding:8px 12px;border-radius:10px;
-  background:rgba(255,255,255,0.04);border:1px solid var(--b2);
-  font-family:var(--sans);font-size:12px;color:var(--text);outline:none;
-}
-.ap-input:focus{border-color:rgba(59,130,246,0.4);}
-.ap-send{
-  width:34px;height:34px;border-radius:10px;border:none;
-  background:var(--blue);color:#fff;cursor:pointer;font-size:16px;
-  display:flex;align-items:center;justify-content:center;transition:all 0.2s;
-}
-.ap-send:hover{background:#1d4ed8;}
-
-/* ── HELP/INFO SYSTEM ──────────────────────────────────── */
-.help-banner{
-  display:flex;align-items:flex-start;gap:12px;
-  padding:12px 14px;border-radius:12px;
-  background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);
-  margin-bottom:14px;position:relative;flex-shrink:0;
-}
-.help-icon{font-size:20px;flex-shrink:0;margin-top:2px;}
-.help-content{flex:1;}
-.help-title{font-size:11px;font-weight:600;color:var(--blue2);margin-bottom:3px;font-family:var(--syne);}
-.help-text{font-size:10px;color:var(--t2);line-height:1.6;}
-.help-dismiss{
-  position:absolute;top:8px;right:8px;background:none;border:none;
-  color:var(--t3);cursor:pointer;font-size:14px;width:22px;height:22px;
-  border-radius:6px;display:flex;align-items:center;justify-content:center;
-}
-.help-dismiss:hover{background:rgba(255,255,255,0.06);color:var(--t2);}
-.help-tips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
-.help-tip{
-  font-size:9px;padding:3px 8px;border-radius:20px;
-  background:rgba(59,130,246,0.1);color:var(--blue2);
-  border:1px solid rgba(59,130,246,0.2);font-family:var(--mono);cursor:pointer;
-}
-.help-tip:hover{background:rgba(59,130,246,0.18);}
-
-/* ── LEARNING FEED ─────────────────────────────────────── */
-.learn-feed{display:flex;flex-direction:column;gap:8px;}
-.learn-feed-item{
-  padding:12px 14px;border-radius:12px;
-  border:1px solid var(--b1);background:rgba(255,255,255,0.02);
-  display:flex;gap:12px;align-items:flex-start;
-  animation:slideUp 0.3s ease;
-}
-.lf-code{font-family:var(--syne);font-size:13px;font-weight:700;color:var(--blue2);min-width:52px;}
-.lf-info{flex:1;}
-.lf-cause{font-size:11px;font-weight:500;color:var(--text);}
-.lf-meta{font-size:9px;color:var(--t2);font-family:var(--mono);margin-top:3px;}
-.lf-cost{font-size:10px;font-family:var(--mono);color:var(--grn);}
-
-/* Confirm resolution modal */
-.resolve-modal{
-  padding:16px;border-radius:14px;
-  background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.2);
-  margin-top:12px;display:none;
-}
-.resolve-modal.show{display:block;}
-
-/* Aprendizaje stats */
-.stat-number{font-family:var(--syne);font-size:28px;font-weight:800;}
-.stat-bar{height:4px;background:rgba(255,255,255,0.06);border-radius:2px;margin-top:6px;}
-.stat-bar-fill{height:4px;border-radius:2px;background:var(--blue2);}
-
 </style>
 </head>
 <body>
 
-<!-- BG -->
-<div class="orbs"><div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div></div>
-
-<!-- APP LOADING SCREEN -->
-<div class="app-loading" id="appLoading">
-  <div class="app-loading-logo">⚙</div>
-  <div class="app-loading-text">AutoDiag Pro</div>
-  <div class="app-loading-sub">INICIANDO SISTEMA...</div>
-  <div class="app-loading-bar"><div class="app-loading-fill"></div></div>
+<div class="orbs">
+  <div class="orb o1"></div>
+  <div class="orb o2"></div>
+  <div class="orb o3"></div>
 </div>
 
-<!-- INSTALL BANNER (PWA) -->
+<!-- SPLASH -->
+<div id="splash">
+  <div class="splash-logo">⚙</div>
+  <div class="splash-name">AutoDiag Pro</div>
+  <div class="splash-sub">INICIANDO SISTEMA...</div>
+  <div class="splash-bar"><div class="splash-fill"></div></div>
+</div>
+
+<!-- INSTALL BANNER -->
 <div class="install-banner" id="installBanner">
-  <div class="install-banner-icon">⚙</div>
-  <div class="install-banner-text">
-    <div class="install-banner-title">Instalar AutoDiag Pro</div>
-    <div class="install-banner-sub">Acceso directo desde tu pantalla de inicio</div>
-  </div>
-  <button class="install-banner-btn" onclick="installPWA()">Instalar</button>
-  <button class="install-banner-close" onclick="document.getElementById('installBanner').classList.remove('show')">✕</button>
+  <div class="ib-icon">⚙</div>
+  <div class="ib-text"><div class="ib-title">Instalar AutoDiag Pro</div><div class="ib-sub">Acceso directo desde tu pantalla de inicio</div></div>
+  <button class="ib-btn" onclick="installPWA()">Instalar</button>
+  <button class="ib-close" onclick="this.closest('.install-banner').classList.remove('show')">✕</button>
 </div>
 
-<!-- SIDEBAR OVERLAY (mobile) -->
-<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+<!-- SIDEBAR OVERLAY -->
+<div id="sidebarOverlay" onclick="closeSidebar()"></div>
 
-<!-- ═══ LOGIN ═══ -->
+<!-- LOGIN -->
 <div id="loginScreen">
   <div class="login-card">
-    <div class="login-logo">
-      <div class="login-logo-mark">⚙</div>
+    <div class="login-top">
+      <div class="login-icon">⚙</div>
       <div class="login-title">AutoDiag Pro</div>
       <div class="login-sub">Plataforma de diagnóstico automotriz</div>
     </div>
-    <div class="login-tabs">
-      <div class="login-tab active" onclick="switchTab('login')">Iniciar sesión</div>
-      <div class="login-tab" onclick="switchTab('register')">Registrarse</div>
-    </div>
-    <div id="lerror" class="lerror"></div>
-    <div id="regField" class="lfield" style="display:none">
-      <label>Nombre del taller</label>
-      <input type="text" id="tallerName" placeholder="Ej: Taller García">
-    </div>
-    <div class="lfield">
-      <label>Email</label>
-      <input type="email" id="loginEmail" placeholder="tu@email.com">
-    </div>
-    <div class="lfield">
-      <label>Contraseña</label>
-      <input type="password" id="loginPass" placeholder="••••••••" onkeypress="if(event.key==='Enter')doAuth()">
-    </div>
-    <button class="login-btn" onclick="doAuth()" id="authBtn">Iniciar sesión</button>
-    <div class="login-demo">
-      ¿No tenés cuenta? <span onclick="demoLogin()">Entrar como demo</span>
+    <div class="login-body">
+      <div class="login-tabs">
+        <div class="login-tab active" onclick="switchTab('login')">Iniciar sesión</div>
+        <div class="login-tab" onclick="switchTab('register')">Registrarse</div>
+      </div>
+      <div id="lerror" class="lerror"></div>
+      <div id="regField" class="lfield" style="display:none">
+        <label>Nombre del taller</label>
+        <input type="text" id="tallerName" placeholder="Taller García">
+      </div>
+      <div class="lfield">
+        <label>Email</label>
+        <input type="email" id="loginEmail" placeholder="mecanico@taller.com" autocomplete="email">
+      </div>
+      <div class="lfield">
+        <label>Contraseña</label>
+        <input type="password" id="loginPass" placeholder="••••••••" autocomplete="current-password" onkeypress="if(event.key==='Enter')doAuth()">
+      </div>
+      <button class="login-btn" onclick="doAuth()" id="authBtn">Iniciar sesión</button>
+      <div class="login-demo">¿Sin cuenta? <span onclick="demoLogin()">Entrar como demo</span></div>
     </div>
   </div>
 </div>
 
-<!-- ═══ ONBOARDING ═══ -->
+<!-- ONBOARDING -->
 <div id="onboardingScreen">
   <div class="ob-card">
     <div class="ob-steps">
@@ -936,640 +1104,545 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
     </div>
     <span class="ob-icon" id="obIcon">🚗</span>
     <div class="ob-title" id="obTitle">Bienvenido a AutoDiag Pro</div>
-    <div class="ob-desc" id="obDesc">En 2 pasos vas a tener todo configurado. Primero, agregá tu primer vehículo para empezar a diagnosticar.</div>
-    <button class="ob-btn" id="obBtn" onclick="nextOnboarding()">Agregar mi primer vehículo →</button>
+    <div class="ob-desc" id="obDesc">En 2 pasos vas a tener todo listo. Primero agregá tu primer vehículo.</div>
+    <button class="ob-btn" id="obBtn" onclick="nextOnboarding()">Agregar vehículo →</button>
     <div class="ob-skip" onclick="skipOnboarding()">Omitir por ahora</div>
   </div>
 </div>
 
-<!-- ═══ APP ═══ -->
-<div class="shell" id="appShell" style="display:none">
+<!-- APP -->
+<div id="app" style="display:none">
 
-<div class="header">
-  <button class="menu-btn" id="menuBtn" onclick="toggleSidebar()">☰</button>
-  <div class="logo">
-    <div class="logo-mark">⚙</div>
-    <div>
-      <div class="logo-name">AutoDiag Pro</div>
-      <div class="logo-ver">v2.0 · DIAGNÓSTICO AUTOMOTRIZ</div>
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <button class="tb-menu-btn" onclick="toggleSidebar()">☰</button>
+    <div class="tb-logo">
+      <div class="tb-logo-mark">⚙</div>
+      <div class="tb-logo-name">AutoDiag Pro</div>
+    </div>
+    <div class="tb-page-title" id="tbPageTitle">Dashboard</div>
+    <nav class="tb-nav" id="tbNav">
+      <button class="tb-btn active" onclick="goView('dashboard',this)">Dashboard</button>
+      <button class="tb-btn" onclick="goView('charts',this)">Gráficas</button>
+      <button class="tb-btn" onclick="goView('multicode',this)">Multi-DTC</button>
+      <button class="tb-btn" onclick="goView('symptoms',this)">Síntomas</button>
+      <button class="tb-btn" onclick="goView('scan',this)">Escaneo</button>
+      <button class="tb-btn" onclick="goView('workshop',this)">Taller</button>
+      <button class="tb-btn" onclick="goView('research',this)">IA Research</button>
+      <button class="tb-btn" onclick="goView('learning',this)">Aprendizaje</button>
+      <button class="tb-btn" onclick="goView('diagnostico',this)">Diagnóstico</button>
+      <button class="tb-btn" onclick="goView('ficha',this)">Ficha</button>
+    </nav>
+    <div class="tb-right">
+      <div class="tb-status"><div class="tb-dot"></div><span id="statusText">Sistema OK</span></div>
+      <div class="tb-clock" id="clk">00:00:00</div>
+      <div class="tb-user" onclick="doLogout()">
+        <div class="tb-av" id="userAv">?</div>
+        <span class="tb-uname" id="userName">Usuario</span>
+      </div>
     </div>
   </div>
-  <div class="mobile-header-title" id="mobileTitle">Dashboard</div>
-  <div class="nav">
-    <button class="nav-btn active" onclick="goView('dashboard',this)">Dashboard</button>
-    <button class="nav-btn" onclick="goView('charts',this)">Gráficas</button>
-    <button class="nav-btn" onclick="goView('multicode',this)">Multi-DTC</button>
-    <button class="nav-btn" onclick="goView('symptoms',this)">Síntomas</button>
-    <button class="nav-btn" onclick="goView('scan',this)">Escaneo</button>
-    <button class="nav-btn" onclick="goView('workshop',this)">Taller</button>
-    <button class="nav-btn" onclick="goView('research',this)">IA Research</button>
-    <button class="nav-btn" onclick="goView('learning',this)">Aprendizaje</button>
-    <button class="nav-btn" onclick="goView('diagnostico',this)">Diagnóstico IA</button>
-    <button class="nav-btn" onclick="goView('ficha',this);if(activeVehicleId){const v=vehiclesList.find(x=>x.id===activeVehicleId);loadFicha(activeVehicleId,v);}">Ficha Técnica</button>
-  </div>
-  <div class="header-right">
-    <div class="status-pill" id="statusPill"><div class="sdot"></div><span id="statusText">Sistema OK</span></div>
-    <div class="hclock" id="clk">00:00:00</div>
-    <div class="user-badge" onclick="doLogout()">
-      <div class="user-av" id="userAv">?</div>
-      <span class="user-name" id="userName">Usuario</span>
-    </div>
-  </div>
-</div>
 
-<div class="body">
-<div class="sidebar" id="sidebar">
-  <button class="sidebar-close-btn" onclick="closeSidebar()">✕</button>
-  <div class="sb-label">Vehículos</div>
-  <div id="vehList"></div>
-  <button class="add-veh-btn" onclick="openModal('modal-addveh')">+ Agregar vehículo</button>
+  <!-- MAIN -->
+  <div class="main">
 
-  <div class="sb-label" style="margin-top:8px">Resumen flota</div>
-  <div class="sb-stats">
-    <div class="sb-stat"><span class="sb-stat-k">DTC Críticos</span><span class="sb-stat-v sv-r" id="sbCrit">0</span></div>
-    <div class="sb-stat"><span class="sb-stat-k">Vehículos OK</span><span class="sb-stat-v sv-g" id="sbOk">0</span></div>
-    <div class="sb-stat"><span class="sb-stat-k">Último scan</span><span class="sb-stat-v sv-b" id="sbScan" style="font-size:9px">—</span></div>
-  </div>
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+      <button style="display:none;position:absolute;top:12px;right:12px;width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,.1);color:var(--text);font-size:14px;align-items:center;justify-content:center" id="sbClose" onclick="closeSidebar()">✕</button>
 
-  <div class="sb-label" style="margin-top:8px">Salud sistema</div>
-  <div class="radar-wrap">
-    <canvas id="radarChart" width="200" height="200"></canvas>
-  </div>
+      <div class="sb-label">Vehículos</div>
+      <div id="vehList"></div>
+      <button class="add-veh-btn" onclick="openModal('modal-addveh');closeSidebar()">＋ Agregar vehículo</button>
 
-  <div class="sb-label" style="margin-top:8px">Acciones</div>
-  <div class="sb-actions">
-    <button class="sb-btn sb-btn-blue" onclick="goView('research',document.querySelectorAll('.nav-btn')[6])">⚡ IA Research</button>
-    <button class="sb-btn sb-btn-ghost" onclick="generatePDF()">↓ Exportar PDF</button>
-    <button class="sb-btn sb-btn-ghost" onclick="goView('scan',document.querySelectorAll('.nav-btn')[4])">◎ Nuevo escaneo</button>
-    <button class="sb-btn sb-btn-ghost" onclick="openFicha()">📋 Ver ficha técnica</button>
-  </div>
-</div>
+      <div class="sb-label" style="margin-top:10px">Flota</div>
+      <div class="sb-stats">
+        <div class="sb-stat"><span class="sb-stat-k">DTC críticos</span><span class="sb-stat-v" style="color:var(--red)" id="sbCrit">0</span></div>
+        <div class="sb-stat"><span class="sb-stat-k">Vehículos OK</span><span class="sb-stat-v" style="color:var(--grn)" id="sbOk">0</span></div>
+        <div class="sb-stat"><span class="sb-stat-k">Último scan</span><span class="sb-stat-v" style="color:var(--blue2);font-size:9px" id="sbScan">—</span></div>
+      </div>
 
-<div class="content">
+      <div class="sb-label" style="margin-top:10px">Salud sistema</div>
+      <div class="radar-wrap"><canvas id="radarChart" width="200" height="200"></canvas></div>
 
-<!-- DASHBOARD -->
-<div id="view-dashboard" class="view active">
-  <div class="stitle">Dashboard <span class="stitle-sub" id="activeVehLabel">SELECCIONÁ UN VEHÍCULO</span></div>
-  <div class="help-banner" id="help-dashboard">
-  <span class="help-icon">📊</span>
-  <div class="help-content">
-    <div class="help-title">Dashboard — Panel de control del vehículo</div>
-    <div class="help-text">Acá ves el estado en tiempo real del auto seleccionado: códigos DTC activos, temperatura del motor, voltaje y datos del scanner en vivo. Seleccioná un vehículo del sidebar para comenzar. Los DTCs en rojo son críticos y requieren atención inmediata.</div>
-    <div class="help-tips">
-      <span class="help-tip" onclick="askAssistant('Explicame qué son los DTCs y cómo interpretarlos')">¿Qué son los DTCs?</span>
-      <span class="help-tip" onclick="askAssistant('¿Qué significa fuel trim y cómo afecta al diagnóstico?')">Fuel Trim</span>
-      <span class="help-tip" onclick="goView('scan',document.querySelectorAll('.nav-btn')[4]);closeSidebar()">Ir a Escaneo →</span>
-    </div>
-  </div>
-  <button class="help-dismiss" onclick="dismissHelp('dashboard')">✕</button>
-</div>
-  <div class="metrics">
-    <div class="metric m-red"><div class="metric-bg"></div><div class="metric-glow"></div><div class="metric-content"><span class="m-icon">⚠</span><div class="m-lbl">DTC Activos</div><div class="m-val" id="dtcCount">—</div><div class="m-sub">Requieren atención</div></div></div>
-    <div class="metric m-yel"><div class="metric-bg"></div><div class="metric-glow"></div><div class="metric-content"><span class="m-icon">🔦</span><div class="m-lbl">Check Engine</div><div class="m-val" id="ceVal">—</div><div class="m-sub">Estado luz</div></div></div>
-    <div class="metric m-blue"><div class="metric-bg"></div><div class="metric-glow"></div><div class="metric-content"><span class="m-icon">🌡</span><div class="m-lbl">Temp. Motor</div><div class="m-val" id="tempVal">—</div><div class="m-sub">Normal 80–95°C</div></div></div>
-    <div class="metric m-grn"><div class="metric-bg"></div><div class="metric-glow"></div><div class="metric-content"><span class="m-icon">⚡</span><div class="m-lbl">Batería</div><div class="m-val" id="voltVal">—</div><div class="m-sub">Estado voltaje</div></div></div>
-  </div>
-  <div class="g2">
-    <div class="gcard">
-      <div class="gcard-head"><div class="gcard-title">Códigos DTC activos</div><span class="gcard-tag" id="dashVehTag">Sin vehículo</span></div>
-      <div class="gcard-body" id="dashDTCList"><div style="font-size:12px;color:var(--t3);text-align:center;padding:20px">Seleccioná un vehículo y realizá un escaneo</div></div>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:12px">
-      <div class="gcard">
-        <div class="gcard-head"><div class="gcard-title">Live Data</div><span class="gcard-tag" style="color:var(--grn);border-color:rgba(52,211,153,0.2);background:rgba(52,211,153,0.07)">● En vivo</span></div>
-        <div class="gcard-body" style="padding:12px">
-          <div class="livedata">
-            <div class="lrow"><span class="llbl">RPM</span><span class="lval" id="lv-rpm">—</span></div>
-            <div class="lrow"><span class="llbl">Velocidad</span><span class="lval ok" id="lv-speed">—</span></div>
-            <div class="lrow"><span class="llbl">Carga motor</span><span class="lval ok" id="lv-load">—</span></div>
-            <div class="lrow"><span class="llbl">Fuel Trim C</span><span class="lval warn" id="lv-ftc">—</span></div>
-            <div class="lrow"><span class="llbl">Fuel Trim L</span><span class="lval crit" id="lv-ftl">—</span></div>
-            <div class="lrow"><span class="llbl">O2 B1S1</span><span class="lval warn" id="lv-o2">—</span></div>
-            <div class="lrow"><span class="llbl">MAF</span><span class="lval warn" id="lv-maf">—</span></div>
-            <div class="lrow"><span class="llbl">MAP</span><span class="lval" id="lv-map">—</span></div>
+      <div class="sb-label" style="margin-top:10px">Acciones</div>
+      <button class="sb-btn sb-btn-blue" onclick="goView('research',document.querySelectorAll('.tb-btn')[6]);closeSidebar()">⚡ IA Research</button>
+      <button class="sb-btn sb-btn-ghost" style="margin-top:5px" onclick="goView('scan',document.querySelectorAll('.tb-btn')[4]);closeSidebar()">◎ Nuevo escaneo</button>
+      <button class="sb-btn sb-btn-ghost" style="margin-top:5px" onclick="openFicha();closeSidebar()">📋 Ficha técnica</button>
+      <button class="sb-btn sb-btn-ghost" style="margin-top:5px" onclick="generatePDF();closeSidebar()">↓ PDF Reporte</button>
+    </aside>
+
+    <!-- CONTENT -->
+    <div class="content">
+
+      <!-- DASHBOARD -->
+      <div id="view-dashboard" class="view active">
+        <div class="stitle">Dashboard <span class="stitle-sub" id="activeVehLabel">SIN VEHÍCULO</span></div>
+        <div class="help-banner" id="help-dashboard">
+          <span class="help-icon">📊</span>
+          <div class="help-content">
+            <div class="help-title">Panel de control — estado en tiempo real del vehículo</div>
+            <div class="help-text">Seleccioná un vehículo del menú lateral. Ves DTCs activos, temperatura, voltaje y datos del scanner en vivo. DTCs en rojo son críticos.</div>
+            <div class="help-tips">
+              <span class="help-tip" onclick="askAssistant('¿Qué son los DTCs y cómo los interpreto?')">¿Qué son los DTCs?</span>
+              <span class="help-tip" onclick="askAssistant('¿Qué significa fuel trim y cómo lo interpreto para diagnosticar?')">Fuel Trim</span>
+            </div>
           </div>
+          <button class="help-dismiss" onclick="dismissHelp('dashboard')">✕</button>
         </div>
-      </div>
-      <div class="gcard">
-        <div class="gcard-head"><div class="gcard-title">Historial de escaneos</div></div>
-        <div class="gcard-body" style="padding:12px">
-          <div class="hist-list" id="histList"><div style="font-size:10px;color:var(--t3);text-align:center;padding:10px">Sin historial aún</div></div>
+
+        <div class="metrics">
+          <div class="metric m-red"><div class="metric-bg"></div><div class="metric-glow"></div><div class="metric-c"><span class="m-icon">⚠</span><div class="m-lbl">DTC Activos</div><div class="m-val" id="dtcCount">—</div><div class="m-sub">Requieren atención</div></div></div>
+          <div class="metric m-yel"><div class="metric-bg"></div><div class="metric-glow"></div><div class="metric-c"><span class="m-icon">🔦</span><div class="m-lbl">Check Engine</div><div class="m-val" id="ceVal">—</div><div class="m-sub">Estado luz</div></div></div>
+          <div class="metric m-blue"><div class="metric-bg"></div><div class="metric-glow"></div><div class="metric-c"><span class="m-icon">🌡</span><div class="m-lbl">Temp. Motor</div><div class="m-val" id="tempVal">—</div><div class="m-sub">Normal 80–95°C</div></div></div>
+          <div class="metric m-grn"><div class="metric-bg"></div><div class="metric-glow"></div><div class="metric-c"><span class="m-icon">⚡</span><div class="m-lbl">Batería</div><div class="m-val" id="voltVal">—</div><div class="m-sub">Estado voltaje</div></div></div>
         </div>
-      </div>
-    </div>
-  </div>
-</div>
 
-<!-- GRÁFICAS EN TIEMPO REAL -->
-<div id="view-charts" class="view">
-  <div class="stitle">Gráficas en tiempo real <span class="stitle-sub">ÚLTIMOS 60 SEGUNDOS</span></div>
-  <div class="chart-row" style="margin-bottom:14px">
-    <div class="gcard">
-      <div class="gcard-head"><div class="gcard-title">RPM</div><span class="gcard-tag" style="color:var(--blue2)">En vivo</span></div>
-      <div class="gcard-body"><div class="chart-wrap"><canvas id="chartRPM"></canvas></div></div>
-    </div>
-    <div class="gcard">
-      <div class="gcard-head"><div class="gcard-title">Temperatura Motor</div><span class="gcard-tag" style="color:var(--yel)">°C</span></div>
-      <div class="gcard-body"><div class="chart-wrap"><canvas id="chartTemp"></canvas></div></div>
-    </div>
-  </div>
-  <div class="chart-row" style="margin-bottom:14px">
-    <div class="gcard">
-      <div class="gcard-head"><div class="gcard-title">Sensor O2 B1S1</div><span class="gcard-tag" style="color:var(--grn)">Voltios</span></div>
-      <div class="gcard-body"><div class="chart-wrap"><canvas id="chartO2"></canvas></div></div>
-    </div>
-    <div class="gcard">
-      <div class="gcard-head"><div class="gcard-title">Fuel Trim Corto</div><span class="gcard-tag" style="color:var(--red)">%</span></div>
-      <div class="gcard-body"><div class="chart-wrap"><canvas id="chartFT"></canvas></div></div>
-    </div>
-  </div>
-  <div class="gcard">
-    <div class="gcard-head"><div class="gcard-title">Carga Motor</div><span class="gcard-tag">%</span></div>
-    <div class="gcard-body"><div class="chart-wrap" style="height:120px"><canvas id="chartLoad"></canvas></div></div>
-  </div>
-</div>
-
-<!-- MULTI-DTC -->
-<div id="view-multicode" class="view">
-  <div class="stitle">Comparador Multi-DTC <span class="stitle-sub">ANÁLISIS DE CAUSA RAÍZ</span></div>
-  <div class="help-banner" id="help-multicode">
-  <span class="help-icon">🔗</span>
-  <div class="help-content">
-    <div class="help-title">Multi-DTC — Encontrar la causa raíz entre varios códigos</div>
-    <div class="help-text">Cuando un auto tiene varios DTCs simultáneos, no todos son independientes. Este módulo identifica cuál es la causa raíz y cuáles son consecuencias. Por ejemplo: P0171 (mezcla pobre) puede causar P0420 (catalizador) — si resolvés el primero, el segundo desaparece solo. Ahorrás tiempo y plata al cliente.</div>
-    <div class="help-tips">
-      <span class="help-tip" onclick="()=>{ document.getElementById('mcInput').value='P0171'; addCode(); document.getElementById('mcInput').value='P0420'; addCode(); document.getElementById('mcInput').value='P0441'; addCode(); }">Ejemplo 3 códigos</span>
-      <span class="help-tip" onclick="askAssistant('¿Por qué un solo problema puede generar múltiples códigos DTC?')">Por qué múltiples DTCs</span>
-    </div>
-  </div>
-  <button class="help-dismiss" onclick="dismissHelp('multicode')">✕</button>
-</div>
-  <div class="gcard">
-    <div class="gcard-head"><div class="gcard-title">Ingresar códigos</div><span class="gcard-tag">La IA identifica la causa raíz</span></div>
-    <div class="gcard-body">
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
-        <div class="field" style="max-width:130px"><label class="flbl">Código DTC</label><input class="finput" id="mcInput" placeholder="P0171" oninput="this.value=this.value.toUpperCase()" onkeypress="if(event.key==='Enter')addCode()"></div>
-        <div class="field" style="max-width:160px"><label class="flbl">Marca</label><select class="fselect" id="mcBrand"><option value="">Universal</option><option value="Toyota" selected>Toyota</option><option value="Honda">Honda</option><option value="Ford">Ford</option><option value="Volkswagen">Volkswagen</option><option value="BMW">BMW</option><option value="Nissan">Nissan</option><option value="Renault">Renault</option></select></div>
-        <div class="field" style="max-width:160px"><label class="flbl">Modelo / Año</label><input class="finput" id="mcModel" placeholder="Corolla 2019"></div>
-        <button class="btn btn-ghost" onclick="addCode()">+ Agregar</button>
-        <button class="btn btn-blue" id="mcAnalyzeBtn" onclick="analyzeMulti()" disabled>⚡ Analizar</button>
-      </div>
-      <div id="codeTagsWrap" style="margin-top:10px;min-height:26px;display:flex;flex-wrap:wrap"><span style="font-size:9px;color:var(--t3);font-family:var(--mono)">Códigos aparecerán aquí →</span></div>
-    </div>
-  </div>
-  <div id="mcResults" style="display:flex;flex-direction:column;gap:10px">
-    <div style="text-align:center;padding:32px;font-size:12px;color:var(--t3)">Ingresá 2+ códigos para analizar su relación</div>
-  </div>
-</div>
-
-<!-- SYMPTOMS -->
-<div id="view-symptoms" class="view">
-  <div class="stitle">Síntomas → DTC <span class="stitle-sub">DIAGNÓSTICO INVERSO</span></div>
-  <div class="help-banner" id="help-symptoms">
-  <span class="help-icon">🔍</span>
-  <div class="help-content">
-    <div class="help-title">Síntomas → DTC — Diagnóstico inverso sin scanner</div>
-    <div class="help-text">Cuando el cliente describe el problema pero no tenés el auto conectado todavía. Seleccioná los síntomas que describe (tembla, humo, ruido) y la IA identifica los DTCs más probables con su porcentaje de probabilidad. Perfecto para dar un presupuesto preliminar antes de conectar el scanner.</div>
-    <div class="help-tips">
-      <span class="help-tip" onclick="askAssistant('¿Qué síntomas son señal de urgencia y no se puede conducir el auto?')">Síntomas urgentes</span>
-      <span class="help-tip" onclick="askAssistant('Si el auto tembla en ralentí y gasta más combustible, ¿qué puede ser?')">Tembla + consume más</span>
-    </div>
-  </div>
-  <button class="help-dismiss" onclick="dismissHelp('symptoms')">✕</button>
-</div>
-  <div class="g2" style="align-items:start">
-    <div style="display:flex;flex-direction:column;gap:12px">
-      <div class="gcard">
-        <div class="gcard-head"><div class="gcard-title">Síntomas</div></div>
-        <div class="gcard-body">
-          <div class="sym-grid">
-            <div class="sym-btn" onclick="togSym(this)">Luz Check Engine</div>
-            <div class="sym-btn" onclick="togSym(this)">Humo negro caño</div>
-            <div class="sym-btn" onclick="togSym(this)">Humo blanco caño</div>
-            <div class="sym-btn" onclick="togSym(this)">Humo azul caño</div>
-            <div class="sym-btn" onclick="togSym(this)">Motor tembla ralentí</div>
-            <div class="sym-btn" onclick="togSym(this)">Golpeteo motor</div>
-            <div class="sym-btn" onclick="togSym(this)">Ruido al acelerar</div>
-            <div class="sym-btn" onclick="togSym(this)">Silbido admisión</div>
-            <div class="sym-btn" onclick="togSym(this)">Pérdida potencia</div>
-            <div class="sym-btn" onclick="togSym(this)">Mayor consumo</div>
-            <div class="sym-btn" onclick="togSym(this)">Arranque difícil frío</div>
-            <div class="sym-btn" onclick="togSym(this)">Sobrecalentamiento</div>
-            <div class="sym-btn" onclick="togSym(this)">Vibración al frenar</div>
-            <div class="sym-btn" onclick="togSym(this)">Falla cambio marcha</div>
-            <div class="sym-btn" onclick="togSym(this)">Olor combustible</div>
-            <div class="sym-btn" onclick="togSym(this)">Aceite en escape</div>
+        <div class="g2">
+          <div class="gcard">
+            <div class="gcard-head"><div class="gcard-title">Códigos DTC activos</div><span class="gcard-tag" id="dashVehTag">Sin vehículo</span></div>
+            <div class="gcard-body" id="dashDTCList"><div style="font-size:12px;color:var(--t3);text-align:center;padding:20px">Seleccioná un vehículo y realizá un escaneo</div></div>
           </div>
-        </div>
-      </div>
-      <div class="gcard">
-        <div class="gcard-head"><div class="gcard-title">Datos del scanner</div><span class="gcard-tag">Opcional</span></div>
-        <div class="gcard-body">
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:10px">
-            <div class="field"><label class="flbl">FT Corto</label><input class="finput" id="ftc" placeholder="+18%"></div>
-            <div class="field"><label class="flbl">FT Largo</label><input class="finput" id="ftl" placeholder="+22%"></div>
-            <div class="field"><label class="flbl">O2 B1S1</label><input class="finput" id="o2v" placeholder="0.89V"></div>
-            <div class="field"><label class="flbl">MAF V</label><input class="finput" id="mafv" placeholder="0.9V"></div>
-          </div>
-          <div style="display:flex;gap:8px">
-            <div class="field"><label class="flbl">Marca</label><select class="fselect" id="symBrand"><option>Universal</option><option>Toyota</option><option>Honda</option><option>Ford</option><option>Volkswagen</option><option>BMW</option><option>Nissan</option><option>Renault</option></select></div>
-            <div class="field" style="flex:1"><label class="flbl">Modelo / Año</label><input class="finput" id="symModel" placeholder="Corolla 2019"></div>
-          </div>
-          <button class="btn btn-blue" onclick="analyzeSymptoms()" style="margin-top:10px;width:100%">⚡ Identificar DTC probables</button>
-        </div>
-      </div>
-    </div>
-    <div class="gcard">
-      <div class="gcard-head"><div class="gcard-title">Resultado IA</div></div>
-      <div class="gcard-body" id="symResult" style="font-size:11px;color:var(--t2);min-height:180px">Seleccioná síntomas y presioná Identificar.</div>
-    </div>
-  </div>
-</div>
-
-<!-- SCAN -->
-<div id="view-scan" class="view">
-  <div class="stitle">Escaneo OBD-II</div>
-  <div class="scan-layout">
-    <div class="gcard" style="display:flex;flex-direction:column">
-      <div class="scan-hud">
-        <div class="hud-ring-wrap">
-          <svg viewBox="0 0 160 160">
-            <g class="ring-a"><circle cx="80" cy="80" r="72" fill="none" stroke="rgba(59,130,246,0.12)" stroke-width="1" stroke-dasharray="5 4"/></g>
-            <g class="ring-b"><circle cx="80" cy="80" r="60" fill="none" stroke="rgba(34,211,238,0.15)" stroke-width="1.5" stroke-dasharray="3 7"/></g>
-            <circle id="progCircle" cx="80" cy="80" r="72" fill="none" stroke="url(#pg)" stroke-width="3" stroke-dasharray="452" stroke-dashoffset="452" stroke-linecap="round" style="transform:rotate(-90deg);transform-origin:80px 80px;transition:stroke-dashoffset 0.2s"/>
-            <defs><linearGradient id="pg" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#3b82f6"/><stop offset="100%" stop-color="#22d3ee"/></linearGradient></defs>
-          </svg>
-          <div class="hud-center"><div class="hud-icon" id="hudIcon">⚙</div><div class="hud-pct" id="hudPct" style="display:none">0%</div></div>
-  <div class="help-banner" id="help-scan">
-  <span class="help-icon">🔌</span>
-  <div class="help-content">
-    <div class="help-title">Escaneo OBD-II — Leer datos del auto</div>
-    <div class="help-text">Conectá el adaptador ELM327 WiFi al puerto OBD del auto (debajo del volante), conectate a su red WiFi, y presioná Iniciar. La plataforma lee todos los códigos de error, freeze frame (datos al momento del fallo) y datos en tiempo real automáticamente. Sin adaptador funciona en modo simulación.</div>
-    <div class="help-tips">
-      <span class="help-tip" onclick="askAssistant('¿Dónde se encuentra el puerto OBD-II en la mayoría de los autos?')">Puerto OBD</span>
-      <span class="help-tip" onclick="askAssistant('¿Qué adaptador OBD-II me recomendás comprar en Argentina?')">Qué adaptador comprar</span>
-      <span class="help-tip" onclick="askAssistant('¿Qué es el freeze frame y para qué sirve?')">Freeze Frame</span>
-    </div>
-  </div>
-  <button class="help-dismiss" onclick="dismissHelp('scan')">✕</button>
-</div>
-        </div>
-        <div class="proto-grid">
-          <div class="proto-card sel" onclick="selProto(this)"><div class="proto-icon">📡</div><div class="proto-name">OBD-II WiFi</div></div>
-          <div class="proto-card" onclick="selProto(this)"><div class="proto-icon">🔵</div><div class="proto-name">CAN Bus</div></div>
-          <div class="proto-card" onclick="selProto(this)"><div class="proto-icon">📄</div><div class="proto-name">Importar</div></div>
-        </div>
-        <div style="font-family:var(--syne);font-size:16px;font-weight:700;margin-bottom:5px" id="scanTitle">Diagnóstico</div>
-        <div style="font-size:11px;color:var(--t2);margin-bottom:18px" id="scanSub">Seleccioná protocolo e iniciá</div>
-        <button class="btn btn-blue" id="scanBtn" onclick="runScan()" style="font-size:13px;padding:12px 32px">⚡ Iniciar escaneo</button>
-      </div>
-    </div>
-    <div class="log-panel"><div class="log-head">Registro de escaneo</div><div class="log-body" id="scanLog"><div class="ll"><span class="lts">[00:00:00]</span><span class="linfo">Sistema listo...</span></div></div></div>
-  </div>
-</div>
-
-<!-- WORKSHOP -->
-<div id="view-workshop" class="view">
-  <div class="stitle">Gestión de Taller <span class="stitle-sub">CRM LIVIANO</span></div>
-  <div class="help-banner" id="help-workshop">
-  <span class="help-icon">🔧</span>
-  <div class="help-content">
-    <div class="help-title">Taller — CRM liviano para gestionar trabajos</div>
-    <div class="help-text">Gestioná todos los autos en el taller en un tablero Kanban: En diagnóstico → En reparación → Completado. Asignás mecánico, vinculás los DTCs y movés el trabajo con un click. Cuando completás un trabajo, confirmá la resolución para que la plataforma aprenda de ese caso y mejore los diagnósticos futuros.</div>
-    <div class="help-tips">
-      <span class="help-tip" onclick="openModal('modal-addjob')">Agregar trabajo</span>
-      <span class="help-tip" onclick="askAssistant('¿Cómo uso el módulo de taller para gestionar múltiples autos a la vez?')">Cómo usarlo</span>
-      <span class="help-tip" onclick="askAssistant('¿Por qué es importante confirmar la resolución al terminar un trabajo?')">Por qué confirmar</span>
-    </div>
-  </div>
-  <button class="help-dismiss" onclick="dismissHelp('workshop')">✕</button>
-</div>
-  <div style="display:flex;gap:8px;margin-bottom:4px;flex-shrink:0">
-    <button class="btn btn-blue" onclick="openModal('modal-addjob')">+ Nuevo trabajo</button>
-    <input class="finput" id="wsSearch" placeholder="Buscar..." oninput="filterJobs(this.value)" style="max-width:240px">
-  </div>
-  <div class="ws-grid">
-    <div class="ws-col"><div class="ws-col-head diag"><span>En diagnóstico</span><span id="cnt-diag" style="font-family:var(--mono);font-size:10px">0</span></div><div class="ws-col-body" id="col-diag"></div></div>
-    <div class="ws-col"><div class="ws-col-head repair"><span>En reparación</span><span id="cnt-repair" style="font-family:var(--mono);font-size:10px">0</span></div><div class="ws-col-body" id="col-repair"></div></div>
-    <div class="ws-col"><div class="ws-col-head done"><span>Completado</span><span id="cnt-done" style="font-family:var(--mono);font-size:10px">0</span></div><div class="ws-col-body" id="col-done"></div></div>
-  </div>
-</div>
-
-<!-- AI RESEARCH -->
-<div id="view-research" class="view">
-  <div class="stitle">IA Research <span class="stitle-sub">FUENTES TÉCNICAS EN TIEMPO REAL</span></div>
-  <div class="help-banner" id="help-research">
-  <span class="help-icon">⚡</span>
-  <div class="help-content">
-    <div class="help-title">IA Research — Investigación técnica en tiempo real</div>
-    <div class="help-text">Ingresá cualquier código DTC y la IA busca en bases de datos técnicas, foros de mecánicos y TSBs (boletines de servicio) en tiempo real. Te devuelve causas ordenadas por frecuencia, pasos de diagnóstico, y precios de repuestos para el mercado argentino. Cuanto más datos del scanner ingresés, más preciso el diagnóstico.</div>
-    <div class="help-tips">
-      <span class="help-tip" onclick="quickR('P0171','Toyota','Corolla 2019','tembla','+18% FT')">Probar con P0171</span>
-      <span class="help-tip" onclick="askAssistant('¿Cuáles son los DTCs más comunes en Argentina y cómo resolverlos?')">DTCs más comunes AR</span>
-      <span class="help-tip" onclick="askAssistant('¿Cómo uso los datos del scanner para mejorar el diagnóstico?')">Mejorar diagnóstico</span>
-    </div>
-  </div>
-  <button class="help-dismiss" onclick="dismissHelp('research')">✕</button>
-</div>
-  <div class="ai-layout" style="flex:1;min-height:0">
-    <div style="display:flex;flex-direction:column;gap:12px">
-      <div class="gcard">
-        <div class="gcard-head"><div class="gcard-title">Parámetros de búsqueda</div><span class="gcard-tag">Web Search activo</span></div>
-        <div class="gcard-body">
-          <div style="display:grid;grid-template-columns:110px 1fr 1fr;gap:8px;margin-bottom:8px">
-            <div class="field"><label class="flbl">Código</label><input class="finput" id="rCode" placeholder="P0171" oninput="this.value=this.value.toUpperCase()"></div>
-            <div class="field"><label class="flbl">Marca</label><select class="fselect" id="rBrand"><option value="">Universal</option><option>Toyota</option><option>Honda</option><option>Ford</option><option>Chevrolet</option><option>Volkswagen</option><option>BMW</option><option>Mercedes-Benz</option><option>Nissan</option><option>Hyundai</option><option>Renault</option><option>Peugeot</option><option>Fiat</option></select></div>
-            <div class="field"><label class="flbl">Modelo / Año</label><input class="finput" id="rModel" placeholder="Corolla 2019"></div>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
-            <div class="field"><label class="flbl">Síntomas</label><input class="finput" id="rSym" placeholder="tembla, check engine..."></div>
-            <div class="field"><label class="flbl">Datos scanner</label><input class="finput" id="rScanner" placeholder="+18% FT, 0.9V MAF..."></div>
-          </div>
-          <div style="display:flex;gap:7px;flex-wrap:wrap">
-            <button class="btn btn-blue" id="rBtn" onclick="runResearch()">⚡ Investigar con IA</button>
-            <button class="btn btn-ghost" onclick="quickR('P0171','Toyota','Corolla 2019','tembla','+18% FT')">P0171 Toyota</button>
-            <button class="btn btn-ghost" onclick="quickR('P0420','Honda','Civic 2018','check engine','')">P0420 Honda</button>
-            <button class="btn btn-ghost" onclick="quickR('P0300','Ford','F-150 2021','falla enc.','')">P0300 Ford</button>
-            <button class="btn btn-ghost" onclick="quickR('P0174','Volkswagen','Golf 2018','pérdida pot.','')">P0174 VW</button>
-          </div>
-        </div>
-      </div>
-      <div id="rResults" style="flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;font-size:12px;color:var(--t3);min-height:140px;gap:7px">
-        <span style="font-size:28px;opacity:0.15">🔍</span>Ingresá un código y presioná Investigar
-      </div>
-    </div>
-    <div class="chat-wrap">
-      <div class="gcard-head" style="border-radius:0;padding:12px 16px"><div class="gcard-title">Asistente IA</div></div>
-      <div class="chat-msgs" id="chatMsgs">
-        <div class="msg"><div class="mavatar ai">AI</div><div class="mbub ai">Sistema activo. Consultame sobre cualquier código DTC, síntoma o diagnóstico. Tengo datos del mercado argentino.</div></div>
-      </div>
-      <div class="chat-input-row">
-        <input class="chat-in" id="chatIn" type="text" placeholder="¿Qué significa P0171?" onkeypress="if(event.key==='Enter')sendChat()">
-        <button class="btn btn-blue" onclick="sendChat()" style="padding:8px 14px;font-size:11px">Enviar</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- LEARNING -->
-<div id="view-learning" class="view">
-  <div class="stitle">Aprendizaje Colectivo <span class="stitle-sub">ESTADÍSTICAS DE RESOLUCIÓN</span></div>
-  <div class="help-banner" id="help-learning">
-  <span class="help-icon">🧬</span>
-  <div class="help-content">
-    <div class="help-title">Aprendizaje — La plataforma aprende de cada caso resuelto</div>
-    <div class="help-text">Cada vez que confirmás una resolución, esos datos se guardan y mejoran los diagnósticos futuros de toda la plataforma. Con más casos, el sistema sabe qué causa es más frecuente para cada código en Argentina, cuánto cuesta realmente la reparación, y qué falla más en cada marca/modelo específico.</div>
-    <div class="help-tips">
-      <span class="help-tip" onclick="askAssistant('¿Cómo funciona el aprendizaje automático de la plataforma?')">Cómo aprende</span>
-      <span class="help-tip" onclick="askAssistant('¿Por qué es valioso para el taller contribuir con casos resueltos?')">Por qué contribuir</span>
-    </div>
-  </div>
-  <button class="help-dismiss" onclick="dismissHelp('learning')">✕</button>
-</div>
-  <div class="g3">
-    <div class="metric m-blue" style="min-height:auto"><div class="metric-bg"></div><div class="metric-glow"></div><div class="metric-content"><div class="m-lbl">Casos confirmados</div><div class="m-val" id="totalCases">0</div><div class="m-sub">Base de conocimiento colectivo</div></div></div>
-    <div class="gcard" style="padding:16px">
-      <div class="gcard-title" style="margin-bottom:10px">Códigos más frecuentes</div>
-      <div id="topCodes"><div style="font-size:10px;color:var(--t3)">Sin datos aún — confirmá resoluciones</div></div>
-    </div>
-    <div class="gcard" style="padding:16px">
-      <div class="gcard-title" style="margin-bottom:10px">Causas más comunes</div>
-      <div id="topCauses"><div style="font-size:10px;color:var(--t3)">Sin datos aún</div></div>
-    </div>
-  </div>
-  <div class="g2">
-    <div class="gcard">
-      <div class="gcard-head"><div class="gcard-title">Resoluciones confirmadas</div><span class="gcard-tag">Datos reales</span></div>
-      <div class="gcard-body" id="learnList" style="display:flex;flex-direction:column;gap:6px"><div style="font-size:11px;color:var(--t3);text-align:center;padding:16px">Confirmá resoluciones desde los detalles de cada DTC</div></div>
-    </div>
-    <div class="gcard">
-      <div class="gcard-head"><div class="gcard-title">Agregar resolución</div></div>
-      <div class="gcard-body" style="display:flex;flex-direction:column;gap:9px">
-        <div class="field"><label class="flbl">Código DTC</label><input class="finput" id="lCode" placeholder="P0171" oninput="this.value=this.value.toUpperCase()"></div>
-        <div class="field"><label class="flbl">Vehículo</label><input class="finput" id="lVeh" placeholder="Toyota Corolla 2019"></div>
-        <div class="field"><label class="flbl">Causa y solución</label><input class="finput" id="lCause" placeholder="MAF sucio — limpieza spray"></div>
-        <div class="field"><label class="flbl">Costo real (USD)</label><input class="finput" id="lCost" placeholder="15" type="number"></div>
-        <button class="btn btn-blue" onclick="addLearning()" style="width:100%">⚡ Confirmar y guardar</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-
-<!-- DIAGNOSTICO DIFERENCIAL -->
-<div id="view-diagnostico" class="view">
-  <div class="stitle">Diagnóstico IA <span class="stitle-sub">DIAGNÓSTICO DIFERENCIAL CON DATOS DEL SCANNER</span></div>
-  <div class="help-banner" id="help-diagnostico">
-  <span class="help-icon">🧠</span>
-  <div class="help-content">
-    <div class="help-title">Diagnóstico IA — Diagnóstico diferencial con datos reales</div>
-    <div class="help-text">La herramienta más poderosa de la plataforma. Combina 4 fuentes: base técnica local (SAE J2012), valores reales del scanner, datos del freeze frame y resoluciones confirmadas por la comunidad. Te da las causas ordenadas por probabilidad con evidencia específica. Usá "Cargar datos live" para no tipear nada.</div>
-    <div class="help-tips">
-      <span class="help-tip" onclick="loadFromLiveData()">Cargar datos live</span>
-      <span class="help-tip" onclick="askAssistant('¿Cómo interpreto el fuel trim largo y corto para diagnosticar mezcla pobre?')">Interpretar Fuel Trim</span>
-      <span class="help-tip" onclick="askAssistant('¿Qué es el diagnóstico diferencial y por qué es importante?')">¿Qué es diag. diferencial?</span>
-    </div>
-  </div>
-  <button class="help-dismiss" onclick="dismissHelp('diagnostico')">✕</button>
-</div>
-  
-  <div class="g2" style="align-items:start">
-    <div style="display:flex;flex-direction:column;gap:12px">
-      <!-- Scanner data input -->
-      <div class="gcard">
-        <div class="gcard-head"><div class="gcard-title">Datos del scanner</div><span class="gcard-tag">Ingresá los valores actuales</span></div>
-        <div class="gcard-body">
-          <div style="display:grid;grid-template-columns:120px 1fr 1fr;gap:8px;margin-bottom:10px">
-            <div class="field"><label class="flbl">Código DTC</label><input class="finput" id="ddCode" placeholder="P0171" oninput="this.value=this.value.toUpperCase();searchLocalDTC(this.value)"></div>
-            <div class="field"><label class="flbl">Marca</label><select class="fselect" id="ddBrand"><option value="">Universal</option><option>Toyota</option><option>Honda</option><option>Ford</option><option>Volkswagen</option><option>BMW</option><option>Nissan</option><option>Renault</option><option>Peugeot</option><option>Fiat</option><option>Chevrolet</option></select></div>
-            <div class="field"><label class="flbl">Modelo / Año</label><input class="finput" id="ddModel" placeholder="Corolla 2019"></div>
-          </div>
-          <div id="localDTCPreview" style="display:none;margin-bottom:10px"></div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:8px">
-            <div class="field"><label class="flbl">RPM actual</label><input class="finput" id="dd-rpm" placeholder="750" type="number"></div>
-            <div class="field"><label class="flbl">Temp. motor °C</label><input class="finput" id="dd-temp" placeholder="87" type="number"></div>
-            <div class="field"><label class="flbl">Fuel Trim Corto %</label><input class="finput" id="dd-ftc" placeholder="+16"></div>
-            <div class="field"><label class="flbl">Fuel Trim Largo %</label><input class="finput" id="dd-ftl" placeholder="+22"></div>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:10px">
-            <div class="field"><label class="flbl">O2 B1S1 (V)</label><input class="finput" id="dd-o2" placeholder="0.89"></div>
-            <div class="field"><label class="flbl">MAF (g/s)</label><input class="finput" id="dd-maf" placeholder="1.8"></div>
-            <div class="field"><label class="flbl">MAP (kPa)</label><input class="finput" id="dd-map" placeholder="45"></div>
-            <div class="field"><label class="flbl">Carga motor %</label><input class="finput" id="dd-load" placeholder="22"></div>
-          </div>
-          <div style="display:flex;gap:8px">
-            <button class="btn btn-blue" onclick="runDifferentialDiagnosis()" id="ddBtn">⚡ Diagnóstico diferencial con IA</button>
-            <button class="btn btn-ghost" onclick="loadFromLiveData()">↓ Cargar datos live</button>
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div class="gcard">
+              <div class="gcard-head"><div class="gcard-title">Live Data</div><span class="gcard-tag" style="color:var(--grn);background:rgba(52,211,153,.07);border-color:rgba(52,211,153,.2)">● En vivo</span></div>
+              <div class="gcard-body" style="padding:12px">
+                <div class="live-list">
+                  <div class="lrow"><span class="llbl">RPM</span><span class="lval" id="lv-rpm">—</span></div>
+                  <div class="lrow"><span class="llbl">Velocidad</span><span class="lval ok" id="lv-speed">—</span></div>
+                  <div class="lrow"><span class="llbl">Carga motor</span><span class="lval ok" id="lv-load">—</span></div>
+                  <div class="lrow"><span class="llbl">Fuel Trim C</span><span class="lval warn" id="lv-ftc">—</span></div>
+                  <div class="lrow"><span class="llbl">Fuel Trim L</span><span class="lval crit" id="lv-ftl">—</span></div>
+                  <div class="lrow"><span class="llbl">O2 B1S1</span><span class="lval warn" id="lv-o2">—</span></div>
+                  <div class="lrow"><span class="llbl">MAF</span><span class="lval warn" id="lv-maf">—</span></div>
+                  <div class="lrow"><span class="llbl">MAP</span><span class="lval" id="lv-map">—</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="gcard">
+              <div class="gcard-head"><div class="gcard-title">Historial escaneos</div></div>
+              <div class="gcard-body" style="padding:12px"><div id="histList" style="display:flex;flex-direction:column;gap:5px"><div style="font-size:10px;color:var(--t3);text-align:center;padding:8px">Sin historial aún</div></div></div>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- Results -->
-      <div id="diagResults" style="display:flex;flex-direction:column;gap:10px">
-        <div style="text-align:center;padding:32px;font-size:12px;color:var(--t3)">
-          Ingresá un código DTC y los valores del scanner para obtener un diagnóstico diferencial preciso basado en los datos reales.
+      <!-- GRÁFICAS -->
+      <div id="view-charts" class="view">
+        <div class="stitle">Gráficas en tiempo real</div>
+        <div class="g2">
+          <div class="gcard"><div class="gcard-head"><div class="gcard-title">RPM</div></div><div class="gcard-body"><div class="chart-wrap"><canvas id="chartRPM"></canvas></div></div></div>
+          <div class="gcard"><div class="gcard-head"><div class="gcard-title">Temperatura Motor °C</div></div><div class="gcard-body"><div class="chart-wrap"><canvas id="chartTemp"></canvas></div></div></div>
+        </div>
+        <div class="g2">
+          <div class="gcard"><div class="gcard-head"><div class="gcard-title">O2 Sensor B1S1 (V)</div></div><div class="gcard-body"><div class="chart-wrap"><canvas id="chartO2"></canvas></div></div></div>
+          <div class="gcard"><div class="gcard-head"><div class="gcard-title">Fuel Trim Corto (%)</div></div><div class="gcard-body"><div class="chart-wrap"><canvas id="chartFT"></canvas></div></div></div>
+        </div>
+        <div class="gcard"><div class="gcard-head"><div class="gcard-title">Carga Motor (%)</div></div><div class="gcard-body"><div class="chart-wrap" style="height:100px"><canvas id="chartLoad"></canvas></div></div></div>
+      </div>
+
+      <!-- MULTI-DTC -->
+      <div id="view-multicode" class="view">
+        <div class="stitle">Multi-DTC <span class="stitle-sub">CAUSA RAÍZ</span></div>
+        <div class="help-banner" id="help-multicode">
+          <span class="help-icon">🔗</span>
+          <div class="help-content">
+            <div class="help-title">Identificá cuál DTC causó los demás</div>
+            <div class="help-text">Varios códigos simultáneos no son independientes. P0171 puede causar P0420. Resolvé el primero y el segundo desaparece solo.</div>
+            <div class="help-tips"><span class="help-tip" onclick="askAssistant('¿Por qué un problema puede generar múltiples códigos DTC?')">Por qué múltiples</span></div>
+          </div>
+          <button class="help-dismiss" onclick="dismissHelp('multicode')">✕</button>
+        </div>
+        <div class="gcard">
+          <div class="gcard-head"><div class="gcard-title">Ingresar códigos</div><span class="gcard-tag">IA identifica la causa raíz</span></div>
+          <div class="gcard-body">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+              <div class="field" style="max-width:120px"><label class="flbl">Código DTC</label><input class="finput" id="mcInput" placeholder="P0171" oninput="this.value=this.value.toUpperCase()" onkeypress="if(event.key==='Enter')addCode()"></div>
+              <div class="field" style="max-width:150px"><label class="flbl">Marca</label><select class="fsel" id="mcBrand"><option value="">Universal</option><option selected>Toyota</option><option>Honda</option><option>Ford</option><option>Volkswagen</option><option>BMW</option><option>Nissan</option><option>Renault</option><option>Fiat</option><option>Peugeot</option></select></div>
+              <div class="field" style="max-width:150px"><label class="flbl">Modelo / Año</label><input class="finput" id="mcModel" placeholder="Corolla 2019"></div>
+              <button class="btn btn-ghost" onclick="addCode()">＋ Agregar</button>
+              <button class="btn btn-blue" id="mcAnalyzeBtn" onclick="analyzeMulti()" disabled>⚡ Analizar</button>
+            </div>
+            <div id="codeTagsWrap" style="margin-top:10px;min-height:24px;display:flex;flex-wrap:wrap"><span style="font-size:9px;color:var(--t3);font-family:var(--mono)">Códigos aparecerán aquí →</span></div>
+          </div>
+        </div>
+        <div id="mcResults"><div style="text-align:center;padding:32px;font-size:12px;color:var(--t3)">Ingresá 2+ códigos para analizar</div></div>
+      </div>
+
+      <!-- SÍNTOMAS -->
+      <div id="view-symptoms" class="view">
+        <div class="stitle">Síntomas → DTC <span class="stitle-sub">DIAGNÓSTICO INVERSO</span></div>
+        <div class="help-banner" id="help-symptoms">
+          <span class="help-icon">🔍</span>
+          <div class="help-content">
+            <div class="help-title">Diagnosticá sin scanner — solo con lo que describe el cliente</div>
+            <div class="help-text">Seleccioná los síntomas y la IA identifica los DTCs más probables con porcentaje de probabilidad.</div>
+            <div class="help-tips"><span class="help-tip" onclick="askAssistant('¿Qué síntomas indican urgencia y no se puede conducir el auto?')">Síntomas urgentes</span></div>
+          </div>
+          <button class="help-dismiss" onclick="dismissHelp('symptoms')">✕</button>
+        </div>
+        <div class="g2s" style="align-items:start">
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div class="gcard">
+              <div class="gcard-head"><div class="gcard-title">Seleccioná síntomas</div></div>
+              <div class="gcard-body">
+                <div class="sym-grid">
+                  <div class="sym-btn" onclick="togSym(this)">Check Engine</div>
+                  <div class="sym-btn" onclick="togSym(this)">Humo negro</div>
+                  <div class="sym-btn" onclick="togSym(this)">Humo blanco</div>
+                  <div class="sym-btn" onclick="togSym(this)">Humo azul</div>
+                  <div class="sym-btn" onclick="togSym(this)">Tembla ralentí</div>
+                  <div class="sym-btn" onclick="togSym(this)">Golpeteo</div>
+                  <div class="sym-btn" onclick="togSym(this)">Ruido acelerar</div>
+                  <div class="sym-btn" onclick="togSym(this)">Silbido admisión</div>
+                  <div class="sym-btn" onclick="togSym(this)">Pérdida potencia</div>
+                  <div class="sym-btn" onclick="togSym(this)">Mayor consumo</div>
+                  <div class="sym-btn" onclick="togSym(this)">Arranque difícil</div>
+                  <div class="sym-btn" onclick="togSym(this)">Sobrecalentamiento</div>
+                  <div class="sym-btn" onclick="togSym(this)">Vibra al frenar</div>
+                  <div class="sym-btn" onclick="togSym(this)">Falla marcha</div>
+                  <div class="sym-btn" onclick="togSym(this)">Olor combustible</div>
+                  <div class="sym-btn" onclick="togSym(this)">Aceite en escape</div>
+                </div>
+              </div>
+            </div>
+            <div class="gcard">
+              <div class="gcard-head"><div class="gcard-title">Datos scanner</div><span class="gcard-tag">Opcional</span></div>
+              <div class="gcard-body">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+                  <div class="field"><label class="flbl">FT Corto</label><input class="finput" id="ftc" placeholder="+18%"></div>
+                  <div class="field"><label class="flbl">FT Largo</label><input class="finput" id="ftl" placeholder="+22%"></div>
+                  <div class="field"><label class="flbl">O2 B1S1</label><input class="finput" id="o2v" placeholder="0.89V"></div>
+                  <div class="field"><label class="flbl">MAF V</label><input class="finput" id="mafv" placeholder="0.9V"></div>
+                </div>
+                <div style="display:flex;gap:8px">
+                  <div class="field"><label class="flbl">Marca</label><select class="fsel" id="symBrand"><option>Universal</option><option>Toyota</option><option>Honda</option><option>Ford</option><option>Volkswagen</option><option>BMW</option><option>Nissan</option><option>Renault</option></select></div>
+                  <div class="field" style="flex:1"><label class="flbl">Modelo / Año</label><input class="finput" id="symModel" placeholder="Corolla 2019"></div>
+                </div>
+                <button class="btn btn-blue" onclick="analyzeSymptoms()" style="margin-top:10px;width:100%">⚡ Identificar DTCs</button>
+              </div>
+            </div>
+          </div>
+          <div class="gcard">
+            <div class="gcard-head"><div class="gcard-title">Resultado IA</div></div>
+            <div class="gcard-body" id="symResult" style="font-size:11px;color:var(--t2);min-height:160px">Seleccioná síntomas y presioná Identificar.</div>
+          </div>
         </div>
       </div>
-    </div>
 
-    <!-- Right: DB search + info -->
-    <div style="display:flex;flex-direction:column;gap:12px">
-      <div class="gcard">
-        <div class="gcard-head"><div class="gcard-title">Buscar en base DTC</div><span class="gcard-tag">Base técnica local</span></div>
-        <div class="gcard-body">
-          <input class="finput" id="dtcSearchInput" placeholder="Buscar código o síntoma..." oninput="searchDTCDB(this.value)" style="margin-bottom:10px">
-          <div id="dtcSearchResults" style="display:flex;flex-direction:column;gap:5px;max-height:300px;overflow-y:auto">
-            <div style="font-size:10px;color:var(--t3);text-align:center;padding:10px">Escribí para buscar</div>
+      <!-- ESCANEO -->
+      <div id="view-scan" class="view">
+        <div class="stitle">Escaneo OBD-II</div>
+        <div class="help-banner" id="help-scan">
+          <span class="help-icon">🔌</span>
+          <div class="help-content">
+            <div class="help-title">Conectá el adaptador ELM327 WiFi al puerto OBD del auto</div>
+            <div class="help-text">Puerto OBD-II está debajo del volante. Conectate a la red WiFi del adaptador, luego presioná Iniciar.</div>
+            <div class="help-tips">
+              <span class="help-tip" onclick="askAssistant('¿Qué adaptador OBD-II me recomendás comprar en Argentina?')">Qué adaptador</span>
+              <span class="help-tip" onclick="askAssistant('¿Qué es el freeze frame?')">Freeze Frame</span>
+            </div>
+          </div>
+          <button class="help-dismiss" onclick="dismissHelp('scan')">✕</button>
+        </div>
+        <div class="scan-layout">
+          <div class="gcard" style="display:flex;flex-direction:column">
+            <div class="scan-hud">
+              <div class="hud-ring">
+                <svg viewBox="0 0 150 150">
+                  <g class="ring-a"><circle cx="75" cy="75" r="68" fill="none" stroke="rgba(59,130,246,.12)" stroke-width="1" stroke-dasharray="5 4"/></g>
+                  <g class="ring-b"><circle cx="75" cy="75" r="56" fill="none" stroke="rgba(34,211,238,.15)" stroke-width="1.5" stroke-dasharray="3 7"/></g>
+                  <circle id="progCircle" cx="75" cy="75" r="68" fill="none" stroke="url(#pg)" stroke-width="3" stroke-dasharray="427" stroke-dashoffset="427" stroke-linecap="round" style="transform:rotate(-90deg);transform-origin:75px 75px;transition:stroke-dashoffset .2s"/>
+                  <defs><linearGradient id="pg" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#3b82f6"/><stop offset="100%" stop-color="#22d3ee"/></linearGradient></defs>
+                </svg>
+                <div class="hud-center"><div class="hud-icon" id="hudIcon">⚙</div><div class="hud-pct" id="hudPct" style="display:none">0%</div></div>
+              </div>
+              <div class="proto-grid">
+                <div class="proto-card sel" onclick="selProto(this)"><div class="proto-icon">📡</div><div class="proto-name">OBD-II WiFi</div></div>
+                <div class="proto-card" onclick="selProto(this)"><div class="proto-icon">🔵</div><div class="proto-name">CAN Bus</div></div>
+                <div class="proto-card" onclick="selProto(this)"><div class="proto-icon">📄</div><div class="proto-name">Importar</div></div>
+              </div>
+              <div style="font-family:var(--syne);font-size:16px;font-weight:700;margin-bottom:5px" id="scanTitle">Diagnóstico</div>
+              <div style="font-size:11px;color:var(--t2);margin-bottom:18px" id="scanSub">Seleccioná protocolo e iniciá</div>
+              <button class="btn btn-blue" id="scanBtn" onclick="runScan()" style="font-size:14px;padding:13px 36px">⚡ Iniciar escaneo</button>
+            </div>
+          </div>
+          <div class="log-panel"><div class="log-head">Registro de escaneo</div><div class="log-body" id="scanLog"><div class="ll"><span class="lts">[--:--:--]</span><span class="linfo">Sistema listo...</span></div></div></div>
+        </div>
+      </div>
+
+      <!-- TALLER -->
+      <div id="view-workshop" class="view">
+        <div class="stitle">Taller <span class="stitle-sub">CRM KANBAN</span></div>
+        <div class="help-banner" id="help-workshop">
+          <span class="help-icon">🔧</span>
+          <div class="help-content">
+            <div class="help-title">Gestión de trabajos — arrastrar para avanzar estado</div>
+            <div class="help-text">Click en una tarjeta para avanzarla: Diagnóstico → Reparación → Completado. Confirmá la resolución al terminar para que la plataforma aprenda.</div>
+            <div class="help-tips"><span class="help-tip" onclick="askAssistant('¿Por qué es importante confirmar la resolución al terminar un trabajo?')">Por qué confirmar</span></div>
+          </div>
+          <button class="help-dismiss" onclick="dismissHelp('workshop')">✕</button>
+        </div>
+        <div style="display:flex;gap:8px;flex-shrink:0;margin-bottom:4px">
+          <button class="btn btn-blue" onclick="openModal('modal-addjob')">＋ Nuevo trabajo</button>
+          <input class="finput" id="wsSearch" placeholder="Buscar auto o mecánico..." oninput="filterJobs(this.value)" style="max-width:220px">
+        </div>
+        <div class="ws-board">
+          <div class="ws-col"><div class="ws-col-head diag"><span>Diagnóstico</span><span id="cnt-diag" style="font-family:var(--mono);font-size:10px">0</span></div><div class="ws-col-body" id="col-diag"></div></div>
+          <div class="ws-col"><div class="ws-col-head repair"><span>Reparación</span><span id="cnt-repair" style="font-family:var(--mono);font-size:10px">0</span></div><div class="ws-col-body" id="col-repair"></div></div>
+          <div class="ws-col"><div class="ws-col-head done"><span>Completado</span><span id="cnt-done" style="font-family:var(--mono);font-size:10px">0</span></div><div class="ws-col-body" id="col-done"></div></div>
+        </div>
+      </div>
+
+      <!-- IA RESEARCH -->
+      <div id="view-research" class="view">
+        <div class="stitle">IA Research <span class="stitle-sub">FUENTES TÉCNICAS EN TIEMPO REAL</span></div>
+        <div class="help-banner" id="help-research">
+          <span class="help-icon">⚡</span>
+          <div class="help-content">
+            <div class="help-title">Investigación técnica con IA + búsqueda web en tiempo real</div>
+            <div class="help-text">Ingresá el código DTC y los datos del scanner. La IA busca en bases técnicas, foros y TSBs. Devuelve causas, pasos de diagnóstico y precios para Argentina.</div>
+            <div class="help-tips">
+              <span class="help-tip" onclick="quickR('P0171','Toyota','Corolla 2019','tembla','+18%')">Probar P0171</span>
+              <span class="help-tip" onclick="askAssistant('¿Cómo mejoro la precisión de IA Research con datos del scanner?')">Mejorar precisión</span>
+            </div>
+          </div>
+          <button class="help-dismiss" onclick="dismissHelp('research')">✕</button>
+        </div>
+        <div class="ai-layout">
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div class="gcard">
+              <div class="gcard-head"><div class="gcard-title">Parámetros</div><span class="gcard-tag">Web Search activo</span></div>
+              <div class="gcard-body">
+                <div style="display:grid;grid-template-columns:100px 1fr 1fr;gap:8px;margin-bottom:8px">
+                  <div class="field"><label class="flbl">Código</label><input class="finput" id="rCode" placeholder="P0171" oninput="this.value=this.value.toUpperCase()"></div>
+                  <div class="field"><label class="flbl">Marca</label><select class="fsel" id="rBrand"><option value="">Universal</option><option>Toyota</option><option>Honda</option><option>Ford</option><option>Chevrolet</option><option>Volkswagen</option><option>BMW</option><option>Mercedes-Benz</option><option>Nissan</option><option>Hyundai</option><option>Renault</option><option>Peugeot</option><option>Fiat</option></select></div>
+                  <div class="field"><label class="flbl">Modelo / Año</label><input class="finput" id="rModel" placeholder="Corolla 2019"></div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+                  <div class="field"><label class="flbl">Síntomas</label><input class="finput" id="rSym" placeholder="tembla, consume más..."></div>
+                  <div class="field"><label class="flbl">Datos scanner</label><input class="finput" id="rScanner" placeholder="+18% FT, 0.9V MAF..."></div>
+                </div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                  <button class="btn btn-blue" id="rBtn" onclick="runResearch()">⚡ Investigar</button>
+                  <button class="btn btn-ghost" onclick="quickR('P0171','Toyota','Corolla 2019','tembla','+18% FT')">P0171 Toyota</button>
+                  <button class="btn btn-ghost" onclick="quickR('P0420','Honda','Civic 2018','','')">P0420 Honda</button>
+                  <button class="btn btn-ghost" onclick="quickR('P0300','Ford','F-150 2021','falla enc.','')">P0300 Ford</button>
+                </div>
+              </div>
+            </div>
+            <div id="rResults" style="display:flex;flex-direction:column;justify-content:center;align-items:center;font-size:12px;color:var(--t3);min-height:120px;gap:8px">
+              <span style="font-size:28px;opacity:.15">🔍</span>Ingresá un código y presioná Investigar
+            </div>
+          </div>
+          <div class="chat-wrap">
+            <div class="gcard-head" style="border-radius:0;padding:11px 14px"><div class="gcard-title">Asistente técnico</div></div>
+            <div class="chat-msgs" id="chatMsgs">
+              <div class="msg"><div class="mavatar ai">AI</div><div class="mbub ai">Consultame sobre cualquier DTC, síntoma o diagnóstico. Tengo datos del mercado argentino.</div></div>
+            </div>
+            <div class="chat-input-row">
+              <input class="chat-in" id="chatIn" type="text" placeholder="¿Qué significa P0171?" onkeypress="if(event.key==='Enter')sendChat()">
+              <button class="btn btn-blue" onclick="sendChat()" style="padding:8px 14px;font-size:11px">Enviar</button>
+            </div>
           </div>
         </div>
       </div>
-      <div class="gcard">
-        <div class="gcard-head"><div class="gcard-title">De dónde viene la info</div></div>
-        <div class="gcard-body" style="font-size:11px;color:var(--t2);line-height:1.8;display:flex;flex-direction:column;gap:8px">
-          <div style="padding:8px 10px;border-radius:8px;border-left:2px solid var(--grn);background:rgba(52,211,153,0.04)">
-            <strong style="color:var(--grn);font-size:10px;font-family:var(--mono)">BASE LOCAL</strong><br>
-            Datos técnicos importados de SAE J2012 e ISO 15031-6. Causas, parámetros, hints de freeze frame y costos LATAM guardados en PostgreSQL.
+
+      <!-- APRENDIZAJE -->
+      <div id="view-learning" class="view">
+        <div class="stitle">Aprendizaje <span class="stitle-sub">BASE DE CONOCIMIENTO COLECTIVO</span></div>
+        <div class="help-banner" id="help-learning">
+          <span class="help-icon">🧬</span>
+          <div class="help-content">
+            <div class="help-title">Cada caso resuelto mejora los diagnósticos futuros</div>
+            <div class="help-text">Al confirmar resoluciones, la plataforma aprende qué causa es más frecuente por código y modelo en Argentina. Más datos = diagnósticos más precisos para todos.</div>
+            <div class="help-tips"><span class="help-tip" onclick="askAssistant('¿Cómo funciona el sistema de aprendizaje de AutoDiag Pro?')">Cómo aprende</span></div>
           </div>
-          <div style="padding:8px 10px;border-radius:8px;border-left:2px solid var(--blue2);background:rgba(59,130,246,0.04)">
-            <strong style="color:var(--blue2);font-size:10px;font-family:var(--mono)">DATOS SCANNER</strong><br>
-            Los valores reales del scanner (fuel trim, O2, MAF, etc.) se combinan con la base técnica para diagnóstico diferencial preciso.
+          <button class="help-dismiss" onclick="dismissHelp('learning')">✕</button>
+        </div>
+        <div class="g3">
+          <div class="metric m-blue" style="min-height:auto"><div class="metric-bg"></div><div class="metric-glow"></div><div class="metric-c"><div class="m-lbl">Casos confirmados</div><div class="m-val" id="totalCases">0</div><div class="m-sub">Base de conocimiento</div></div></div>
+          <div class="gcard" style="padding:14px"><div class="gcard-title" style="margin-bottom:10px">Más frecuentes</div><div id="topCodes"><div style="font-size:10px;color:var(--t3)">Sin datos aún</div></div></div>
+          <div class="gcard" style="padding:14px"><div class="gcard-title" style="margin-bottom:10px">Causas más comunes</div><div id="topCauses"><div style="font-size:10px;color:var(--t3)">Sin datos aún</div></div></div>
+        </div>
+        <div class="g2">
+          <div class="gcard">
+            <div class="gcard-head"><div class="gcard-title">Resoluciones confirmadas</div><span class="gcard-tag">Comunidad</span></div>
+            <div class="gcard-body" id="learnList" style="display:flex;flex-direction:column;gap:5px"><div style="font-size:11px;color:var(--t3);text-align:center;padding:14px">Confirmá resoluciones desde cada DTC</div></div>
           </div>
-          <div style="padding:8px 10px;border-radius:8px;border-left:2px solid var(--mag);background:rgba(167,139,250,0.04)">
-            <strong style="color:var(--mag);font-size:10px;font-family:var(--mono)">COMUNIDAD</strong><br>
-            Resoluciones confirmadas por mecánicos. Cada resolución que confirmás en esta plataforma mejora el diagnóstico de todos.
-          </div>
-          <div style="padding:8px 10px;border-radius:8px;border-left:2px solid var(--ora);background:rgba(251,146,60,0.04)">
-            <strong style="color:var(--ora);font-size:10px;font-family:var(--mono)">IA + WEB SEARCH</strong><br>
-            Claude busca en tiempo real en bases técnicas: obd-codes.com, foros de mecánicos, TSB oficiales y precios de repuestos en Argentina.
+          <div class="gcard">
+            <div class="gcard-head"><div class="gcard-title">Agregar resolución</div></div>
+            <div class="gcard-body" style="display:flex;flex-direction:column;gap:10px">
+              <div class="field"><label class="flbl">Código DTC</label><input class="finput" id="lCode" placeholder="P0171" oninput="this.value=this.value.toUpperCase()"></div>
+              <div class="field"><label class="flbl">Vehículo</label><input class="finput" id="lVeh" placeholder="Toyota Corolla 2019"></div>
+              <div class="field"><label class="flbl">Causa y solución</label><input class="finput" id="lCause" placeholder="MAF sucio — limpieza spray"></div>
+              <div class="field"><label class="flbl">Costo real (USD)</label><input class="finput" id="lCost" placeholder="15" type="number"></div>
+              <button class="btn btn-blue" onclick="addLearning()" style="width:100%">⚡ Confirmar y guardar</button>
+            </div>
           </div>
         </div>
       </div>
+
+      <!-- DIAGNÓSTICO IA -->
+      <div id="view-diagnostico" class="view">
+        <div class="stitle">Diagnóstico IA <span class="stitle-sub">DIFERENCIAL CON DATOS REALES</span></div>
+        <div class="help-banner" id="help-diagnostico">
+          <span class="help-icon">🧠</span>
+          <div class="help-content">
+            <div class="help-title">La herramienta más poderosa — diagnóstico con datos reales del scanner</div>
+            <div class="help-text">Combina base técnica local + valores del scanner + historial de la comunidad. Causas ordenadas por probabilidad con evidencia específica. Usá "Cargar datos live".</div>
+            <div class="help-tips">
+              <span class="help-tip" onclick="loadFromLiveData()">Cargar datos live</span>
+              <span class="help-tip" onclick="askAssistant('¿Qué es el diagnóstico diferencial automotriz y cómo se usa?')">Qué es</span>
+            </div>
+          </div>
+          <button class="help-dismiss" onclick="dismissHelp('diagnostico')">✕</button>
+        </div>
+        <div class="g2s" style="align-items:start">
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div class="gcard">
+              <div class="gcard-head"><div class="gcard-title">Datos del scanner</div></div>
+              <div class="gcard-body">
+                <div style="display:grid;grid-template-columns:100px 1fr 1fr;gap:8px;margin-bottom:8px">
+                  <div class="field"><label class="flbl">Código DTC</label><input class="finput" id="ddCode" placeholder="P0171" oninput="this.value=this.value.toUpperCase();searchLocalDTC(this.value)"></div>
+                  <div class="field"><label class="flbl">Marca</label><select class="fsel" id="ddBrand"><option value="">Universal</option><option>Toyota</option><option>Honda</option><option>Ford</option><option>Volkswagen</option><option>BMW</option><option>Nissan</option><option>Renault</option><option>Fiat</option></select></div>
+                  <div class="field"><label class="flbl">Modelo / Año</label><input class="finput" id="ddModel" placeholder="Corolla 2019"></div>
+                </div>
+                <div id="localDTCPreview" style="display:none;margin-bottom:10px"></div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+                  <div class="field"><label class="flbl">RPM</label><input class="finput" id="dd-rpm" placeholder="750" type="number"></div>
+                  <div class="field"><label class="flbl">Temp °C</label><input class="finput" id="dd-temp" placeholder="87" type="number"></div>
+                  <div class="field"><label class="flbl">FT Corto %</label><input class="finput" id="dd-ftc" placeholder="+16"></div>
+                  <div class="field"><label class="flbl">FT Largo %</label><input class="finput" id="dd-ftl" placeholder="+22"></div>
+                  <div class="field"><label class="flbl">O2 B1S1 V</label><input class="finput" id="dd-o2" placeholder="0.89"></div>
+                  <div class="field"><label class="flbl">MAF g/s</label><input class="finput" id="dd-maf" placeholder="1.8"></div>
+                  <div class="field"><label class="flbl">MAP kPa</label><input class="finput" id="dd-map" placeholder="45"></div>
+                  <div class="field"><label class="flbl">Carga %</label><input class="finput" id="dd-load" placeholder="22"></div>
+                </div>
+                <div style="display:flex;gap:7px;flex-wrap:wrap">
+                  <button class="btn btn-blue" onclick="runDifferentialDiagnosis()" id="ddBtn">⚡ Diagnóstico diferencial</button>
+                  <button class="btn btn-ghost" onclick="loadFromLiveData()">↓ Cargar live</button>
+                </div>
+              </div>
+            </div>
+            <div id="diagResults"><div style="text-align:center;padding:28px;font-size:12px;color:var(--t3)">Ingresá código y valores del scanner para diagnóstico diferencial preciso.</div></div>
+          </div>
+          <div class="gcard">
+            <div class="gcard-head"><div class="gcard-title">Base DTC local</div><span class="gcard-tag">Sin API</span></div>
+            <div class="gcard-body">
+              <input class="finput" id="dtcSearchInput" placeholder="Buscar código o síntoma..." oninput="searchDTCDB(this.value)" style="margin-bottom:10px">
+              <div id="dtcSearchResults" style="max-height:280px;overflow-y:auto"><div style="font-size:10px;color:var(--t3);text-align:center;padding:10px">Escribí para buscar</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FICHA TÉCNICA -->
+      <div id="view-ficha" class="view">
+        <div class="stitle">Ficha Técnica <span class="stitle-sub">PERFIL GENERADO CON IA</span></div>
+        <div class="help-banner" id="help-ficha">
+          <span class="help-icon">📋</span>
+          <div class="help-content">
+            <div class="help-title">Perfil técnico completo del vehículo — generado automáticamente</div>
+            <div class="help-text">Al seleccionar un vehículo nuevo la IA busca problemas conocidos del modelo, plan de mantenimiento, especificaciones y precios en Argentina.</div>
+            <div class="help-tips"><span class="help-tip" onclick="askAssistant('¿Cuáles son los problemas más comunes de Toyota Corolla en Argentina?')">Toyota Corolla AR</span></div>
+          </div>
+          <button class="help-dismiss" onclick="dismissHelp('ficha')">✕</button>
+        </div>
+        <div id="fichaContent">
+          <div class="gen-overlay">
+            <span style="font-size:40px;opacity:.2">🚗</span>
+            <div style="font-size:12px;color:var(--t3)">Seleccioná un vehículo del sidebar para ver su ficha técnica</div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+
+  <!-- BOTTOM NAV -->
+  <div class="bnav" id="bnav">
+    <div class="bnav-inner">
+      <button class="bnav-item active" onclick="goBNav('dashboard',this,'Dashboard')" id="bnav-dashboard"><span class="bnav-icon">📊</span><span class="bnav-lbl">Dashboard</span></button>
+      <button class="bnav-item" onclick="goBNav('scan',this,'Escaneo')" id="bnav-scan"><span class="bnav-icon">🔌</span><span class="bnav-lbl">Escaneo</span></button>
+      <button class="bnav-item" onclick="goBNav('diagnostico',this,'Diagnóstico')" id="bnav-diagnostico"><span class="bnav-icon">🧠</span><span class="bnav-lbl">Diagnóstico</span></button>
+      <button class="bnav-item" onclick="goBNav('research',this,'IA Research')" id="bnav-research"><span class="bnav-icon">⚡</span><span class="bnav-lbl">IA</span></button>
+      <button class="bnav-item" onclick="goBNav('workshop',this,'Taller')" id="bnav-workshop"><span class="bnav-icon">🔧</span><span class="bnav-lbl">Taller</span></button>
+      <button class="bnav-item" onclick="toggleSidebar()" id="bnav-more"><span class="bnav-icon">⋯</span><span class="bnav-lbl">Más</span></button>
     </div>
   </div>
-</div>
 
-<!-- FICHA TECNICA -->
-<div id="view-ficha" class="view">
-  <div class="stitle">Ficha Técnica <span class="stitle-sub">PERFIL COMPLETO DEL VEHÍCULO</span></div>
-  <div class="help-banner" id="help-ficha">
-  <span class="help-icon">📋</span>
-  <div class="help-content">
-    <div class="help-title">Ficha Técnica — Perfil completo del vehículo generado con IA</div>
-    <div class="help-text">Cuando agregás un vehículo nuevo, la IA busca automáticamente información técnica específica de ese modelo: problemas conocidos, plan de mantenimiento, especificaciones de aceite/neumáticos, y notas del mercado argentino (disponibilidad y precios de repuestos). Se actualiza con cada escaneo que hacés.</div>
-    <div class="help-tips">
-      <span class="help-tip" onclick="askAssistant('¿Cuáles son los problemas más frecuentes de Toyota Corolla en Argentina?')">Toyota Corolla AR</span>
-      <span class="help-tip" onclick="askAssistant('¿Cada cuánto km se cambia el aceite en un auto moderno?')">Plan de mantenimiento</span>
-    </div>
-  </div>
-  <button class="help-dismiss" onclick="dismissHelp('ficha')">✕</button>
-</div>
-  <div id="fichaContent">
-    <div class="no-vehicle-msg">
-      <span style="font-size:40px;opacity:0.2">🚗</span>
-      <div>Seleccioná un vehículo del sidebar para ver su ficha técnica</div>
-      <div style="font-size:10px;color:var(--t3)">La ficha se genera automáticamente con IA al seleccionar un vehículo nuevo</div>
-    </div>
-  </div>
-</div>
+</div><!-- /app -->
 
-</div><!-- /content -->
-</div><!-- /body -->
-
-<!-- BOTTOM NAV — Mobile & Tablet -->
-<nav class="bottom-nav" id="bottomNav">
-  <button class="bnav-item active" onclick="goBNav('dashboard',this,'Dashboard')" id="bnav-dashboard">
-    <span class="bnav-icon">📊</span>
-    <span class="bnav-label">Dashboard</span>
-  </button>
-  <button class="bnav-item" onclick="goBNav('scan',this,'Escaneo')" id="bnav-scan">
-    <span class="bnav-icon">🔌</span>
-    <span class="bnav-label">Escaneo</span>
-  </button>
-  <button class="bnav-item" onclick="goBNav('diagnostico',this,'Diagnóstico')" id="bnav-diagnostico">
-    <span class="bnav-icon">🧠</span>
-    <span class="bnav-label">Diagnóstico</span>
-  </button>
-  <button class="bnav-item" onclick="goBNav('research',this,'IA Research')" id="bnav-research">
-    <span class="bnav-icon">⚡</span>
-    <span class="bnav-label">IA</span>
-  </button>
-  <button class="bnav-item" onclick="goBNav('workshop',this,'Taller')" id="bnav-workshop">
-    <span class="bnav-icon">🔧</span>
-    <span class="bnav-label">Taller</span>
-  </button>
-  <button class="bnav-item" onclick="toggleSidebar()" id="bnav-more">
-    <span class="bnav-icon">⋯</span>
-    <span class="bnav-label">Más</span>
-  </button>
-</nav>
-
-
-<!-- ═══ FLOATING ASSISTANT ═══ -->
+<!-- FLOATING ASSISTANT -->
 <button class="fab" id="fab" onclick="toggleAssistant()" title="Asistente IA">
-  🤖
-  <div class="fab-badge" id="fabBadge"></div>
+  🤖<div class="fab-badge" id="fabBadge"></div>
 </button>
 
-<div class="assistant-panel" id="assistantPanel">
+<div class="ap" id="assistantPanel">
   <div class="ap-head">
-    <div class="ap-avatar">🤖</div>
-    <div>
-      <div class="ap-name">Asistente AutoDiag</div>
-      <div class="ap-status">Activo · Con contexto del vehículo</div>
-    </div>
+    <div class="ap-av">🤖</div>
+    <div><div class="ap-name">Asistente AutoDiag</div><div class="ap-status">Activo · Con contexto</div></div>
     <button class="ap-close" onclick="toggleAssistant()">✕</button>
   </div>
   <div class="ap-msgs" id="apMsgs">
     <div class="ap-msg">
-      <div class="ap-avatar" style="width:24px;height:24px;border-radius:8px;font-size:12px;flex-shrink:0">🤖</div>
-      <div class="ap-bubble ai">Hola. Soy tu asistente de diagnóstico. Tengo acceso al vehículo activo, los DTCs detectados y los datos del scanner. ¿Qué necesitás?</div>
+      <div class="ap-av" style="width:24px;height:24px;border-radius:7px;font-size:12px;flex-shrink:0">🤖</div>
+      <div class="ap-bubble ai">Hola. Tengo acceso al vehículo activo, DTCs y datos del scanner. ¿Qué necesitás?</div>
     </div>
   </div>
-  <div class="ap-suggestions" id="apSuggestions">
-    <div class="ap-chip" onclick="askAssistant('¿Cuál es el primer paso para diagnosticar los DTCs activos?')">¿Por dónde empiezo?</div>
+  <div class="ap-chips" id="apSuggestions">
+    <div class="ap-chip" onclick="askAssistant('¿Por dónde empiezo con los DTCs activos?')">¿Por dónde empiezo?</div>
     <div class="ap-chip" onclick="askAssistant('¿Qué herramientas necesito para este diagnóstico?')">Herramientas</div>
-    <div class="ap-chip" onclick="askAssistant('Explicame en detalle el código DTC más crítico activo')">Explicar DTC</div>
     <div class="ap-chip" onclick="askAssistant('¿Cuánto puede costar la reparación en Argentina?')">Costos AR</div>
   </div>
   <div class="ap-input-row">
-    <input class="ap-input" id="apInput" placeholder="Preguntame sobre el diagnóstico..." onkeypress="if(event.key==='Enter')sendToAssistant()">
+    <input class="ap-in" id="apInput" placeholder="Preguntame sobre el diagnóstico..." onkeypress="if(event.key==='Enter')sendToAssistant()">
     <button class="ap-send" onclick="sendToAssistant()">↑</button>
   </div>
 </div>
-
-</div><!-- /shell -->
 
 <!-- MODALS -->
 <div class="modal-bg" id="modal-addveh">
   <div class="modal">
     <div class="modal-head"><span>Agregar vehículo</span><button class="modal-close" onclick="closeModal('modal-addveh')">✕</button></div>
     <div class="modal-body">
-      <div class="mrow"><div class="field"><label class="flbl">Marca</label><input class="finput" id="av-brand" placeholder="Toyota"></div><div class="field"><label class="flbl">Modelo</label><input class="finput" id="av-model" placeholder="Corolla"></div></div>
-      <div class="mrow"><div class="field"><label class="flbl">Año</label><input class="finput" id="av-year" placeholder="2019" type="number"></div><div class="field"><label class="flbl">Motor</label><input class="finput" id="av-engine" placeholder="1.8L"></div></div>
+      <div class="mrow">
+        <div class="field"><label class="flbl">Marca</label><input class="finput" id="av-brand" placeholder="Toyota" autocomplete="off"></div>
+        <div class="field"><label class="flbl">Modelo</label><input class="finput" id="av-model" placeholder="Corolla" autocomplete="off"></div>
+      </div>
+      <div class="mrow">
+        <div class="field"><label class="flbl">Año</label><input class="finput" id="av-year" placeholder="2019" type="number"></div>
+        <div class="field"><label class="flbl">Motor</label><input class="finput" id="av-engine" placeholder="1.8L" autocomplete="off"></div>
+      </div>
       <div class="field"><label class="flbl">VIN (opcional)</label><input class="finput" id="av-vin" placeholder="1NXBR12E6YZ348201" style="text-transform:uppercase"></div>
-      <div class="field"><label class="flbl">Propietario / Cliente</label><input class="finput" id="av-owner" placeholder="Nombre del cliente"></div>
-      <button class="btn btn-blue" onclick="saveVehicle()" style="width:100%;justify-content:center">Guardar vehículo</button>
+      <div class="field"><label class="flbl">Propietario / Cliente</label><input class="finput" id="av-owner" placeholder="Nombre del cliente" autocomplete="off"></div>
+      <button class="btn btn-blue" onclick="saveVehicle()" style="width:100%;justify-content:center;margin-top:4px">Guardar vehículo</button>
     </div>
   </div>
 </div>
+
 <div class="modal-bg" id="modal-addjob">
   <div class="modal">
     <div class="modal-head"><span>Nuevo trabajo</span><button class="modal-close" onclick="closeModal('modal-addjob')">✕</button></div>
     <div class="modal-body">
-      <div class="mrow"><div class="field"><label class="flbl">Vehículo</label><input class="finput" id="j-car" placeholder="Toyota Corolla 2019"></div><div class="field"><label class="flbl">Mecánico</label><input class="finput" id="j-mec" placeholder="Nombre"></div></div>
-      <div class="field"><label class="flbl">Códigos DTC (separados por coma)</label><input class="finput" id="j-dtcs" placeholder="P0171, P0420"></div>
+      <div class="mrow">
+        <div class="field"><label class="flbl">Vehículo</label><input class="finput" id="j-car" placeholder="Toyota Corolla 2019"></div>
+        <div class="field"><label class="flbl">Mecánico</label><input class="finput" id="j-mec" placeholder="Nombre"></div>
+      </div>
+      <div class="field"><label class="flbl">Códigos DTC</label><input class="finput" id="j-dtcs" placeholder="P0171, P0420"></div>
       <div class="field"><label class="flbl">Descripción</label><input class="finput" id="j-desc" placeholder="Observaciones"></div>
-      <div class="field"><label class="flbl">Estado</label><select class="fselect" id="j-status"><option value="diag">En diagnóstico</option><option value="repair">En reparación</option><option value="done">Completado</option></select></div>
-      <button class="btn btn-blue" onclick="saveJob()" style="width:100%;justify-content:center">Guardar trabajo</button>
+      <div class="field"><label class="flbl">Estado</label><select class="fsel" id="j-status"><option value="diag">En diagnóstico</option><option value="repair">En reparación</option><option value="done">Completado</option></select></div>
+      <button class="btn btn-blue" onclick="saveJob()" style="width:100%;justify-content:center;margin-top:4px">Guardar trabajo</button>
     </div>
   </div>
 </div>
+
 <div class="modal-bg" id="modal-pdf">
-  <div class="modal" style="width:580px">
+  <div class="modal" style="max-width:560px">
     <div class="modal-head"><span>Reporte PDF</span><button class="modal-close" onclick="closeModal('modal-pdf')">✕</button></div>
     <div class="modal-body">
       <div id="pdfPreviewContent" class="pdf-preview"></div>
-      <button class="btn btn-blue" onclick="downloadPDF()" style="width:100%;justify-content:center">↓ Descargar PDF</button>
+      <button class="btn btn-blue" onclick="downloadPDF()" style="width:100%;justify-content:center;margin-top:4px">↓ Descargar PDF</button>
     </div>
   </div>
 </div>
@@ -1577,6 +1650,7 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
 <div class="notif" id="notif"></div>
 
 <script>
+
 // ── GLOBALS ──
 let authToken = localStorage.getItem('autodiag_token');
 let currentUser = JSON.parse(localStorage.getItem('autodiag_user')||'null');
@@ -3233,6 +3307,60 @@ function renderFicha(p, vData) {
 
 // ── MODALS ──
 document.querySelectorAll('.modal-bg').forEach(bg=>bg.addEventListener('click',e=>{if(e.target===bg)bg.classList.remove('open');}));
+
+// ── PWA ──────────────────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(()=>{}));
+}
+
+// Splash hide
+setTimeout(() => {
+  const s = document.getElementById('splash');
+  if (s) { s.classList.add('gone'); setTimeout(()=>s.remove(), 500); }
+}, 1200);
+
+// Install prompt
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault(); deferredPrompt = e;
+  setTimeout(() => {
+    if (!localStorage.getItem('pwa_dismissed')) {
+      document.getElementById('installBanner').classList.add('show');
+    }
+  }, 4000);
+});
+async function installPWA() {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  const { outcome } = await deferredPrompt.userChoice;
+  if (outcome === 'accepted') { localStorage.setItem('pwa_dismissed','1'); }
+  document.getElementById('installBanner').classList.remove('show');
+  deferredPrompt = null;
+}
+window.addEventListener('appinstalled', () => { localStorage.setItem('pwa_dismissed','1'); showNotif('✓ App instalada','success'); });
+
+// Fix sidebar close button visibility on mobile
+function _updateSidebarCloseBtn() {
+  const btn = document.getElementById('sbClose');
+  if (!btn) return;
+  const isMobile = window.innerWidth <= 1024;
+  btn.style.display = isMobile ? 'flex' : 'none';
+}
+window.addEventListener('resize', _updateSidebarCloseBtn);
+_updateSidebarCloseBtn();
+
+// Wake lock during scan
+let _wakeLock = null;
+async function _requestWakeLock() {
+  try { if ('wakeLock' in navigator) _wakeLock = await navigator.wakeLock.request('screen'); } catch(e) {}
+}
+async function _releaseWakeLock() {
+  try { if (_wakeLock) { await _wakeLock.release(); _wakeLock = null; } } catch(e) {}
+}
+const _origRunScan = window.runScan;
+if (typeof _origRunScan === 'function') {
+  window.runScan = async function() { await _requestWakeLock(); _origRunScan(); setTimeout(_releaseWakeLock, 15000); };
+}
 </script>
 </body>
 </html>
