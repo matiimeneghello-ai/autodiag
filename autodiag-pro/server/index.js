@@ -648,6 +648,137 @@ app.post('/api/assistant/ask', async (req,res) => {
     res.json({ok:true, data:{ response, tokens: data.usage }});
   } catch(e) { res.status(500).json({ok:false,error:e.message}); }
 });
+
+// ── NHTSA — Recalls, complaints y ratings oficiales del gobierno EEUU ──────
+app.get('/api/nhtsa/recalls', async (req, res) => {
+  const { make, model, year } = req.query;
+  if (!make || !model || !year) return res.status(400).json({ ok: false, error: 'make, model y year requeridos' });
+  try {
+    const fetch = require('node-fetch');
+    // Normalize: NHTSA needs English names and specific formatting
+    const makeEnc  = encodeURIComponent(make.trim());
+    const modelEnc = encodeURIComponent(model.trim());
+    const yearEnc  = encodeURIComponent(year.toString().trim());
+    
+    const url = `https://api.nhtsa.dot.gov/recalls/recallsByVehicle?make=${makeEnc}&model=${modelEnc}&modelYear=${yearEnc}`;
+    const r = await fetch(url, { timeout: 8000 });
+    const data = await r.json();
+    
+    const recalls = (data.results || []).map(rec => ({
+      id:           rec.NHTSACampaignNumber,
+      subject:      rec.Subject,
+      summary:      rec.Summary,
+      consequence:  rec.Consequence,
+      remedy:       rec.Remedy,
+      component:    rec.Component,
+      date:         rec.ReportReceivedDate,
+      manufacturer: rec.Manufacturer,
+      park_it:      rec.ParkIt,
+    }));
+    
+    res.json({ ok: true, count: recalls.length, data: recalls });
+  } catch(e) {
+    console.log('NHTSA recalls error:', e.message);
+    res.json({ ok: true, count: 0, data: [], error: e.message });
+  }
+});
+
+app.get('/api/nhtsa/complaints', async (req, res) => {
+  const { make, model, year } = req.query;
+  if (!make || !model || !year) return res.status(400).json({ ok: false, error: 'Parámetros requeridos' });
+  try {
+    const fetch = require('node-fetch');
+    const url = `https://api.nhtsa.dot.gov/complaints/complaintsByVehicle?make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}&modelYear=${encodeURIComponent(year)}`;
+    const r = await fetch(url, { timeout: 8000 });
+    const data = await r.json();
+    
+    const complaints = (data.results || []).slice(0, 20).map(c => ({
+      id:          c.odiNumber,
+      summary:     c.summary,
+      components:  c.components,
+      crash:       c.crash,
+      fire:        c.fire,
+      injuries:    c.numberOfInjuries,
+      deaths:      c.numberOfDeaths,
+      date:        c.dateOfIncident,
+      date_filed:  c.dateComplaintFiled,
+    }));
+    
+    res.json({ ok: true, count: data.Count || complaints.length, data: complaints });
+  } catch(e) {
+    console.log('NHTSA complaints error:', e.message);
+    res.json({ ok: true, count: 0, data: [], error: e.message });
+  }
+});
+
+app.get('/api/nhtsa/ratings', async (req, res) => {
+  const { make, model, year } = req.query;
+  if (!make || !model || !year) return res.status(400).json({ ok: false, error: 'Parámetros requeridos' });
+  try {
+    const fetch = require('node-fetch');
+    const url = `https://api.nhtsa.dot.gov/SafetyRatings/modelyear/${encodeURIComponent(year)}/make/${encodeURIComponent(make)}/model/${encodeURIComponent(model)}`;
+    const r = await fetch(url, { timeout: 8000 });
+    const data = await r.json();
+    
+    const ratings = (data.Results || []).map(v => ({
+      vehicle_id:       v.VehicleId,
+      vehicle_desc:     v.VehicleDescription,
+      overall_rating:   v.OverallRating,
+      front_crash:      v.OverallFrontCrashRating,
+      side_crash:       v.OverallSideCrashRating,
+      rollover:         v.RolloverRating,
+      front_crash_pct:  v.FrontCrashDriversideRating,
+    }));
+    
+    res.json({ ok: true, count: ratings.length, data: ratings });
+  } catch(e) {
+    res.json({ ok: true, count: 0, data: [], error: e.message });
+  }
+});
+
+// Combined endpoint - fetches recalls + complaints + ratings in parallel
+app.get('/api/nhtsa/full', async (req, res) => {
+  const { make, model, year } = req.query;
+  if (!make || !model || !year) return res.status(400).json({ ok: false, error: 'make, model y year requeridos' });
+  
+  try {
+    const fetch = require('node-fetch');
+    const opts = { timeout: 10000 };
+    
+    const [recallsR, complaintsR, ratingsR] = await Promise.allSettled([
+      fetch(`https://api.nhtsa.dot.gov/recalls/recallsByVehicle?make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}&modelYear=${encodeURIComponent(year)}`, opts).then(r=>r.json()),
+      fetch(`https://api.nhtsa.dot.gov/complaints/complaintsByVehicle?make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}&modelYear=${encodeURIComponent(year)}`, opts).then(r=>r.json()),
+      fetch(`https://api.nhtsa.dot.gov/SafetyRatings/modelyear/${encodeURIComponent(year)}/make/${encodeURIComponent(make)}/model/${encodeURIComponent(model)}`, opts).then(r=>r.json()),
+    ]);
+    
+    const recalls    = recallsR.status === 'fulfilled'    ? (recallsR.value.results || [])     : [];
+    const complaints = complaintsR.status === 'fulfilled' ? (complaintsR.value.results || []).slice(0,15) : [];
+    const ratings    = ratingsR.status === 'fulfilled'    ? (ratingsR.value.Results || [])     : [];
+    
+    res.json({
+      ok: true,
+      make, model, year,
+      recalls: recalls.map(r => ({
+        id: r.NHTSACampaignNumber, subject: r.Subject, summary: r.Summary,
+        consequence: r.Consequence, remedy: r.Remedy, component: r.Component,
+        date: r.ReportReceivedDate, park_it: r.ParkIt,
+      })),
+      complaints: complaints.map(c => ({
+        id: c.odiNumber, summary: c.summary, components: c.components,
+        crash: c.crash, fire: c.fire, injuries: c.numberOfInjuries,
+        deaths: c.numberOfDeaths, date: c.dateOfIncident,
+      })),
+      ratings: ratings.slice(0,3).map(v => ({
+        desc: v.VehicleDescription, overall: v.OverallRating,
+        front: v.OverallFrontCrashRating, side: v.OverallSideCrashRating,
+        rollover: v.RolloverRating,
+      })),
+    });
+  } catch(e) {
+    res.json({ ok: true, recalls: [], complaints: [], ratings: [], error: e.message });
+  }
+});
+
 // SPA fallback
 app.get('*', (req,res) => res.sendFile(path.join(__dirname,'../public/index.html')));
 

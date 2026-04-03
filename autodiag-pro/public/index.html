@@ -1035,6 +1035,80 @@ a, button, [role=button], .btn, .vcard, .dtcrow, .ws-card,
   .g2s { grid-template-columns: 1fr 280px; }
   .ai-layout { grid-template-columns: 1fr 330px; }
 }
+
+/* ── NHTSA — Recalls & Safety ─── */
+.nhtsa-section { margin-top: 16px; }
+.nhtsa-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; border-radius: var(--r);
+  background: rgba(251,191,36,.06); border: 1px solid rgba(251,191,36,.2);
+  margin-bottom: 10px; flex-shrink: 0;
+}
+.nhtsa-logo {
+  font-size: 18px; flex-shrink: 0;
+}
+.nhtsa-title { font-family: var(--syne); font-size: 12px; font-weight: 700; color: var(--yel); }
+.nhtsa-sub { font-size: 9px; color: var(--t2); font-family: var(--mono); margin-top: 2px; }
+
+.recall-card {
+  padding: 12px 14px; border-radius: var(--r);
+  border: 1px solid rgba(248,113,113,.2);
+  background: rgba(248,113,113,.05);
+  margin-bottom: 8px; position: relative;
+}
+.recall-card.park { border-color: rgba(248,113,113,.5); background: rgba(248,113,113,.1); }
+.recall-id { font-family: var(--mono); font-size: 9px; color: var(--t3); margin-bottom: 4px; }
+.recall-subject { font-size: 12px; font-weight: 600; color: var(--red); margin-bottom: 5px; }
+.recall-component { font-size: 9px; font-family: var(--mono); color: var(--yel); margin-bottom: 6px; padding: 2px 7px; background: rgba(251,191,36,.1); border-radius: 5px; display: inline-block; }
+.recall-text { font-size: 11px; color: var(--t2); line-height: 1.6; margin-bottom: 5px; }
+.recall-remedy { font-size: 11px; color: var(--grn); line-height: 1.5; padding: 6px 9px; border-radius: 7px; background: rgba(52,211,153,.06); border: 1px solid rgba(52,211,153,.15); }
+.recall-park-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px; border-radius: 20px; margin-bottom: 7px;
+  background: rgba(248,113,113,.2); color: var(--red);
+  font-size: 9px; font-family: var(--mono); font-weight: 600;
+  border: 1px solid rgba(248,113,113,.4);
+}
+
+.complaint-card {
+  padding: 10px 12px; border-radius: var(--r);
+  border: 1px solid var(--b1); background: rgba(255,255,255,.02);
+  margin-bottom: 6px;
+}
+.complaint-stats { display: flex; gap: 8px; margin-bottom: 5px; flex-wrap: wrap; }
+.cstat { font-size: 9px; font-family: var(--mono); padding: 2px 7px; border-radius: 5px; }
+.cstat.crash { background: rgba(248,113,113,.12); color: var(--red); border: 1px solid rgba(248,113,113,.2); }
+.cstat.fire  { background: rgba(251,191,36,.1); color: var(--yel); border: 1px solid rgba(251,191,36,.2); }
+.cstat.inj   { background: rgba(167,139,250,.1); color: var(--mag); border: 1px solid rgba(167,139,250,.2); }
+.cstat.comp  { background: var(--b1); color: var(--t2); border: 1px solid var(--b2); }
+.complaint-text { font-size: 10px; color: var(--t2); line-height: 1.6; }
+
+.rating-card {
+  padding: 14px; border-radius: var(--r);
+  border: 1px solid rgba(52,211,153,.2); background: rgba(52,211,153,.05);
+  margin-bottom: 8px;
+}
+.rating-vehicle { font-size: 11px; font-weight: 600; margin-bottom: 10px; }
+.rating-stars { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.rstar { display: flex; align-items: center; gap: 7px; }
+.rstar-lbl { font-size: 9px; color: var(--t2); flex: 1; font-family: var(--mono); }
+.rstar-val { display: flex; gap: 2px; }
+.star { font-size: 11px; }
+.star.on { filter: none; }
+.star.off { opacity: .2; }
+
+.nhtsa-empty { padding: 16px; text-align: center; font-size: 11px; color: var(--t3); }
+.nhtsa-loading { display: flex; align-items: center; gap: 8px; padding: 12px; font-size: 11px; color: var(--blue2); font-family: var(--mono); }
+.nhtsa-err { padding: 10px 12px; border-radius: 8px; background: rgba(251,191,36,.06); border: 1px solid rgba(251,191,36,.2); font-size: 10px; color: var(--yel); }
+
+.nhtsa-tabs { display: flex; gap: 4px; margin-bottom: 12px; }
+.nhtsa-tab { padding: 6px 12px; border-radius: 8px; border: 1px solid var(--b2); background: rgba(255,255,255,.02); font-size: 11px; font-weight: 500; color: var(--t2); cursor: pointer; transition: all .2s; display: flex; align-items: center; gap: 5px; }
+.nhtsa-tab.active { background: rgba(251,191,36,.1); border-color: rgba(251,191,36,.3); color: var(--yel); }
+.nhtsa-tab-count { font-family: var(--mono); font-size: 9px; padding: 1px 5px; border-radius: 10px; background: rgba(248,113,113,.2); color: var(--red); }
+.nhtsa-tab-count.ok { background: rgba(52,211,153,.15); color: var(--grn); }
+.nhtsa-tab-pane { display: none; }
+.nhtsa-tab-pane.active { display: block; }
+
 </style>
 </head>
 <body>
@@ -3407,6 +3481,268 @@ async function installPWA() {
   deferredPrompt = null;
 }
 window.addEventListener('appinstalled', () => { localStorage.setItem('pwa_dismissed','1'); showNotif('✓ App instalada','success'); });
+
+
+// ═══════════════════════════════════════════════════════════
+// NHTSA — RECALLS, QUEJAS Y RATINGS OFICIALES
+// Fuente: api.nhtsa.dot.gov (gobierno de EEUU)
+// ═══════════════════════════════════════════════════════════
+
+let nhtsaCache = {}; // cache por make+model+year
+
+// MARCA → NHTSA name mapping (marcas comunes en Argentina)
+const MAKE_MAP = {
+  'toyota':'toyota','ford':'ford','chevrolet':'chevrolet','gm':'chevrolet',
+  'volkswagen':'volkswagen','vw':'volkswagen','honda':'honda','nissan':'nissan',
+  'hyundai':'hyundai','kia':'kia','bmw':'bmw','mercedes':'mercedes-benz',
+  'mercedes-benz':'mercedes-benz','renault':'renault','peugeot':'peugeot',
+  'fiat':'fiat','jeep':'jeep','dodge':'dodge','ram':'ram','chrysler':'chrysler',
+  'subaru':'subaru','mazda':'mazda','mitsubishi':'mitsubishi','suzuki':'suzuki',
+  'volvo':'volvo','audi':'audi','lexus':'lexus','acura':'acura','infiniti':'infiniti',
+  'mini':'mini','land rover':'land rover','jaguar':'jaguar','porsche':'porsche',
+  'alfa romeo':'alfa romeo','seat':'seat','skoda':'skoda',
+};
+
+function normalizeForNHTSA(make, model) {
+  const m = make?.toLowerCase().trim();
+  const nhtsaMake = MAKE_MAP[m] || m;
+  // Some model name normalizations
+  const modelMap = {
+    'gol':'gol','golf':'golf','polo':'polo','jetta':'jetta','vento':'jetta',
+    'hilux':'hilux','sw4':'4runner','corolla':'corolla','camry':'camry',
+    'rav4':'rav4','yaris':'yaris','etios':'etios',
+    'civic':'civic','fit':'fit','hr-v':'hr-v','cr-v':'cr-v',
+    'frontier':'frontier','np300':'np300','sentra':'sentra','kicks':'kicks',
+    'f-150':'f-150','f150':'f-150','ranger':'ranger','focus':'focus','fiesta':'fiesta',
+    'clio':'clio','sandero':'sandero','duster':'duster','kangoo':'kangoo','logan':'logan',
+    'cronos':'cronos','mobi':'mobi','argo':'argo','toro':'toro','strada':'strada',
+    'punto':'punto','bravo':'bravo','onix':'onix','tracker':'tracker','cruze':'cruze',
+  };
+  const nhtsaModel = modelMap[model?.toLowerCase().trim()] || model?.trim();
+  return { make: nhtsaMake, model: nhtsaModel };
+}
+
+async function fetchNHTSA(make, model, year) {
+  const { make: nhtsaMake, model: nhtsaModel } = normalizeForNHTSA(make, model);
+  const key = `${nhtsaMake}_${nhtsaModel}_${year}`.toLowerCase();
+  
+  if (nhtsaCache[key]) return nhtsaCache[key];
+  
+  try {
+    const res = await API.get(
+      `/api/nhtsa/full?make=${encodeURIComponent(nhtsaMake)}&model=${encodeURIComponent(nhtsaModel)}&year=${encodeURIComponent(year)}`
+    );
+    if (res.ok) {
+      nhtsaCache[key] = res;
+      return res;
+    }
+  } catch(e) {}
+  return { ok: false, recalls: [], complaints: [], ratings: [] };
+}
+
+function renderStars(rating) {
+  const n = parseInt(rating) || 0;
+  let html = '';
+  for (let i = 1; i <= 5; i++) {
+    html += `<span class="star ${i <= n ? 'on' : 'off'}">★</span>`;
+  }
+  return html;
+}
+
+function renderNHTSASection(data, containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  
+  const totalRecalls    = data.recalls?.length    || 0;
+  const totalComplaints = data.complaints?.length || 0;
+  const totalRatings    = data.ratings?.length    || 0;
+  const hasParkit       = data.recalls?.some(r => r.park_it === 'Yes');
+
+  let html = `
+    <div class="nhtsa-section" id="nhtsa-${containerId}">
+      <div class="nhtsa-header">
+        <div class="nhtsa-logo">🏛</div>
+        <div>
+          <div class="nhtsa-title">Información oficial NHTSA — Gobierno de EEUU</div>
+          <div class="nhtsa-sub">National Highway Traffic Safety Administration · api.nhtsa.dot.gov</div>
+        </div>
+        ${hasParkit ? '<div class="recall-park-badge">⚠ PARK IT — No conducir</div>' : ''}
+      </div>`;
+
+  // Tabs
+  html += `<div class="nhtsa-tabs">
+    <button class="nhtsa-tab active" onclick="switchNHTSATab('recalls','${containerId}')">
+      ⚠ Recalls
+      <span class="nhtsa-tab-count ${totalRecalls === 0 ? 'ok' : ''}">${totalRecalls}</span>
+    </button>
+    <button class="nhtsa-tab" onclick="switchNHTSATab('complaints','${containerId}')">
+      📋 Quejas
+      <span class="nhtsa-tab-count ok">${totalComplaints}</span>
+    </button>
+    ${totalRatings > 0 ? `<button class="nhtsa-tab" onclick="switchNHTSATab('ratings','${containerId}')">⭐ Seguridad</button>` : ''}
+  </div>`;
+
+  // Recalls tab
+  html += `<div class="nhtsa-tab-pane active" id="nhtsa-recalls-${containerId}">`;
+  if (totalRecalls === 0) {
+    html += `<div class="nhtsa-empty">✅ Sin recalls oficiales registrados para ${data.make} ${data.model} ${data.year}</div>`;
+  } else {
+    data.recalls.forEach(r => {
+      const date = r.date ? new Date(r.date).toLocaleDateString('es-AR', {year:'numeric',month:'short'}) : '';
+      html += `<div class="recall-card ${r.park_it === 'Yes' ? 'park' : ''}">
+        ${r.park_it === 'Yes' ? '<div class="recall-park-badge">🚫 PARK IT — No conducir hasta resolver</div>' : ''}
+        <div class="recall-id">Campaña NHTSA: ${r.id || '—'} ${date ? '· ' + date : ''}</div>
+        <div class="recall-subject">${r.subject || 'Sin título'}</div>
+        ${r.component ? `<span class="recall-component">Sistema: ${r.component}</span>` : ''}
+        ${r.summary ? `<div class="recall-text"><strong style="color:var(--t2)">Problema:</strong> ${r.summary}</div>` : ''}
+        ${r.consequence ? `<div class="recall-text"><strong style="color:var(--red)">Consecuencia:</strong> ${r.consequence}</div>` : ''}
+        ${r.remedy ? `<div class="recall-remedy">✅ Solución oficial: ${r.remedy}</div>` : ''}
+      </div>`;
+    });
+  }
+  html += '</div>';
+
+  // Complaints tab
+  html += `<div class="nhtsa-tab-pane" id="nhtsa-complaints-${containerId}">`;
+  if (totalComplaints === 0) {
+    html += `<div class="nhtsa-empty">Sin quejas registradas en este período.</div>`;
+  } else {
+    html += `<div style="font-size:10px;color:var(--t2);margin-bottom:10px;font-family:var(--mono)">${totalComplaints} quejas de propietarios registradas</div>`;
+    data.complaints.forEach(comp => {
+      html += `<div class="complaint-card">
+        <div class="complaint-stats">
+          ${comp.crash === 'Yes' ? '<span class="cstat crash">🚗 Choque</span>' : ''}
+          ${comp.fire === 'Yes' ? '<span class="cstat fire">🔥 Incendio</span>' : ''}
+          ${comp.injuries > 0 ? `<span class="cstat inj">👤 ${comp.injuries} heridos</span>` : ''}
+          ${comp.deaths > 0 ? `<span class="cstat crash">💀 ${comp.deaths} fallecidos</span>` : ''}
+          ${comp.components ? `<span class="cstat comp">${comp.components}</span>` : ''}
+        </div>
+        <div class="complaint-text">${(comp.summary || '').substring(0, 280)}${comp.summary?.length > 280 ? '...' : ''}</div>
+      </div>`;
+    });
+  }
+  html += '</div>';
+
+  // Ratings tab
+  if (totalRatings > 0) {
+    html += `<div class="nhtsa-tab-pane" id="nhtsa-ratings-${containerId}">`;
+    data.ratings.forEach(v => {
+      html += `<div class="rating-card">
+        <div class="rating-vehicle">${v.desc || ''}</div>
+        <div class="rating-stars">
+          <div class="rstar"><span class="rstar-lbl">General</span><div class="rstar-val">${renderStars(v.overall)}</div></div>
+          <div class="rstar"><span class="rstar-lbl">Choque frontal</span><div class="rstar-val">${renderStars(v.front)}</div></div>
+          <div class="rstar"><span class="rstar-lbl">Choque lateral</span><div class="rstar-val">${renderStars(v.side)}</div></div>
+          <div class="rstar"><span class="rstar-lbl">Vuelco</span><div class="rstar-val">${renderStars(v.rollover)}</div></div>
+        </div>
+      </div>`;
+    });
+    html += '</div>';
+  }
+
+  html += '</div>';
+  container.innerHTML += html;
+}
+
+function switchNHTSATab(tab, containerId) {
+  // Update tab buttons
+  document.querySelectorAll(`#nhtsa-${containerId} .nhtsa-tab`).forEach(t => t.classList.remove('active'));
+  const activeBtn = document.querySelector(`#nhtsa-${containerId} .nhtsa-tab[onclick*="${tab}"]`);
+  if (activeBtn) activeBtn.classList.add('active');
+  
+  // Update panes
+  document.querySelectorAll(`#nhtsa-${containerId} .nhtsa-tab-pane`).forEach(p => p.classList.remove('active'));
+  const activePane = document.getElementById(`nhtsa-${tab}-${containerId}`);
+  if (activePane) activePane.classList.add('active');
+}
+
+// Called from ficha renderFicha
+async function loadNHTSAForFicha(make, model, year, containerId) {
+  const container = document.getElementById(containerId);
+  if (!container || !make || !year) return;
+  
+  // Show loading
+  const loadingDiv = document.createElement('div');
+  loadingDiv.className = 'nhtsa-loading';
+  loadingDiv.id = 'nhtsa-loading-' + containerId;
+  loadingDiv.innerHTML = '<div class="lspin"></div>Consultando base de datos NHTSA (gobierno EEUU)...';
+  container.appendChild(loadingDiv);
+  
+  const data = await fetchNHTSA(make, model, year);
+  
+  // Remove loading
+  const loadEl = document.getElementById('nhtsa-loading-' + containerId);
+  if (loadEl) loadEl.remove();
+  
+  if (data.ok !== false) {
+    renderNHTSASection({ ...data, make, model, year }, containerId);
+  } else {
+    const errDiv = document.createElement('div');
+    errDiv.className = 'nhtsa-section';
+    errDiv.innerHTML = `<div class="nhtsa-err">⚠ No se pudo conectar con NHTSA. ${data.error || 'Verificá la conexión.'}</div>`;
+    container.appendChild(errDiv);
+  }
+}
+
+// Called from IA Research "Recalls NHTSA" button
+async function lookupNHTSA() {
+  const make  = document.getElementById('rBrand')?.value;
+  const model = document.getElementById('rModel')?.value;
+  const year  = model?.match(/\d{4}/)?.[0];
+  
+  if (!make || !model) { showNotif('Ingresá marca y modelo/año para consultar recalls', 'error'); return; }
+  if (!year) { showNotif('Incluí el año en el campo Modelo/Año (ej: Corolla 2019)', 'error'); return; }
+  
+  const modelName = model.replace(/\d{4}/, '').trim();
+  const btn = document.querySelector('button[onclick="lookupNHTSA()"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Consultando NHTSA...'; }
+  
+  const resultsEl = document.getElementById('rResults');
+  resultsEl.innerHTML = `<div class="lsteps" style="width:100%">
+    <div class="lstep"><div class="lspin"></div>
+      <div class="lstep-txt"><div class="lstep-title">CONSULTANDO NHTSA — GOBIERNO DE EEUU</div>
+        <div>Buscando recalls, quejas y ratings para ${make} ${modelName} ${year}...</div>
+      </div>
+    </div>
+  </div>`;
+  
+  const data = await fetchNHTSA(make, modelName, year);
+  
+  if (btn) { btn.disabled = false; btn.textContent = '🏛 Recalls NHTSA'; }
+  
+  const totalRecalls    = data.recalls?.length    || 0;
+  const totalComplaints = data.complaints?.length || 0;
+  
+  // Create a container and render NHTSA section
+  resultsEl.innerHTML = `
+    <div style="margin-bottom:10px;padding:10px 14px;border-radius:10px;background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.2)">
+      <div style="font-family:var(--syne);font-size:13px;font-weight:700;color:var(--yel);margin-bottom:3px">
+        ${make} ${modelName} ${year} — Datos NHTSA
+      </div>
+      <div style="font-size:10px;color:var(--t2)">
+        ${totalRecalls} recall${totalRecalls!==1?'s':''} oficiales · ${totalComplaints} quejas de propietarios
+        ${data.recalls?.some(r=>r.park_it==='Yes') ? ' · <span style="color:var(--red);font-weight:600">⚠ PARK IT</span>' : ''}
+      </div>
+    </div>
+    <div id="nhtsa-research-panel"></div>`;
+  
+  renderNHTSASection({ ...data, make, model: modelName, year }, 'nhtsa-research-panel');
+}
+
+// Hook into renderFicha to auto-load NHTSA
+const _origRenderFicha = window.renderFicha;
+window.renderFicha = function(p, vData) {
+  _origRenderFicha(p, vData);
+  // After ficha renders, load NHTSA data
+  const vehicle = p.vehicle || vData || {};
+  const make  = vehicle.make  || '';
+  const model = vehicle.model || '';
+  const year  = vehicle.year  || '';
+  if (make && year) {
+    setTimeout(() => loadNHTSAForFicha(make, model, year, 'fichaContent'), 300);
+  }
+};
+
 
 // Fix sidebar close button visibility on mobile
 function _updateSidebarCloseBtn() {
