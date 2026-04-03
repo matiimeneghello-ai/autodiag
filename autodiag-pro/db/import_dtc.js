@@ -4,7 +4,7 @@
  * Se ejecuta automáticamente desde server/index.js
  */
 
-const DTC_DATABASE = require('./dtc_seed');
+const { DTC_DATABASE } = require('./dtc_seed');
 
 async function importDTCDatabase(db) {
   try {
@@ -16,6 +16,8 @@ async function importDTCDatabase(db) {
       console.log(`✓ Base DTC ya importada (${count} códigos)`);
       return count;
     }
+    // Force reimport if we have more codes now
+    console.log(`⚡ Actualizando base DTC: ${count} → ${DTC_DATABASE.length} códigos`);
 
     console.log(`⏳ Importando base DTC: ${DTC_DATABASE.length} códigos técnicos...`);
 
