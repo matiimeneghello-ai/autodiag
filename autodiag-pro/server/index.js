@@ -111,6 +111,13 @@ async function loadModules() {
     db = require('./db');
     await db.connectDB();
     console.log('✓ PostgreSQL conectado');
+    // Import DTC knowledge base
+    try {
+      const { importDTCDatabase } = require('../db/import_dtc');
+      await importDTCDatabase(db);
+    } catch(ie) {
+      console.log('⚠ DTC import:', ie.message);
+    }
   } catch(e) {
     console.error('✗ PostgreSQL:', e.message);
     db = null;
@@ -355,10 +362,25 @@ app.post('/api/ai/research', async (req,res) => {
   if(!code) return res.status(400).json({ok:false,error:'Código requerido'});
   if(!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ok:false,error:'ANTHROPIC_API_KEY no configurada'});
   try {
+    // Enrich prompt with local DB data
+    let localContext = '';
+    if (db) {
+      const localDTC = await db.getDTCWithFullData(code).catch(()=>null);
+      if (localDTC) {
+        localContext = `
+Datos técnicos de nuestra base de datos local para ${code}:
+- Causas documentadas: ${(localDTC.causes||[]).join(', ')}
+- Parámetros de diagnóstico: ${JSON.stringify(localDTC.diagnostic_params||{})}
+- Freeze frame hints: ${localDTC.freeze_frame_hints||'N/A'}
+- Costo LATAM estimado: ${localDTC.latam_cost_usd||'N/A'}
+Complementá y actualizá esta información con búsqueda web.`;
+      }
+    }
     const raw = await callClaude(
       `Sos un experto técnico automotriz para LATINOAMÉRICA (Argentina principalmente).
 Investigá el código DTC ${code} para: ${brand||'Universal'} ${model||''}.
 ${symptoms?'Síntomas: '+symptoms:''} ${scanner_data?'Datos scanner: '+scanner_data:''}
+${localContext}
 Buscá en fuentes técnicas reales. Priorizá info y precios para Argentina/LATAM.
 SOLO JSON sin texto extra:
 {"code":"${code}","title":"título","severity":"Crítico|Moderado|Bajo","system":"sistema","description":"descripción técnica","brands":["marca"],"causes":["causa1","causa2","causa3","causa4","causa5"],"diagnosis_steps":["paso1","paso2","paso3","paso4"],"brand_specific":"notas TSB","latam_notes":"disponibilidad y precios en Argentina","scanner_interpretation":"interpretación datos","costs":{"diagnostic":"$XX","repair_low":"$XXX","repair_high":"$XXXX","latam_parts_usd":"precio repuesto"},"sources":["url1","url2"]}`,
@@ -514,6 +536,139 @@ app.put('/api/vehicles/:id/profile', async (req,res) => {
     const profile = await db.upsertProfile(req.params.id, req.body);
     res.json({ok:true,data:profile});
   } catch(e){res.status(500).json({ok:false,error:e.message});}
+});
+
+
+// ── DTC KNOWLEDGE BASE ────────────────────────────────────────
+app.get('/api/dtc/search', async (req,res) => {
+  const q = req.query.q || '';
+  if (!q) return res.json({ok:true,data:[]});
+  if (!db) return res.json({ok:true,data:[]});
+  try {
+    const results = await db.searchDTCs(q, 20);
+    res.json({ok:true,data:results});
+  } catch(e){res.status(500).json({ok:false,error:e.message});}
+});
+
+app.get('/api/dtc/:code', async (req,res) => {
+  const code = req.params.code.toUpperCase();
+  // Try local DB first (fast, no API call)
+  if (db) {
+    try {
+      const local = await db.getDTCWithFullData(code);
+      if (local) return res.json({ok:true,data:local,source:'local_db'});
+    } catch(e) {}
+  }
+  // If not in DB, return 404 so frontend uses IA Research
+  res.status(404).json({ok:false,error:'No encontrado en base local — usar IA Research para buscar'});
+});
+
+// ── FREEZE FRAME ENRICHED DIAGNOSIS ──────────────────────────
+app.post('/api/ai/diagnose', async (req,res) => {
+  // Smart diagnosis combining: local DB + freeze frame + live data + community resolutions
+  const { code, brand, model, freeze_frame, live_data, scanner_data } = req.body;
+  if (!code) return res.status(400).json({ok:false,error:'Código requerido'});
+  if (!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ok:false,error:'API key no configurada'});
+  
+  try {
+    // 1. Get local DTC data
+    let localDTC = null;
+    if (db) {
+      localDTC = await db.getDTCWithFullData(code).catch(()=>null);
+    }
+    
+    // 2. Get community resolutions for this code
+    let communityData = [];
+    if (db) {
+      communityData = await db.getResolutionStats(code).catch(()=>[]);
+    }
+    
+    // 3. Build enriched prompt
+    const communityInsights = communityData.length > 0
+      ? communityData.map(r => `${r.cause_found}: ${r.count} casos confirmados${r.avg_cost ? ', costo promedio $'+Math.round(r.avg_cost)+' USD' : ''}`).join('
+')
+      : 'Sin datos de comunidad aún';
+
+    const ffData = freeze_frame ? Object.entries(freeze_frame)
+      .filter(([k,v]) => v?.value !== undefined)
+      .map(([k,v]) => `${v.label}: ${v.value}${v.unit}`)
+      .join(', ') : 'No disponible';
+
+    const liveDataStr = live_data ? Object.entries(live_data)
+      .filter(([k,v]) => v?.value !== undefined)
+      .map(([k,v]) => `${v.label}: ${v.value}${v.unit}`)
+      .join(', ') : (scanner_data || 'No disponible');
+
+    const localContext = localDTC ? `
+DATOS TÉCNICOS DE LA BASE LOCAL:
+- Descripción oficial: ${localDTC.description}
+- Causas documentadas: ${(localDTC.causes||[]).join(', ')}
+- Parámetros diagnóstico: ${JSON.stringify(localDTC.diagnostic_params || {})}
+- Hints de freeze frame: ${localDTC.freeze_frame_hints || 'N/A'}
+- Diagnóstico diferencial conocido: ${JSON.stringify(localDTC.differential_diagnosis || {})}
+- Notas Argentina: ${localDTC.latam_notes || 'N/A'}
+` : 'Sin datos locales para este código';
+
+    const prompt = `Sos un experto en diagnóstico automotriz para el mercado argentino con acceso a datos técnicos completos.
+
+CÓDIGO DTC: ${code}
+VEHÍCULO: ${brand||'Universal'} ${model||''}
+
+${localContext}
+
+DATOS DEL SCANNER EN TIEMPO REAL (momento del diagnóstico):
+${liveDataStr}
+
+FREEZE FRAME (valores al momento del fallo):
+${ffData}
+
+RESOLUCIONES CONFIRMADAS POR LA COMUNIDAD (mecánicos reales):
+${communityInsights}
+
+Usando TODOS estos datos, hacé un diagnóstico diferencial preciso:
+1. Interpretá los valores del scanner y freeze frame en relación al código
+2. Calculá la probabilidad de cada causa basándote en los datos disponibles
+3. Recomendá el orden de diagnóstico de menor a mayor costo
+4. Indicá qué mediciones adicionales confirmarían cada causa
+
+SOLO JSON:
+{
+  "code": "${code}",
+  "primary_diagnosis": "diagnóstico más probable con los datos disponibles",
+  "confidence": 85,
+  "scanner_interpretation": "qué dicen específicamente los valores actuales del scanner",
+  "freeze_frame_analysis": "análisis de los valores del freeze frame",
+  "differential": [
+    {
+      "cause": "nombre de la causa",
+      "probability": 75,
+      "evidence_for": "qué datos apoyan esta causa",
+      "evidence_against": "qué datos van en contra",
+      "confirming_test": "prueba específica para confirmar",
+      "estimated_cost_usd": "XX-XXX"
+    }
+  ],
+  "recommended_action": "primer paso concreto a realizar ahora",
+  "parts_to_check": ["componente1", "componente2"],
+  "tools_needed": ["herramienta1", "herramienta2"],
+  "latam_availability": "disponibilidad y precios de repuestos en Argentina"
+}`;
+
+    const raw = await callClaude(prompt, false, 1500);
+    const match = raw.replace(/\`\`\`json|\`\`\`/g,'').match(/\{[\s\S]*\}/);
+    const parsed = match ? JSON.parse(match[0]) : { code, primary_diagnosis: raw };
+    
+    // Enrich with local data if available
+    if (localDTC) {
+      parsed.local_causes = localDTC.causes;
+      parsed.local_steps = localDTC.diagnostic_steps;
+      parsed.latam_cost = localDTC.latam_cost_usd;
+      parsed.latam_notes = localDTC.latam_notes;
+    }
+    parsed.community_data = communityData;
+    
+    res.json({ok:true,data:parsed});
+  } catch(e) { res.status(500).json({ok:false,error:e.message}); }
 });
 
 // SPA fallback

@@ -64,17 +64,40 @@ async function runMigrations() {
 
   await query(`
     CREATE TABLE IF NOT EXISTS dtcs (
-      id           SERIAL PRIMARY KEY,
-      code         VARCHAR(10) UNIQUE NOT NULL,
-      title        VARCHAR(300),
-      description  TEXT,
-      system       VARCHAR(100),
-      severity     VARCHAR(20),
-      causes       TEXT[],
-      brands       TEXT[],
-      created_at   TIMESTAMP DEFAULT NOW()
+      id                   SERIAL PRIMARY KEY,
+      code                 VARCHAR(10) UNIQUE NOT NULL,
+      title                VARCHAR(300),
+      description          TEXT,
+      system               VARCHAR(100),
+      severity             VARCHAR(20),
+      causes               TEXT[],
+      brands               TEXT[],
+      symptoms             TEXT[],
+      diagnostic_steps     TEXT[],
+      diagnostic_params    JSONB DEFAULT '{}',
+      freeze_frame_hints   TEXT,
+      differential_diagnosis JSONB DEFAULT '{}',
+      repair_priority      INTEGER DEFAULT 2,
+      latam_cost_usd       VARCHAR(50),
+      latam_notes          TEXT,
+      created_at           TIMESTAMP DEFAULT NOW()
     )
   `);
+  
+  // Add columns if they don't exist (for existing DB)
+  const newCols = [
+    "ALTER TABLE dtcs ADD COLUMN IF NOT EXISTS symptoms TEXT[]",
+    "ALTER TABLE dtcs ADD COLUMN IF NOT EXISTS diagnostic_steps TEXT[]",
+    "ALTER TABLE dtcs ADD COLUMN IF NOT EXISTS diagnostic_params JSONB DEFAULT '{}'",
+    "ALTER TABLE dtcs ADD COLUMN IF NOT EXISTS freeze_frame_hints TEXT",
+    "ALTER TABLE dtcs ADD COLUMN IF NOT EXISTS differential_diagnosis JSONB DEFAULT '{}'",
+    "ALTER TABLE dtcs ADD COLUMN IF NOT EXISTS repair_priority INTEGER DEFAULT 2",
+    "ALTER TABLE dtcs ADD COLUMN IF NOT EXISTS latam_cost_usd VARCHAR(50)",
+    "ALTER TABLE dtcs ADD COLUMN IF NOT EXISTS latam_notes TEXT",
+  ];
+  for (const sql of newCols) {
+    await query(sql).catch(()=>{});
+  }
 
   await query(`
     CREATE TABLE IF NOT EXISTS resolutions (
@@ -166,9 +189,47 @@ async function getScans(vehicleId,limit=50) {
 // DTCs
 async function getDTCInfo(code) { return (await query('SELECT * FROM dtcs WHERE code=$1',[code])).rows[0]; }
 async function upsertDTCInfo(data) {
-  const r = await query(`INSERT INTO dtcs (code,title,description,system,severity,causes,brands) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (code) DO UPDATE SET title=$2,description=$3,system=$4,severity=$5,causes=$6,brands=$7 RETURNING *`,
-    [data.code,data.title,data.description,data.system,data.severity,data.causes,data.brands||data.brands_affected]);
+  const r = await query(`
+    INSERT INTO dtcs (code,title,description,system,severity,causes,brands,
+      symptoms,diagnostic_steps,diagnostic_params,freeze_frame_hints,
+      differential_diagnosis,repair_priority,latam_cost_usd,latam_notes)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+    ON CONFLICT (code) DO UPDATE SET
+      title=$2,description=$3,system=$4,severity=$5,causes=$6,brands=$7,
+      symptoms=$8,diagnostic_steps=$9,diagnostic_params=$10,
+      freeze_frame_hints=$11,differential_diagnosis=$12,
+      repair_priority=$13,latam_cost_usd=$14,latam_notes=$15
+    RETURNING *
+  `, [
+    data.code, data.title, data.description, data.system, data.severity,
+    data.causes, data.brands || data.brands_affected || ['Universal'],
+    data.symptoms || [], data.diagnostic_steps || [],
+    JSON.stringify(data.diagnostic_params || {}),
+    data.freeze_frame_hints || '',
+    JSON.stringify(data.differential_diagnosis || {}),
+    data.repair_priority || 2,
+    data.latam_cost_usd || '',
+    data.latam_notes || ''
+  ]);
   return r.rows[0];
+}
+
+async function getDTCWithFullData(code) {
+  const r = await query('SELECT * FROM dtcs WHERE code=$1', [code.toUpperCase()]);
+  return r.rows[0] || null;
+}
+
+async function searchDTCs(query_text, limit=20) {
+  const r = await query(`
+    SELECT * FROM dtcs 
+    WHERE code ILIKE $1 
+    OR title ILIKE $1 
+    OR description ILIKE $1
+    OR $2 = ANY(causes)
+    ORDER BY repair_priority ASC, code ASC
+    LIMIT $3
+  `, ['%'+query_text+'%', query_text, limit]);
+  return r.rows;
 }
 
 // Resolutions
@@ -226,5 +287,6 @@ module.exports = {
   getDTCInfo,upsertDTCInfo,
   getResolutions,saveResolution,getResolutionStats,
   getJobs,createJob,updateJobStatus,
-  getProfile,upsertProfile
+  getProfile,upsertProfile,
+  upsertDTCInfo,getDTCWithFullData,searchDTCs
 };

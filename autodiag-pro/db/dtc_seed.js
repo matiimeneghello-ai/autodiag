@@ -1,0 +1,320 @@
+/**
+ * AutoDiag Pro — Base de datos DTC técnica
+ * Códigos OBD-II con causas, síntomas, parámetros y diagnóstico diferencial
+ * Fuente: SAE J2012, ISO 15031-6, datos de mecánicos Argentina
+ */
+
+const DTC_DATABASE = [
+  { code:'P0100', title:'Falla circuito sensor MAF', system:'Motor · Admisión', severity:'Moderado',
+    description:'El sensor de masa de flujo de aire no envía señal correcta. El caudal de aire no puede calcularse.',
+    causes:['Sensor MAF defectuoso o sucio','Cableado del MAF dañado','Fuga de aire entre MAF y mariposa','Conector del MAF oxidado'],
+    symptoms:['Motor tembla en ralentí','Pérdida de potencia','Mayor consumo','Humo negro'],
+    diagnostic_params:{ maf_voltage_range:'0.5-4.8V', maf_idle_gs:'2-7 g/s para 1.6-2.0L', maf_wot_gs:'>80 g/s plena carga' },
+    diagnostic_steps:['Medir voltaje MAF (0.5-4.8V)','Limpiar con spray MAF','Verificar fugas de aire','Verificar cableado'],
+    freeze_frame_hints:'MAF voltage <0.5V o >4.8V = sensor defectuoso. Voltage normal con código = fuga de aire',
+    differential_diagnosis:{ 'MAF sucio':'Limpieza spray resuelve 70% casos', 'Fuga de aire':'Código junto con P0171, silbido audible' },
+    repair_priority:2, brands_affected:['Universal'], latam_cost_usd:'5-120', latam_notes:'Limpieza spray MAF $5-10. Sensor nuevo genérico $30-80.' },
+
+  { code:'P0101', title:'Rango/desempeño sensor MAF fuera de parámetros', system:'Motor · Admisión', severity:'Moderado',
+    description:'El MAF registra valores fuera del rango esperado para las condiciones actuales.',
+    causes:['MAF sucio (70% de casos)','Fuga de aire entre MAF y mariposa','Filtro de aire tapado','MAF defectuoso'],
+    symptoms:['Falla en aceleración','Ralentí inestable','Mayor consumo'],
+    diagnostic_params:{ expected_maf_idle:'2-7 g/s', expected_maf_2000rpm:'10-20 g/s' },
+    diagnostic_steps:['Limpiar MAF con spray','Revisar filtro de aire','Buscar fugas de vacío','Comparar lectura MAF vs tabla por RPM'],
+    freeze_frame_hints:'Comparar MAF actual vs calculado. Diferencia >20% = problema real',
+    repair_priority:1, brands_affected:['Universal'], latam_cost_usd:'5-80', latam_notes:'Limpieza MAF resuelve 70% casos.' },
+
+  { code:'P0106', title:'Rango/desempeño sensor MAP', system:'Motor · Admisión', severity:'Moderado',
+    description:'La presión en el colector no corresponde con valores esperados según RPM y carga.',
+    causes:['Sensor MAP defectuoso','Manguera de vacío al MAP rota','Fuga de vacío grande','Sensor MAP tapado'],
+    diagnostic_params:{ map_idle_kpa:'25-45 kPa', map_wot_kpa:'90-100 kPa', map_voltage_idle:'1-1.5V', map_voltage_wot:'4-4.5V' },
+    diagnostic_steps:['Verificar manguera al MAP','Medir voltaje MAP','Comparar con rango esperado por RPM'],
+    freeze_frame_hints:'MAP >60 kPa en ralentí normal = sensor defectuoso',
+    repair_priority:2, brands_affected:['Universal'], latam_cost_usd:'20-80', latam_notes:'' },
+
+  { code:'P0116', title:'Rango/desempeño sensor temperatura refrigerante', system:'Motor · Refrigeración', severity:'Moderado',
+    description:'La temperatura del refrigerante no alcanza valor esperado o varía incorrectamente.',
+    causes:['Termostato abierto o pegado en frío (causa más común)','Sensor ECT defectuoso','Mezcla de refrigerante incorrecta'],
+    diagnostic_params:{ ect_normal:'80-95°C en operación', warmup_time:'3-7 minutos' },
+    diagnostic_steps:['Verificar si motor llega a temperatura normal','Comparar ECT vs termómetro real','Inspeccionar termostato'],
+    freeze_frame_hints:'ECT no supera 70°C tras 10 min calentamiento = termostato abierto',
+    repair_priority:2, brands_affected:['Universal'], latam_cost_usd:'10-60', latam_notes:'Termostato causa más frecuente. Bajo costo.' },
+
+  { code:'P0121', title:'Rango/desempeño TPS', system:'Motor · Mariposa', severity:'Moderado',
+    description:'Señal del TPS no corresponde con posición esperada de la mariposa.',
+    causes:['TPS sucio o desgastado','Punto muerto TPS desajustado','TPS defectuoso','Mariposa sucia'],
+    diagnostic_params:{ tps_closed:'0.5-1.0V', tps_wot:'4.0-4.8V' },
+    diagnostic_steps:['Medir voltaje TPS cerrado/WOT','Limpiar mariposa','Ajustar TPS si es ajustable'],
+    repair_priority:2, brands_affected:['Universal'], latam_cost_usd:'20-120', latam_notes:'' },
+
+  { code:'P0130', title:'Sensor O2 B1S1 — señal fuera de rango', system:'Motor · Sensores O2', severity:'Moderado',
+    description:'Sensor de oxígeno upstream banco 1 presenta señal anormal.',
+    causes:['Sensor O2 defectuoso o envejecido','Mezcla muy rica/pobre que satura el sensor','Contaminación','Cableado dañado'],
+    diagnostic_params:{ o2_normal:'0.1-0.9V oscilando >1 vez/segundo', o2_lean:'<0.1V', o2_rich:'>0.9V' },
+    diagnostic_steps:['Verificar oscilación tiempo real','Si fijo >0.9V = mezcla rica. Si fijo <0.1V = mezcla pobre. Si no oscila = sensor muerto'],
+    freeze_frame_hints:'O2 fijo = sensor muerto o mezcla extrema',
+    repair_priority:2, brands_affected:['Universal'], latam_cost_usd:'30-150', latam_notes:'' },
+
+  { code:'P0133', title:'Respuesta lenta sensor O2 B1S1', system:'Motor · Sensores O2', severity:'Moderado',
+    description:'El sensor O2 responde más lento de lo esperado.',
+    causes:['Sensor envejecido (>100.000km)','Contaminación por plomo o silicona','Temperatura insuficiente'],
+    diagnostic_params:{ normal_switches:'>1 vez/segundo en lazo cerrado' },
+    diagnostic_steps:['Contar oscilaciones/segundo. <1 vez/segundo a 2000RPM = reemplazar'],
+    freeze_frame_hints:'<1 oscilación/segundo = sensor lento = reemplazar',
+    repair_priority:2, brands_affected:['Toyota','Honda','Ford'], latam_cost_usd:'40-150', latam_notes:'' },
+
+  { code:'P0135', title:'Falla calefactor O2 B1S1', system:'Motor · Sensores O2', severity:'Moderado',
+    description:'El calefactor del sensor O2 upstream no funciona.',
+    causes:['Calefactor quemado (causa #1)','Fusible del calefactor quemado','Cableado dañado'],
+    diagnostic_params:{ heater_resistance:'3-15 Ω entre pines del calefactor' },
+    diagnostic_steps:['Medir resistencia calefactor (3-15Ω)','Verificar fusible','Medir 12V en pin alimentación'],
+    freeze_frame_hints:'Resistencia infinita = calefactor quemado = reemplazar sensor',
+    repair_priority:2, brands_affected:['Universal'], latam_cost_usd:'40-150', latam_notes:'' },
+
+  { code:'P0171', title:'Sistema mezcla pobre — Banco 1', system:'Motor · Combustión', severity:'Crítico',
+    description:'La ECU detecta mezcla pobre más allá del límite de corrección. Fuel trim largo supera umbral de compensación.',
+    causes:['Sensor MAF sucio o defectuoso (60% casos)','Fuga de vacío colector/mangueras (25% casos)','Inyectores tapados o bajo caudal','Sensor O2 B1S1 defectuoso o lento','Bomba de combustible débil','Presión de combustible baja','Fuga exhaust antes del O2'],
+    symptoms:['Check engine','Motor tembla ralentí','Mayor consumo','Pérdida potencia','Silbido admisión si hay fuga vacío'],
+    diagnostic_params:{
+      fuel_trim_short_normal:'entre -10% y +10%',
+      fuel_trim_long_normal:'entre -10% y +10%',
+      fuel_trim_concern:'>+15% en ambos = problema real',
+      maf_idle_expected:'2-7 g/s para 1.6-2.0L',
+      fuel_pressure_normal:'50-65 PSI con motor en marcha'
+    },
+    diagnostic_steps:[
+      '1. Limpiar MAF con spray y borrar código — si vuelve, continuar',
+      '2. LTFT varía mucho con RPM = fuga de vacío. LTFT parejo en todo rango = MAF o combustible',
+      '3. Medir presión combustible (normal 50-65 PSI)',
+      '4. Verificar sensor O2 oscila correctamente (0.1-0.9V)',
+      '5. Probar estanqueidad de mangueras de vacío con spray de arranque'
+    ],
+    freeze_frame_hints:'LTFT >+20% = problema crónico. STFT muy variable en ralentí = fuga de vacío. Ambos LTFT y STFT altos y parejos = MAF o combustible',
+    differential_diagnosis:{
+      'MAF sucio/defectuoso':'MAF voltage bajo (<1.0V ralentí), LTFT alto parejo en todo rango RPM → limpiar MAF primero',
+      'Fuga de vacío':'STFT variable, peor en ralentí, mejora a 2500RPM, silbido audible → spray vacío en mangueras',
+      'Inyectores tapados':'LTFT alto, prueba balanceo inyectores muestra desbalance → limpieza ultrasónica',
+      'Bomba combustible débil':'Presión <50 PSI, LTFT alto especialmente acelerando → medir presión con manómetro'
+    },
+    repair_priority:1, brands_affected:['Toyota','Honda','Nissan','Hyundai','Ford'], latam_cost_usd:'5-400',
+    latam_notes:'Limpieza MAF $5-10 (60% casos). Fuga vacío con silicona $5-30. Inyectores limpieza $20-50. Bomba combustible $80-200.' },
+
+  { code:'P0172', title:'Sistema mezcla rica — Banco 1', system:'Motor · Combustión', severity:'Crítico',
+    description:'La mezcla está enriquecida más allá del límite de corrección negativa.',
+    causes:['Inyectores con fuga (goteo en reposo)','Presión combustible alta','Sensor MAF leyendo alto','Sensor ECT indicando frío','Sensor O2 defectuoso'],
+    diagnostic_params:{ fuel_trim_rich:'LTFT y STFT negativos <-10%' },
+    diagnostic_steps:['Medir presión combustible en reposo (no debe bajar en 20 min)','Verificar ECT correcta','Revisar inyectores con prueba de goteo'],
+    freeze_frame_hints:'LTFT y STFT negativos = mezcla rica. Solo en frío = ECT o enriquecimiento arranque',
+    repair_priority:1, brands_affected:['Universal'], latam_cost_usd:'20-300', latam_notes:'' },
+
+  { code:'P0174', title:'Sistema mezcla pobre — Banco 2', system:'Motor · Combustión', severity:'Crítico',
+    description:'Similar a P0171 pero banco 2. Solo en motores con dos bancas (V6/V8).',
+    causes:['Si P0171 + P0174 = MAF o combustible (problema compartido)','Si solo P0174 = fuga vacío banco 2 o inyectores banco 2'],
+    diagnostic_steps:['P0171 + P0174 simultáneos = MAF o presión combustible','Solo P0174 = problema específico banco 2'],
+    freeze_frame_hints:'P0171 + P0174 juntos = problema compartido (MAF, combustible)',
+    repair_priority:1, brands_affected:['Ford','GM','BMW','Mercedes'], latam_cost_usd:'10-400', latam_notes:'' },
+
+  { code:'P0300', title:'Falla de encendido aleatoria — múltiples cilindros', system:'Motor · Encendido', severity:'Crítico',
+    description:'Fallas de encendido en múltiples cilindros sin patrón específico.',
+    causes:['Bujías gastadas (causa #1 si >60.000km)','Bobinas defectuosas','Cables de bujía dañados','Inyectores con fallas múltiples','Fuga de compresión múltiple','P0171/P0172 causa secundaria','Bajo nivel aceite o aceite sucio'],
+    symptoms:['Motor tembla fuerte','Pérdida severa de potencia','Posible detonación'],
+    diagnostic_params:{ compression_normal:'>120 PSI, diferencia <15% entre cilindros', spark_plug_gap:'0.6-1.1mm' },
+    diagnostic_steps:[
+      '1. Verificar cuándo fue el último cambio de bujías',
+      '2. Si >60.000km → reemplazar bujías primero',
+      '3. Hacer prueba de compresión',
+      '4. Verificar bobinas con intercambio de posiciones',
+      '5. Verificar P0171/P0172 activos simultáneos'
+    ],
+    freeze_frame_hints:'Aparece a toda carga = combustible o compresión. En frío = bujías o bobinas',
+    differential_diagnosis:{
+      'Bujías gastadas':'Falla aleatoria, empeora en frío/mojado, >60k km sin cambio → reemplazar todas',
+      'Bobinas':'Aunque código sea P0300, una bobina específica falla → intercambiar para aislar',
+      'Compresión baja':'Pérdida de potencia significativa, prueba confirma → reparación mayor',
+      'Mezcla incorrecta':'Acompañado de P0171 o P0172 → resolver mezcla primero'
+    },
+    repair_priority:1, brands_affected:['Universal'], latam_cost_usd:'20-400', latam_notes:'Bujías NGK/Denso $5-15 c/u. Bobinas $30-80 c/u.' },
+
+  { code:'P0301', title:'Falla de encendido — cilindro 1', system:'Motor · Encendido', severity:'Crítico',
+    description:'Falla de encendido específica del cilindro 1.',
+    causes:['Bujía cil.1 defectuosa','Bobina cil.1 defectuosa','Inyector cil.1 con falla','Fuga compresión cil.1'],
+    diagnostic_steps:['Intercambiar bujía cil.1 con otro cilindro','Intercambiar bobina cil.1','Prueba de compresión cil.1'],
+    freeze_frame_hints:'Intercambio de componentes es el método diagnóstico más eficaz',
+    repair_priority:1, brands_affected:['Universal'], latam_cost_usd:'10-200', latam_notes:'' },
+
+  { code:'P0302', title:'Falla de encendido — cilindro 2', system:'Motor · Encendido', severity:'Crítico',
+    causes:['Bujía cil.2','Bobina cil.2','Inyector cil.2','Compresión cil.2'],
+    diagnostic_steps:['Intercambiar componentes con cilindro sano para aislar falla'],
+    repair_priority:1, brands_affected:['Universal'], latam_cost_usd:'10-200', latam_notes:'' },
+
+  { code:'P0303', title:'Falla de encendido — cilindro 3', system:'Motor · Encendido', severity:'Crítico',
+    causes:['Bujía cil.3','Bobina cil.3','Inyector cil.3','Compresión cil.3'],
+    repair_priority:1, brands_affected:['Universal'], latam_cost_usd:'10-200', latam_notes:'' },
+
+  { code:'P0304', title:'Falla de encendido — cilindro 4', system:'Motor · Encendido', severity:'Crítico',
+    causes:['Bujía cil.4','Bobina cil.4','Inyector cil.4','Compresión cil.4'],
+    repair_priority:1, brands_affected:['Universal'], latam_cost_usd:'10-200', latam_notes:'' },
+
+  { code:'P0325', title:'Falla circuito sensor de detonación B1', system:'Motor · Encendido', severity:'Moderado',
+    description:'El sensor de detonación no envía señal correcta.',
+    causes:['Sensor defectuoso','Cableado dañado','Sensor flojo (no detecta vibración)'],
+    diagnostic_steps:['Verificar torque del sensor','Medir resistencia','Verificar cableado blindado'],
+    repair_priority:2, brands_affected:['Universal'], latam_cost_usd:'15-80', latam_notes:'' },
+
+  { code:'P0335', title:'Señal circuito sensor posición cigüeñal', system:'Motor · Distribución', severity:'Crítico',
+    description:'Sin señal del sensor de cigüeñal. Motor puede no arrancar.',
+    causes:['Sensor de cigüeñal defectuoso','Rueda fónica dañada','Cableado cortado','Sensor sucio con partículas metálicas'],
+    symptoms:['Motor no arranca','Motor corta repentinamente'],
+    diagnostic_steps:['Verificar señal AC con multímetro al girar motor','Inspeccionar sensor por partículas metálicas','Medir resistencia sensor (200-1000Ω)'],
+    freeze_frame_hints:'Sin señal CKP = motor no puede calcular inyección',
+    repair_priority:1, brands_affected:['Universal'], latam_cost_usd:'20-100', latam_notes:'' },
+
+  { code:'P0340', title:'Señal sensor árbol de levas A B1', system:'Motor · Distribución', severity:'Crítico',
+    description:'El sensor de árbol de levas no envía señal o es incorrecta.',
+    causes:['Sensor defectuoso','Rueda fónica con diente roto','Cableado dañado','Distribución con salto de tiempo'],
+    diagnostic_steps:['Verificar señal con scanner','Verificar espacio sensor-rueda (0.5-1.5mm)','Si ruido de cadena/correa → revisar distribución'],
+    freeze_frame_hints:'Con P0016/P0017 = problema distribución. Solo P0340 = sensor o cableado',
+    repair_priority:1, brands_affected:['Universal'], latam_cost_usd:'20-150', latam_notes:'' },
+
+  { code:'P0400', title:'Flujo insuficiente EGR', system:'Emisiones · EGR', severity:'Moderado',
+    description:'El sistema EGR no fluye correctamente.',
+    causes:['Válvula EGR tapada con carbón (diésel #1)','Tubo EGR tapado','Válvula defectuosa'],
+    diagnostic_steps:['Limpiar válvula EGR con limpiador carburador','Verificar apertura con scanner','Verificar mangueras de vacío'],
+    repair_priority:2, brands_affected:['Diesel','Universal'], latam_cost_usd:'20-250', latam_notes:'' },
+
+  { code:'P0420', title:'Eficiencia catalizador bajo umbral — Banco 1', system:'Escape · Emisiones', severity:'Crítico',
+    description:'El catalizador no reduce emisiones al nivel mínimo. La ECU compara O2 upstream vs downstream.',
+    causes:['Catalizador dañado o agotado por vida útil (>150.000km)','Contaminación por aceite o refrigerante','Mezcla rica crónica (P0172) que sobrecalentó catalizador','Sensor O2 B1S2 defectuoso o lento','Fugas de escape antes del sensor B1S2','Bujías con falla enviando combustible al catalizador'],
+    diagnostic_params:{
+      o2_b1s2_good:'señal estable ~0.6-0.7V = catalizador OK',
+      o2_b1s2_bad:'oscila igual que B1S1 = catalizador muerto',
+    },
+    diagnostic_steps:[
+      '1. Verificar P0171/P0172 activos — resolver mezcla primero',
+      '2. Verificar P0301-P030X — fallas encendido dañan catalizador',
+      '3. Comparar oscilación O2 B1S1 vs B1S2 (B1S2 debe ser más estable)',
+      '4. Verificar fugas de aceite al escape (humo azul)',
+      '5. Toyota 2018-2020: verificar TSB de actualización ECU',
+      '6. Si todo OK → catalizador defectuoso'
+    ],
+    freeze_frame_hints:'O2 B1S2 oscilando como B1S1 = catalizador muerto. B1S2 estable pero código = sensor B1S2 o TSB',
+    differential_diagnosis:{
+      'Catalizador dañado':'O2 B1S2 oscila, >150k km, sin P0171/P0172',
+      'Sensor O2 B1S2 defectuoso':'O2 B1S2 fijo o sin oscilación, código persiste',
+      'Mezcla rica quemó catalizador':'P0172 activo o recientemente activo',
+      'TSB Toyota':'Corolla/Camry 2018-2020 tienen TSB conocido de ECU'
+    },
+    repair_priority:1, brands_affected:['Toyota','Honda','Subaru','Ford'], latam_cost_usd:'50-2000',
+    latam_notes:'Sensor O2 B1S2 genérico $30-80. Catalizador genérico $200-600. Actualización ECU Toyota puede ser gratuita en garantía.' },
+
+  { code:'P0430', title:'Eficiencia catalizador bajo umbral — Banco 2', system:'Escape · Emisiones', severity:'Crítico',
+    description:'Catalizador banco 2 ineficiente. Solo en motores V6/V8.',
+    causes:['Catalizador B2 dañado','Sensor O2 B2S2 defectuoso'],
+    repair_priority:1, brands_affected:['Ford','GM','Dodge'], latam_cost_usd:'100-2500', latam_notes:'' },
+
+  { code:'P0440', title:'Sistema EVAP — falla general', system:'Emisiones · EVAP', severity:'Moderado',
+    description:'Falla general en el sistema de control de vapores de combustible.',
+    causes:['Tapa del depósito suelta o dañada (50% casos)','Válvula de purga defectuosa','Mangueras EVAP rotas','Cánister saturado'],
+    diagnostic_steps:['Revisar tapa del depósito primero','Prueba de humo del sistema EVAP','Verificar válvula de purga'],
+    repair_priority:2, brands_affected:['Universal'], latam_cost_usd:'5-300', latam_notes:'Tapa depósito $5-15.' },
+
+  { code:'P0441', title:'Flujo de purga incorrecto — EVAP', system:'Emisiones · EVAP', severity:'Moderado',
+    description:'El flujo de purga del sistema EVAP no ocurre correctamente durante el ciclo de manejo.',
+    causes:['Válvula de purga EVAP defectuosa (causa #1 — no abre o no cierra)','Manguera de vacío rota','Tapa del depósito suelta','Cánister tapado'],
+    symptoms:['Check engine','Posible olor combustible','No afecta conducción'],
+    diagnostic_steps:[
+      '1. Verificar tapa del depósito — reemplazar y borrar código',
+      '2. Localizar válvula de purga EVAP',
+      '3. Aplicar 12V directo — debe hacer clic',
+      '4. Verificar mangueras EVAP',
+      '5. Verificar vacío en sistema con motor caliente'
+    ],
+    freeze_frame_hints:'Aparece en ciclo caliente. No afecta conducción.',
+    repair_priority:3, brands_affected:['Toyota','Honda','Ford','Universal'], latam_cost_usd:'5-200', latam_notes:'Tapa $5-15. Válvula purga $15-50.' },
+
+  { code:'P0442', title:'Fuga pequeña — EVAP', system:'Emisiones · EVAP', severity:'Moderado',
+    description:'El sistema EVAP no retiene presión. Fuga pequeña (<0.020 pulgadas).',
+    causes:['Tapa del depósito suelta o dañada (50% casos)','Mangueras agrietadas','Sellos deteriorados'],
+    diagnostic_steps:['Reemplazar tapa y borrar código primero','Prueba de humo si persiste'],
+    freeze_frame_hints:'Si aparece después de cargar combustible = tapa deficiente',
+    repair_priority:3, brands_affected:['Universal'], latam_cost_usd:'5-150', latam_notes:'' },
+
+  { code:'P0455', title:'Fuga grande — EVAP', system:'Emisiones · EVAP', severity:'Moderado',
+    description:'Fuga grande en el sistema EVAP.',
+    causes:['Tapa ausente o muy dañada','Manguera EVAP desconectada','Depósito dañado'],
+    diagnostic_steps:['Verificar tapa de combustible','Inspeccionar mangueras por desconexión'],
+    repair_priority:2, brands_affected:['Universal'], latam_cost_usd:'5-500', latam_notes:'' },
+
+  { code:'P0500', title:'Falla sensor velocidad del vehículo', system:'Transmisión · Velocidad', severity:'Moderado',
+    description:'El sensor de velocidad no envía señal correcta.',
+    causes:['Sensor VSS defectuoso','Cableado dañado','Piñón desgastado','ABS defectuoso'],
+    symptoms:['Velocímetro no funciona','Problemas ABS','Cambios transmisión incorrectos'],
+    repair_priority:2, brands_affected:['Universal'], latam_cost_usd:'20-120', latam_notes:'' },
+
+  { code:'P0601', title:'Error memoria interna ECU', system:'Control Motor · ECU', severity:'Crítico',
+    description:'La ECU detectó error en su memoria interna.',
+    causes:['ECU defectuosa','Voltaje de batería muy bajo','Interferencia eléctrica severa'],
+    diagnostic_steps:['Verificar voltaje batería y alternador','Verificar tierras del motor','Si persiste → ECU defectuosa'],
+    repair_priority:1, brands_affected:['Universal'], latam_cost_usd:'200-2000', latam_notes:'En Argentina hay talleres especializados en reparación de ECUs.' },
+
+  { code:'P0700', title:'Solicitud de código de transmisión', system:'Transmisión · Control', severity:'Crítico',
+    description:'El TCM detectó falla y lo reporta al PCM. Hay que leer códigos del TCM específicamente.',
+    causes:['Ver códigos específicos P07XX-P09XX','Nivel de ATF bajo','ATF degradado'],
+    diagnostic_steps:['Leer códigos específicos del TCM','Verificar nivel y calidad ATF'],
+    repair_priority:1, brands_affected:['Universal'], latam_cost_usd:'50-3000', latam_notes:'' },
+
+  { code:'P0740', title:'Falla embrague convertidor de par (TCC)', system:'Transmisión · TCC', severity:'Crítico',
+    description:'El embrague del convertidor de par no funciona correctamente.',
+    causes:['Solenoide TCC defectuoso','ATF degradado','Convertidor mecánicamente defectuoso'],
+    symptoms:['Vibración a velocidad autopista','Mayor consumo','Transmisión no bloquea a velocidad constante'],
+    diagnostic_steps:['Verificar ATF','Probar solenoide TCC con scanner','Si ATF ok y solenoide funciona → convertidor'],
+    repair_priority:1, brands_affected:['Universal'], latam_cost_usd:'50-2000', latam_notes:'' },
+
+  { code:'B0001', title:'Falla circuito inflador airbag conductor', system:'Seguridad · Airbag', severity:'Crítico',
+    description:'ATENCIÓN: No trabajar sin desconectar batería y esperar 15 minutos.',
+    causes:['Reloj de espiral (clockspring) defectuoso — causa #1','Conector airbag suelto','Airbag defectuoso','Módulo SRS'],
+    symptoms:['Luz airbag encendida'],
+    diagnostic_steps:['Desconectar batería y esperar 15 min','Verificar conector base del volante','Medir resistencia circuito (1.8-3.3Ω)','Verificar reloj de espiral'],
+    freeze_frame_hints:'NUNCA probar con 12V directo. Usar resistor simulador.',
+    repair_priority:1, brands_affected:['Universal'], latam_cost_usd:'50-500', latam_notes:'Reloj de espiral $30-80. Airbag usado $80-300.' },
+
+  { code:'C0035', title:'Falla sensor rueda ABS delantera', system:'Chasis · ABS', severity:'Crítico',
+    description:'Sensor ABS rueda delantera con falla.',
+    causes:['Sensor ABS defectuoso','Cable del sensor roto (doblan con la rueda)','Rueda fónica sucia o dañada','Rodamiento dañado (en sensores integrados)'],
+    symptoms:['Luz ABS encendida','ABS no funciona','Posible luz ESP'],
+    diagnostic_steps:['Medir resistencia sensor (1-2kΩ para pasivos)','Verificar señal en scanner conducción lenta','Inspeccionar cable por roturas','Limpiar área sensor y rueda fónica'],
+    freeze_frame_hints:'Código en baja velocidad = sensor o rueda fónica. Solo en frenadas = señal intermitente',
+    repair_priority:1, brands_affected:['Universal'], latam_cost_usd:'20-300', latam_notes:'Sensor $20-50. Cable $10-30. Con rodamiento integrado $60-200.' },
+
+  { code:'C0110', title:'Error motor bomba hidráulica ABS', system:'Chasis · ABS', severity:'Crítico',
+    description:'El motor de la bomba hidráulica ABS presenta falla.',
+    causes:['Motor bomba quemado','Relé de la bomba defectuoso','Problema eléctrico','Módulo ABS defectuoso'],
+    diagnostic_steps:['Verificar alimentación al motor bomba','Verificar relé','Activar bomba con scanner'],
+    repair_priority:1, brands_affected:['Universal'], latam_cost_usd:'200-1500', latam_notes:'Módulo ABS genérico $200-600.' },
+
+  { code:'U0001', title:'Falla bus CAN de alta velocidad', system:'Red · CAN Bus', severity:'Crítico',
+    description:'El bus CAN que interconecta módulos presenta falla.',
+    causes:['Cortocircuito o circuito abierto en bus CAN','Módulo defectuoso que corta el bus','Conector con corrosión'],
+    diagnostic_steps:['Medir resistencia CAN H y CAN L (~60Ω con módulos conectados)','Buscar cortocircuitos','Desconectar módulos para aislar el que corta'],
+    repair_priority:1, brands_affected:['Universal'], latam_cost_usd:'100-2000', latam_notes:'Requiere osciloscopio para diagnóstico.' },
+
+  { code:'U0100', title:'Comunicación perdida con ECM/PCM', system:'Red · CAN Bus', severity:'Crítico',
+    description:'Un módulo perdió comunicación con la ECU principal.',
+    causes:['ECU sin alimentación','Bus CAN con falla','Fusible ECU fundido','Tierra ECU deficiente'],
+    diagnostic_steps:['Verificar fusibles ECU','Verificar alimentación y tierra ECU','Verificar bus CAN'],
+    repair_priority:1, brands_affected:['Universal'], latam_cost_usd:'100-2000', latam_notes:'' },
+
+  { code:'P1325', title:'Detonación detectada (Renault/Nissan)', system:'Motor · Detonación', severity:'Moderado',
+    description:'Sensor de detonación detectó combustión anormal. Frecuente en Argentina con combustible de baja calidad.',
+    causes:['Combustible de baja calidad/octanaje','Sensor de detonación defectuoso','Avance desajustado','Depósito de carbón'],
+    diagnostic_steps:['Usar combustible premium de mayor octanaje','Verificar sensor de detonación','Revisar avance con scanner'],
+    repair_priority:2, brands_affected:['Renault','Nissan'], latam_cost_usd:'5-150', latam_notes:'En Argentina: combustible premium puede resolver. Sensor $15-40.' },
+
+  { code:'P1600', title:'Pérdida comunicación ECU-antirrobo (Fiat)', system:'Seguridad · Inmovilizador', severity:'Crítico',
+    description:'La ECU no puede comunicarse con el inmovilizador. Motor no arranca.',
+    causes:['Clave transponder sin programar','Sistema antirrobo defectuoso','Interferencia electromagnética'],
+    diagnostic_steps:['Probar con llave de repuesto programada','Verificar antena del inmovilizador','Re-programar clave'],
+    repair_priority:1, brands_affected:['Fiat','Alfa Romeo'], latam_cost_usd:'30-500', latam_notes:'Reprogramación transponder $30-100 en Argentina.' },
+];
+
+module.exports = DTC_DATABASE;

@@ -384,6 +384,34 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
 .pdf-preview{background:#fff;border-radius:10px;padding:22px;color:#111;font-family:sans-serif;font-size:12px;line-height:1.6;max-height:380px;overflow-y:auto;}
 
 
+
+/* DIAGNOSTICO DIFERENCIAL */
+.diag-card{padding:16px;border-radius:14px;border:1px solid var(--b1);background:rgba(255,255,255,0.02);margin-bottom:10px;}
+.diag-cause{font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+.diag-prob{font-family:var(--syne);font-size:16px;font-weight:800;}
+.prob-bar-track{height:6px;background:rgba(255,255,255,0.06);border-radius:3px;margin:6px 0;}
+.prob-bar-fill{height:6px;border-radius:3px;transition:width 0.8s ease;}
+.diag-evidence{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;}
+.evidence-box{padding:8px 10px;border-radius:8px;font-size:10px;line-height:1.6;}
+.ev-for{background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.15);color:var(--t2);}
+.ev-for strong{color:var(--grn);}
+.ev-against{background:rgba(248,113,113,0.06);border:1px solid rgba(248,113,113,0.15);color:var(--t2);}
+.ev-against strong{color:var(--red);}
+.scanner-panel{background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);border-radius:12px;padding:14px;margin-bottom:12px;}
+.scanner-title{font-size:9px;font-family:var(--mono);letter-spacing:1.5px;color:var(--blue2);margin-bottom:10px;text-transform:uppercase;}
+.scanner-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
+.scanner-item{padding:8px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid var(--b1);text-align:center;}
+.scanner-item-val{font-family:var(--syne);font-size:14px;font-weight:700;color:var(--blue2);}
+.scanner-item-lbl{font-size:8px;color:var(--t2);font-family:var(--mono);margin-top:2px;}
+.scanner-item.warn .scanner-item-val{color:var(--yel);}
+.scanner-item.crit .scanner-item-val{color:var(--red);}
+.scanner-item.ok .scanner-item-val{color:var(--grn);}
+.primary-diag{padding:16px;border-radius:14px;background:linear-gradient(135deg,rgba(59,130,246,0.1),rgba(34,211,238,0.05));border:1px solid rgba(59,130,246,0.25);margin-bottom:14px;}
+.primary-diag-title{font-family:var(--syne);font-size:16px;font-weight:700;margin-bottom:6px;}
+.confidence-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;font-family:var(--mono);font-size:10px;font-weight:600;}
+.dtc-search-result{padding:10px 12px;border-radius:10px;border:1px solid var(--b1);background:rgba(255,255,255,0.02);cursor:pointer;transition:all 0.2s;margin-bottom:5px;}
+.dtc-search-result:hover{border-color:rgba(59,130,246,0.3);background:rgba(59,130,246,0.04);}
+
 /* FICHA TECNICA */
 .ficha-hero{padding:24px;border-radius:var(--r2);background:var(--glass);backdrop-filter:blur(20px);border:1px solid var(--b1);display:flex;align-items:center;gap:24px;flex-shrink:0;}
 .ficha-car-icon{width:80px;height:80px;border-radius:18px;background:linear-gradient(135deg,rgba(59,130,246,0.2),rgba(34,211,238,0.1));display:flex;align-items:center;justify-content:center;font-size:38px;flex-shrink:0;border:1px solid rgba(59,130,246,0.25);}
@@ -494,6 +522,7 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
     <button class="nav-btn" onclick="goView('workshop',this)">Taller</button>
     <button class="nav-btn" onclick="goView('research',this)">IA Research</button>
     <button class="nav-btn" onclick="goView('learning',this)">Aprendizaje</button>
+    <button class="nav-btn" onclick="goView('diagnostico',this)">Diagnóstico IA</button>
     <button class="nav-btn" onclick="goView('ficha',this);if(activeVehicleId){const v=vehiclesList.find(x=>x.id===activeVehicleId);loadFicha(activeVehicleId,v);}">Ficha Técnica</button>
   </div>
   <div class="header-right">
@@ -784,6 +813,86 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
         <div class="field"><label class="flbl">Causa y solución</label><input class="finput" id="lCause" placeholder="MAF sucio — limpieza spray"></div>
         <div class="field"><label class="flbl">Costo real (USD)</label><input class="finput" id="lCost" placeholder="15" type="number"></div>
         <button class="btn btn-blue" onclick="addLearning()" style="width:100%">⚡ Confirmar y guardar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- DIAGNOSTICO DIFERENCIAL -->
+<div id="view-diagnostico" class="view">
+  <div class="stitle">Diagnóstico IA <span class="stitle-sub">DIAGNÓSTICO DIFERENCIAL CON DATOS DEL SCANNER</span></div>
+  
+  <div class="g2" style="align-items:start">
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <!-- Scanner data input -->
+      <div class="gcard">
+        <div class="gcard-head"><div class="gcard-title">Datos del scanner</div><span class="gcard-tag">Ingresá los valores actuales</span></div>
+        <div class="gcard-body">
+          <div style="display:grid;grid-template-columns:120px 1fr 1fr;gap:8px;margin-bottom:10px">
+            <div class="field"><label class="flbl">Código DTC</label><input class="finput" id="ddCode" placeholder="P0171" oninput="this.value=this.value.toUpperCase();searchLocalDTC(this.value)"></div>
+            <div class="field"><label class="flbl">Marca</label><select class="fselect" id="ddBrand"><option value="">Universal</option><option>Toyota</option><option>Honda</option><option>Ford</option><option>Volkswagen</option><option>BMW</option><option>Nissan</option><option>Renault</option><option>Peugeot</option><option>Fiat</option><option>Chevrolet</option></select></div>
+            <div class="field"><label class="flbl">Modelo / Año</label><input class="finput" id="ddModel" placeholder="Corolla 2019"></div>
+          </div>
+          <div id="localDTCPreview" style="display:none;margin-bottom:10px"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:8px">
+            <div class="field"><label class="flbl">RPM actual</label><input class="finput" id="dd-rpm" placeholder="750" type="number"></div>
+            <div class="field"><label class="flbl">Temp. motor °C</label><input class="finput" id="dd-temp" placeholder="87" type="number"></div>
+            <div class="field"><label class="flbl">Fuel Trim Corto %</label><input class="finput" id="dd-ftc" placeholder="+16"></div>
+            <div class="field"><label class="flbl">Fuel Trim Largo %</label><input class="finput" id="dd-ftl" placeholder="+22"></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:10px">
+            <div class="field"><label class="flbl">O2 B1S1 (V)</label><input class="finput" id="dd-o2" placeholder="0.89"></div>
+            <div class="field"><label class="flbl">MAF (g/s)</label><input class="finput" id="dd-maf" placeholder="1.8"></div>
+            <div class="field"><label class="flbl">MAP (kPa)</label><input class="finput" id="dd-map" placeholder="45"></div>
+            <div class="field"><label class="flbl">Carga motor %</label><input class="finput" id="dd-load" placeholder="22"></div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-blue" onclick="runDifferentialDiagnosis()" id="ddBtn">⚡ Diagnóstico diferencial con IA</button>
+            <button class="btn btn-ghost" onclick="loadFromLiveData()">↓ Cargar datos live</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Results -->
+      <div id="diagResults" style="display:flex;flex-direction:column;gap:10px">
+        <div style="text-align:center;padding:32px;font-size:12px;color:var(--t3)">
+          Ingresá un código DTC y los valores del scanner para obtener un diagnóstico diferencial preciso basado en los datos reales.
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: DB search + info -->
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="gcard">
+        <div class="gcard-head"><div class="gcard-title">Buscar en base DTC</div><span class="gcard-tag">Base técnica local</span></div>
+        <div class="gcard-body">
+          <input class="finput" id="dtcSearchInput" placeholder="Buscar código o síntoma..." oninput="searchDTCDB(this.value)" style="margin-bottom:10px">
+          <div id="dtcSearchResults" style="display:flex;flex-direction:column;gap:5px;max-height:300px;overflow-y:auto">
+            <div style="font-size:10px;color:var(--t3);text-align:center;padding:10px">Escribí para buscar</div>
+          </div>
+        </div>
+      </div>
+      <div class="gcard">
+        <div class="gcard-head"><div class="gcard-title">De dónde viene la info</div></div>
+        <div class="gcard-body" style="font-size:11px;color:var(--t2);line-height:1.8;display:flex;flex-direction:column;gap:8px">
+          <div style="padding:8px 10px;border-radius:8px;border-left:2px solid var(--grn);background:rgba(52,211,153,0.04)">
+            <strong style="color:var(--grn);font-size:10px;font-family:var(--mono)">BASE LOCAL</strong><br>
+            Datos técnicos importados de SAE J2012 e ISO 15031-6. Causas, parámetros, hints de freeze frame y costos LATAM guardados en PostgreSQL.
+          </div>
+          <div style="padding:8px 10px;border-radius:8px;border-left:2px solid var(--blue2);background:rgba(59,130,246,0.04)">
+            <strong style="color:var(--blue2);font-size:10px;font-family:var(--mono)">DATOS SCANNER</strong><br>
+            Los valores reales del scanner (fuel trim, O2, MAF, etc.) se combinan con la base técnica para diagnóstico diferencial preciso.
+          </div>
+          <div style="padding:8px 10px;border-radius:8px;border-left:2px solid var(--mag);background:rgba(167,139,250,0.04)">
+            <strong style="color:var(--mag);font-size:10px;font-family:var(--mono)">COMUNIDAD</strong><br>
+            Resoluciones confirmadas por mecánicos. Cada resolución que confirmás en esta plataforma mejora el diagnóstico de todos.
+          </div>
+          <div style="padding:8px 10px;border-radius:8px;border-left:2px solid var(--ora);background:rgba(251,146,60,0.04)">
+            <strong style="color:var(--ora);font-size:10px;font-family:var(--mono)">IA + WEB SEARCH</strong><br>
+            Claude busca en tiempo real en bases técnicas: obd-codes.com, foros de mecánicos, TSB oficiales y precios de repuestos en Argentina.
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -1660,6 +1769,230 @@ function showNotif(msg,type='info'){
   setTimeout(()=>n.classList.remove('show'),3200);
 }
 
+
+
+// ── DIAGNÓSTICO DIFERENCIAL ──
+let localDTCData = null;
+
+async function searchLocalDTC(code) {
+  if (code.length < 4) { document.getElementById('localDTCPreview').style.display='none'; return; }
+  try {
+    const res = await API.get(`/api/dtc/${code}`);
+    if (res.ok && res.data) {
+      localDTCData = res.data;
+      showLocalDTCPreview(res.data);
+    } else {
+      localDTCData = null;
+      document.getElementById('localDTCPreview').style.display='none';
+    }
+  } catch(e) {}
+}
+
+function showLocalDTCPreview(dtc) {
+  const el = document.getElementById('localDTCPreview');
+  el.style.display = 'block';
+  el.innerHTML = `<div style="padding:10px 12px;border-radius:10px;border:1px solid rgba(52,211,153,0.25);background:rgba(52,211,153,0.05)">
+    <div style="font-size:9px;font-family:var(--mono);color:var(--grn);letter-spacing:1px;margin-bottom:4px">✓ ENCONTRADO EN BASE LOCAL</div>
+    <div style="font-size:12px;font-weight:600">${dtc.title}</div>
+    <div style="font-size:10px;color:var(--t2);margin-top:3px">${dtc.system} · Prioridad ${dtc.repair_priority || 2}</div>
+    ${dtc.latam_cost_usd ? `<div style="font-size:10px;color:var(--grn);margin-top:3px;font-family:var(--mono)">Costo estimado: $${dtc.latam_cost_usd} USD</div>` : ''}
+  </div>`;
+}
+
+function loadFromLiveData() {
+  // Load current live data values into the form
+  const ld = obd_latest;
+  if (!ld || !Object.keys(ld).length) { showNotif('Sin datos live disponibles — conectá el adaptador OBD-II', 'error'); return; }
+  if (ld.rpm)              document.getElementById('dd-rpm').value  = ld.rpm.value || '';
+  if (ld.coolant)          document.getElementById('dd-temp').value = ld.coolant.value || '';
+  if (ld.fuel_trim_short)  document.getElementById('dd-ftc').value  = '+' + ld.fuel_trim_short.value || '';
+  if (ld.fuel_trim_long)   document.getElementById('dd-ftl').value  = '+' + ld.fuel_trim_long.value || '';
+  if (ld.o2_b1s1)          document.getElementById('dd-o2').value   = ld.o2_b1s1.value || '';
+  if (ld.maf)              document.getElementById('dd-maf').value   = ld.maf.value || '';
+  if (ld.map)              document.getElementById('dd-map').value   = ld.map.value || '';
+  if (ld.engine_load)      document.getElementById('dd-load').value  = ld.engine_load.value || '';
+  showNotif('✓ Datos del scanner cargados', 'success');
+}
+
+async function runDifferentialDiagnosis() {
+  const code  = document.getElementById('ddCode').value.trim().toUpperCase();
+  const brand = document.getElementById('ddBrand').value;
+  const model = document.getElementById('ddModel').value.trim();
+  if (!code) { showNotif('Ingresá un código DTC', 'error'); return; }
+
+  const btn = document.getElementById('ddBtn');
+  btn.disabled = true; btn.textContent = 'Analizando...';
+
+  const live_data = obd_latest;
+  const scanner_manual = {
+    rpm:    { value: document.getElementById('dd-rpm').value,  unit:'rpm', label:'RPM' },
+    coolant:{ value: document.getElementById('dd-temp').value, unit:'°C',  label:'Temp. Motor' },
+    fuel_trim_short:{ value: document.getElementById('dd-ftc').value, unit:'%', label:'Fuel Trim Corto' },
+    fuel_trim_long: { value: document.getElementById('dd-ftl').value, unit:'%', label:'Fuel Trim Largo' },
+    o2_b1s1:{ value: document.getElementById('dd-o2').value,  unit:'V',   label:'O2 B1S1' },
+    maf:    { value: document.getElementById('dd-maf').value, unit:'g/s', label:'MAF' },
+    map:    { value: document.getElementById('dd-map').value, unit:'kPa', label:'MAP' },
+    engine_load:{ value: document.getElementById('dd-load').value, unit:'%', label:'Carga Motor' },
+  };
+
+  // Use live data if available, otherwise use manual input
+  const effectiveData = Object.keys(live_data).length > 0 ? live_data : scanner_manual;
+
+  const el = document.getElementById('diagResults');
+  el.innerHTML = `<div class="lsteps">
+    <div class="lstep"><div class="lspin" id="ds1"></div><div class="lstep-txt"><div class="lstep-title">CONSULTANDO BASE DE DATOS LOCAL</div><div>Buscando datos técnicos del código ${code}...</div></div></div>
+    <div class="lstep" style="opacity:0.3" id="ds2w"><div class="lspin" id="ds2" style="border-top-color:rgba(59,130,246,0.2)"></div><div class="lstep-txt"><div class="lstep-title">ANALIZANDO DATOS DEL SCANNER</div><div>Interpretando valores en relación al código...</div></div></div>
+    <div class="lstep" style="opacity:0.3" id="ds3w"><div class="lspin" id="ds3" style="border-top-color:rgba(59,130,246,0.2)"></div><div class="lstep-txt"><div class="lstep-title">DIAGNÓSTICO DIFERENCIAL IA</div><div>Calculando probabilidades con datos de comunidad...</div></div></div>
+  </div>`;
+
+  setTimeout(()=>{ document.getElementById('ds1').classList.add('done'); document.getElementById('ds2w').style.opacity='1'; }, 600);
+  setTimeout(()=>{ document.getElementById('ds2').classList.add('done'); document.getElementById('ds3w').style.opacity='1'; }, 1400);
+
+  try {
+    const res = await API.post('/api/ai/diagnose', {
+      code, brand, model,
+      live_data: effectiveData,
+      freeze_frame: effectiveData,
+    });
+
+    if (res.ok) {
+      renderDifferentialDiagnosis(res.data, effectiveData);
+    } else {
+      el.innerHTML = `<div style="padding:14px;border:1px solid rgba(248,113,113,0.25);border-radius:10px;font-size:11px;color:var(--red)">Error: ${res.error}</div>`;
+    }
+  } catch(e) {
+    el.innerHTML = `<div style="padding:14px;border:1px solid rgba(248,113,113,0.25);border-radius:10px;font-size:11px;color:var(--red)">Error: ${e.message}</div>`;
+  } finally {
+    btn.disabled = false; btn.textContent = '⚡ Diagnóstico diferencial con IA';
+  }
+}
+
+function renderDifferentialDiagnosis(d, scannerData) {
+  const confColor = d.confidence >= 80 ? 'var(--grn)' : d.confidence >= 60 ? 'var(--yel)' : 'var(--red)';
+  
+  // Build scanner panel with live values
+  const scannerItems = Object.entries(scannerData)
+    .filter(([k,v]) => v?.value && v.value !== '')
+    .map(([k,v]) => {
+      const val = parseFloat(v.value);
+      let cls = '';
+      if (k === 'fuel_trim_short' || k === 'fuel_trim_long') cls = val > 15 ? 'crit' : val > 8 ? 'warn' : 'ok';
+      if (k === 'o2_b1s1') cls = (val < 0.1 || val > 0.95) ? 'warn' : 'ok';
+      if (k === 'coolant') cls = val > 100 ? 'crit' : val < 70 ? 'warn' : 'ok';
+      return `<div class="scanner-item ${cls}">
+        <div class="scanner-item-val">${v.value}${v.unit}</div>
+        <div class="scanner-item-lbl">${v.label}</div>
+      </div>`;
+    }).join('');
+
+  let html = `
+    <!-- Scanner visualization -->
+    ${scannerItems ? `<div class="scanner-panel">
+      <div class="scanner-title">◈ Valores del scanner al momento del diagnóstico</div>
+      <div class="scanner-grid">${scannerItems}</div>
+    </div>` : ''}
+
+    <!-- Primary diagnosis -->
+    <div class="primary-diag">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div class="gcard-title">Diagnóstico principal</div>
+        <span class="confidence-badge" style="background:${confColor}18;color:${confColor};border:1px solid ${confColor}30">
+          ${d.confidence || 0}% confianza
+        </span>
+      </div>
+      <div class="primary-diag-title">${d.primary_diagnosis}</div>
+      ${d.scanner_interpretation ? `<div style="font-size:11px;color:var(--t2);margin-top:6px;line-height:1.6">${d.scanner_interpretation}</div>` : ''}
+      ${d.recommended_action ? `<div style="margin-top:10px;padding:8px 12px;border-radius:8px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);font-size:11px;color:var(--blue2)">
+        <strong>→ Primer paso:</strong> ${d.recommended_action}
+      </div>` : ''}
+    </div>
+
+    <!-- Differential diagnosis -->
+    ${(d.differential || []).map(cause => {
+      const probColor = cause.probability >= 70 ? 'var(--red)' : cause.probability >= 40 ? 'var(--yel)' : 'var(--grn)';
+      return `<div class="diag-card">
+        <div class="diag-cause">
+          <span>${cause.cause}</span>
+          <span class="diag-prob" style="color:${probColor}">${cause.probability}%</span>
+        </div>
+        <div class="prob-bar-track">
+          <div class="prob-bar-fill" style="width:${cause.probability}%;background:${probColor}"></div>
+        </div>
+        <div class="diag-evidence">
+          <div class="evidence-box ev-for"><strong>A favor</strong><br>${cause.evidence_for || '—'}</div>
+          <div class="evidence-box ev-against"><strong>En contra</strong><br>${cause.evidence_against || '—'}</div>
+        </div>
+        ${cause.confirming_test ? `<div style="margin-top:8px;font-size:10px;color:var(--blue2);font-family:var(--mono)">🔧 Prueba confirmatoria: ${cause.confirming_test}</div>` : ''}
+        ${cause.estimated_cost_usd ? `<div style="font-size:10px;color:var(--grn);margin-top:4px;font-family:var(--mono)">Costo: $${cause.estimated_cost_usd} USD</div>` : ''}
+      </div>`;
+    }).join('')}
+
+    <!-- Parts and tools -->
+    ${(d.parts_to_check?.length || d.tools_needed?.length) ? `<div class="gcard">
+      <div class="gcard-head"><div class="gcard-title">Herramientas y repuestos</div></div>
+      <div class="gcard-body" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        ${d.parts_to_check?.length ? `<div>
+          <div style="font-size:9px;font-family:var(--mono);color:var(--blue2);letter-spacing:1px;margin-bottom:6px">VERIFICAR</div>
+          ${d.parts_to_check.map(p=>`<div style="font-size:11px;color:var(--text);padding:3px 0;border-bottom:1px solid var(--b1)">→ ${p}</div>`).join('')}
+        </div>` : ''}
+        ${d.tools_needed?.length ? `<div>
+          <div style="font-size:9px;font-family:var(--mono);color:var(--yel);letter-spacing:1px;margin-bottom:6px">HERRAMIENTAS</div>
+          ${d.tools_needed.map(t=>`<div style="font-size:11px;color:var(--text);padding:3px 0;border-bottom:1px solid var(--b1)">→ ${t}</div>`).join('')}
+        </div>` : ''}
+      </div>
+      ${d.latam_availability ? `<div style="padding:0 18px 14px;font-size:11px;color:var(--t2)">🇦🇷 ${d.latam_availability}</div>` : ''}
+    </div>` : ''}
+
+    <!-- Community data -->
+    ${d.community_data?.length ? `<div class="gcard">
+      <div class="gcard-head"><div class="gcard-title">Resoluciones confirmadas comunidad</div><span class="gcard-tag">${d.community_data.length} causas registradas</span></div>
+      <div class="gcard-body" style="display:flex;flex-direction:column;gap:5px">
+        ${d.community_data.map(r=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--b1)">
+          <span style="font-size:11px">${r.cause_found}</span>
+          <div style="display:flex;gap:10px;align-items:center">
+            <span style="font-family:var(--mono);font-size:10px;color:var(--blue2)">${r.count} casos</span>
+            ${r.avg_cost ? `<span style="font-family:var(--mono);font-size:10px;color:var(--grn)">~$${Math.round(r.avg_cost)} USD</span>` : ''}
+          </div>
+        </div>`).join('')}
+      </div>
+    </div>` : ''}
+  `;
+
+  document.getElementById('diagResults').innerHTML = html;
+}
+
+// DTC DB search
+async function searchDTCDB(q) {
+  if (q.length < 2) {
+    document.getElementById('dtcSearchResults').innerHTML = '<div style="font-size:10px;color:var(--t3);text-align:center;padding:10px">Escribí para buscar</div>';
+    return;
+  }
+  try {
+    const res = await API.get(`/api/dtc/search?q=${encodeURIComponent(q)}`);
+    const el = document.getElementById('dtcSearchResults');
+    if (!res.ok || !res.data?.length) {
+      el.innerHTML = '<div style="font-size:10px;color:var(--t3);text-align:center;padding:10px">Sin resultados</div>';
+      return;
+    }
+    el.innerHTML = res.data.map(d => `
+      <div class="dtc-search-result" onclick="selectFromSearch('${d.code}')">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-family:var(--syne);font-size:12px;font-weight:700;color:var(--blue2)">${d.code}</span>
+          <span class="dtcsev ${d.severity==='Crítico'?'sev-c':d.severity==='Moderado'?'sev-m':'sev-l'}">${d.severity||''}</span>
+        </div>
+        <div style="font-size:11px;font-weight:500;margin-top:3px">${d.title||''}</div>
+        <div style="font-size:9px;color:var(--t2);font-family:var(--mono)">${d.system||''}</div>
+        ${d.latam_cost_usd ? `<div style="font-size:9px;color:var(--grn);font-family:var(--mono)">$${d.latam_cost_usd} USD</div>` : ''}
+      </div>`).join('');
+  } catch(e) {}
+}
+
+function selectFromSearch(code) {
+  document.getElementById('ddCode').value = code;
+  searchLocalDTC(code);
+  // Also fill in the IA Research
+  document.getElementById('rCode').value = code;
+}
 
 // ── FICHA TECNICA ──
 function openFicha() {
