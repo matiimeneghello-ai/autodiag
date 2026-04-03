@@ -4061,7 +4061,17 @@ window.goView = function(name, btn) {
 
 // ── PWA ──────────────────────────────────────────────────────
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(()=>{}));
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').then(reg => {
+      // Force check for SW updates
+      reg.update();
+      console.log('✓ SW registrado');
+    }).catch(e => console.log('SW error:', e));
+  });
+  // If SW controls the page, check for updates on navigation
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    console.log('SW updated — new version active');
+  });
 }
 
 // Splash handled by inline script above

@@ -1,13 +1,9 @@
-const CACHE_NAME = 'autodiag-v2';
+const CACHE_NAME = 'autodiag-v3';
 const STATIC_CACHE = [
-  '/',
-  '/app',
-  '/index.html',
   '/manifest.json',
-  'https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap',
 ];
 
-// Install — cache static assets
+// Install — minimal cache
 self.addEventListener('install', (e) => {
   e.waitUntil(
     caches.open(CACHE_NAME).then(cache => cache.addAll(STATIC_CACHE))
@@ -15,54 +11,68 @@ self.addEventListener('install', (e) => {
   self.skipWaiting();
 });
 
-// Activate — clean old caches
+// Activate — clean old caches immediately
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
-    )
+      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => {
+        console.log('SW: deleting old cache', k);
+        return caches.delete(k);
+      }))
+    ).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
-// Fetch — network first, cache fallback
+// Fetch handler
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
 
-  // API calls — always network, never cache
+  // API calls — ALWAYS go direct to network, NO SW interference
+  // Use a timeout so they don't hang forever
   if (url.pathname.startsWith('/api/') || url.pathname === '/health') {
     e.respondWith(
-      fetch(e.request).catch(() =>
-        new Response(JSON.stringify({ ok: false, error: 'Sin conexión — modo offline' }), {
+      Promise.race([
+        fetch(e.request.clone()),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('timeout')), 25000)
+        )
+      ]).catch((err) => {
+        const msg = err.message === 'timeout'
+          ? 'El servidor tardó demasiado. Recargá la página.'
+          : 'Sin conexión al servidor.';
+        return new Response(JSON.stringify({ ok: false, error: msg }), {
+          status: 503,
           headers: { 'Content-Type': 'application/json' }
-        })
+        });
+      })
+    );
+    return;
+  }
+
+  // WebSocket — never intercept
+  if (url.protocol === 'ws:' || url.protocol === 'wss:') return;
+
+  // HTML pages — always network, no cache (so updates deploy immediately)
+  if (e.request.destination === 'document') {
+    e.respondWith(
+      fetch(e.request).catch(() =>
+        caches.match(e.request)
       )
     );
     return;
   }
 
-  // Static assets — network first, fallback to cache
+  // Static assets (fonts, icons) — cache first
   e.respondWith(
-    fetch(e.request)
-      .then(response => {
-        if (response.ok) {
+    caches.match(e.request).then(cached => {
+      if (cached) return cached;
+      return fetch(e.request).then(response => {
+        if (response.ok && e.request.url.includes('fonts.googleapis')) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
         }
         return response;
-      })
-      .catch(() => caches.match(e.request).then(cached => cached || caches.match('/')))
+      }).catch(() => cached);
+    })
   );
 });
-
-// Background sync for offline scans (future)
-self.addEventListener('sync', (e) => {
-  if (e.tag === 'sync-scans') {
-    e.waitUntil(syncOfflineScans());
-  }
-});
-
-async function syncOfflineScans() {
-  // Future: sync scans stored offline
-  console.log('AutoDiag: syncing offline data...');
-}
