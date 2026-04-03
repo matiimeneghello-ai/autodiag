@@ -358,10 +358,10 @@ a, button, [role=button], .btn, .vcard, .dtcrow, .ws-card,
   z-index: 50;
 }
 .sb-label {
-  font-size: 8px; font-family: var(--mono); letter-spacing: 2.5px;
+  font-size: 8px; font-family: var(--mono); letter-spacing: 1.5px;
   color: var(--t3); text-transform: uppercase;
-  padding: 8px 4px 4px 4px;
-  overflow: hidden; text-overflow: clip; white-space: nowrap;
+  padding: 8px 6px 5px 6px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 /* Vehicle cards */
 .vcard {
@@ -411,7 +411,7 @@ a, button, [role=button], .btn, .vcard, .dtcrow, .ws-card,
 .hbar-track { flex: 1; height: 3px; background: rgba(255,255,255,.05); border-radius: 2px; }
 .hbar-fill { height: 3px; border-radius: 2px; transition: width 1s ease; }
 .hbar-val { font-size: 8px; font-family: var(--mono); width: 24px; text-align: right; flex-shrink: 0; }
-.radar-wrap { padding: 8px; border-radius: var(--r); background: var(--b1); border: 1px solid var(--b1); }
+.radar-wrap { padding: 6px; border-radius: var(--r); background: rgba(0,0,0,.2); border: 1px solid var(--b1); min-height: 200px; display: flex; align-items: center; justify-content: center; }
 
 /* Sidebar buttons */
 .sb-btn {
@@ -498,6 +498,7 @@ a, button, [role=button], .btn, .vcard, .dtcrow, .ws-card,
   border: 1px solid rgba(59,130,246,.18);
 }
 .gcard-body { padding: 14px 16px; }
+.gcard-body + .gcard-body { border-top: 1px solid var(--b1); }
 
 /* Metrics */
 .metrics { display: grid; gap: 10px; grid-template-columns: repeat(4,1fr); }
@@ -508,7 +509,7 @@ a, button, [role=button], .btn, .vcard, .dtcrow, .ws-card,
 .metric:hover { transform: translateY(-2px); }
 .metric-bg { position: absolute; inset: 0; background: var(--glass); backdrop-filter: blur(20px); }
 .metric-glow { position: absolute; top: -20px; right: -20px; width: 80px; height: 80px;
-               border-radius: 50%; filter: blur(35px); opacity: .5; }
+               border-radius: 50%; filter: blur(40px); opacity: .3; }
 .metric-c { position: relative; z-index: 1; }
 .m-icon  { font-size: 16px; display: block; margin-bottom: 8px; }
 .m-lbl   { font-size: 8px; font-family: var(--mono); letter-spacing: 2px; color: var(--t2); text-transform: uppercase; }
@@ -522,8 +523,8 @@ a, button, [role=button], .btn, .vcard, .dtcrow, .ws-card,
 /* DTC rows */
 .dtc-list { display: flex; flex-direction: column; gap: 6px; }
 .dtc-row {
-  padding: 11px 13px; border-radius: var(--r); border: 1px solid var(--b1);
-  background: rgba(255,255,255,.02); cursor: pointer; transition: all .2s;
+  padding: 12px 14px; border-radius: var(--r); border: 1px solid var(--b1);
+  background: rgba(255,255,255,.02); cursor: pointer; transition: all .15s;
   display: flex; align-items: center; gap: 11px;
 }
 .dtc-row:hover  { border-color: rgba(59,130,246,.3); background: rgba(59,130,246,.04); }
@@ -560,7 +561,7 @@ a, button, [role=button], .btn, .vcard, .dtcrow, .ws-card,
 /* Live data */
 .live-list { display: flex; flex-direction: column; gap: 4px; }
 .lrow { display: flex; justify-content: space-between; align-items: center;
-        padding: 7px 10px; border-radius: 8px; background: var(--b1); }
+        padding: 7px 10px; border-radius: 8px; background: rgba(255,255,255,.03); border: 1px solid var(--b1); }
 .llbl { font-size: 9px; color: var(--t2); font-family: var(--mono); }
 .lval { font-family: var(--syne); font-size: 12px; font-weight: 700; color: var(--blue2); }
 .lval.warn { color: var(--yel); } .lval.crit { color: var(--red); } .lval.ok { color: var(--grn); }
@@ -795,10 +796,10 @@ a, button, [role=button], .btn, .vcard, .dtcrow, .ws-card,
 
 /* Help banner */
 .help-banner {
-  display: flex; align-items: flex-start; gap: 12px;
-  padding: 12px 14px; border-radius: var(--r);
-  background: rgba(59,130,246,.05); border: 1px solid rgba(59,130,246,.15);
-  flex-shrink: 0; position: relative;
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px 12px; border-radius: var(--r);
+  background: rgba(59,130,246,.04); border: 1px solid rgba(59,130,246,.12);
+  flex-shrink: 0; position: relative; margin-bottom: 2px;
 }
 .help-icon { font-size: 20px; flex-shrink: 0; margin-top: 2px; }
 .help-content { flex: 1; min-width: 0; }
@@ -817,13 +818,13 @@ a, button, [role=button], .btn, .vcard, .dtcrow, .ws-card,
 /* Floating assistant */
 .fab {
   position: fixed; z-index: 300;
-  width: 50px; height: 50px; border-radius: 15px;
+  width: 48px; height: 48px; border-radius: 15px;
   background: linear-gradient(135deg, #2563eb, #0891b2);
   box-shadow: 0 6px 24px rgba(37,99,235,.5);
   display: flex; align-items: center; justify-content: center;
-  font-size: 22px; transition: all .3s;
-  animation: fabPop 3s ease-in-out infinite;
-  bottom: 80px; right: 16px;
+  font-size: 20px; transition: all .3s;
+  animation: fabPop 4s ease-in-out infinite;
+  bottom: 88px; right: 16px;
 }
 .fab:hover { transform: scale(1.08); }
 .fab:active { transform: scale(.94); }
@@ -843,8 +844,8 @@ a, button, [role=button], .btn, .vcard, .dtcrow, .ws-card,
   box-shadow: 0 20px 60px rgba(0,0,0,.6);
   display: none; flex-direction: column;
   animation: scaleIn .2s ease;
-  bottom: 80px; right: 16px;
-  max-height: 65vh;
+  bottom: 88px; right: 16px;
+  max-height: 62vh;
 }
 .ap.open { display: flex; }
 .ap-head {
@@ -1152,7 +1153,7 @@ a, button, [role=button], .btn, .vcard, .dtcrow, .ws-card,
       <div class="tb-logo-mark">⚙</div>
       <div class="tb-logo-name">AutoDiag Pro</div>
     </div>
-    <div class="tb-page-title" id="tbPageTitle">Dashboard</div>
+    <div class="tb-page-title" id="mobileTitle">Dashboard</div>
     <nav class="tb-nav" id="tbNav">
       <button class="tb-btn active" onclick="goView('dashboard',this)">Dashboard</button>
       <button class="tb-btn" onclick="goView('charts',this)">Gráficas</button>
@@ -1194,7 +1195,7 @@ a, button, [role=button], .btn, .vcard, .dtcrow, .ws-card,
       </div>
 
       <div class="sb-label" style="margin-top:10px">Salud sistema</div>
-      <div class="radar-wrap"><canvas id="radarChart" width="200" height="200"></canvas></div>
+      <div class="radar-wrap"><canvas id="radarChart" style="width:100%;max-width:200px;height:200px"></canvas></div>
 
       <div class="sb-label" style="margin-top:10px">Acciones</div>
       <button class="sb-btn sb-btn-blue" onclick="goView('research',document.querySelectorAll('.tb-btn')[6]);closeSidebar()">⚡ IA Research</button>
@@ -2248,14 +2249,38 @@ async function initApp() {
   await loadJobs();
   await checkHealth();
   await loadLearningStats();
-  initCharts();
-  setTimeout(initRadar, 100); // wait for Chart.js
+  // Charts - retry until Chart.js is ready
+  (function tryInitCharts(attempts) {
+    if (typeof Chart !== "undefined") {
+      initCharts();
+    } else if (attempts > 0) {
+      setTimeout(() => tryInitCharts(attempts - 1), 200);
+    }
+  })(10);
+  // Radar - retry until Chart.js is ready
+  (function tryInitRadar(attempts) {
+    if (typeof Chart !== "undefined") {
+      initRadar();
+    } else if (attempts > 0) {
+      setTimeout(() => tryInitRadar(attempts - 1), 200);
+    }
+  })(10);
   renderLearning();
   updateTotalCases();
   wsClient.connect();
   initHelp();
   setInterval(checkHealth, 30000);
   setInterval(loadLearningStats, 60000);
+  // Set default metric values (— → 0/values)
+  ['dtcCount','ceVal','tempVal','voltVal'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && el.textContent === '—') {
+      if (id === 'dtcCount') el.textContent = '0';
+      if (id === 'ceVal') el.textContent = 'OFF';
+      if (id === 'tempVal') el.textContent = '—°C';
+      if (id === 'voltVal') el.textContent = '—V';
+    }
+  });
   showNotif('✓ AutoDiag Pro — Bienvenido, '+(currentUser?.tallerName||'usuario'));
 }
 
@@ -2439,7 +2464,7 @@ function initRadar() {
   radarChart = new Chart(ctx, {
     type: 'radar',
     data: {
-      labels: ['Motor','Transm.','Frenos','Emis.','Eléct.','Suspens.'],
+      labels: ['Motor','Transm.','Frenos','Emis.','Elect.','Suspens.'],
       datasets: [{
         data: [62,88,91,34,79,85],
         borderColor: 'rgba(59,130,246,0.8)',
