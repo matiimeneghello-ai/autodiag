@@ -163,6 +163,14 @@ async function runMigrations() {
   await query("ALTER TABLE resolutions ADD COLUMN IF NOT EXISTS model VARCHAR(100)").catch(()=>{});
   await query("ALTER TABLE resolutions ADD COLUMN IF NOT EXISTS year INTEGER").catch(()=>{});
 
+
+  // Enhanced scan columns for historial
+  await query("ALTER TABLE scans ADD COLUMN IF NOT EXISTS notes TEXT").catch(()=>{});
+  await query("ALTER TABLE scans ADD COLUMN IF NOT EXISTS resolved_codes TEXT[] DEFAULT '{}'").catch(()=>{});
+  await query("ALTER TABLE scans ADD COLUMN IF NOT EXISTS total_cost_usd NUMERIC").catch(()=>{});
+  await query("ALTER TABLE scans ADD COLUMN IF NOT EXISTS freeze_frame JSONB").catch(()=>{});
+  await query("ALTER TABLE scans ADD COLUMN IF NOT EXISTS severity VARCHAR(20)").catch(()=>{});
+
   console.log('✓ Migraciones DB completadas');
 }
 
@@ -291,10 +299,73 @@ async function upsertProfile(vehicleId, profileData) {
   return r.rows[0];
 }
 
+
+// ── HISTORIAL COMPLETO ────────────────────────────────────────
+async function saveFullScan(vehicleId, {dtcs, liveData, freezeFrame, protocol, notes, resolvedCodes, totalCost}) {
+  const r = await query(
+    `INSERT INTO scans (vehicle_id, dtcs, live_data, protocol, notes, resolved_codes, total_cost_usd, freeze_frame)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+    [vehicleId, dtcs, JSON.stringify(liveData||{}), protocol||'OBD-II',
+     notes||null, resolvedCodes||[], totalCost||null, JSON.stringify(freezeFrame||{})]
+  );
+  await query('UPDATE vehicles SET updated_at=NOW() WHERE id=$1', [vehicleId]);
+  return r.rows[0];
+}
+
+async function getVehicleHistory(vehicleId) {
+  // Scans with resolution data joined
+  const scans = await query(`
+    SELECT s.*,
+      (SELECT json_agg(r.*) FROM resolutions r WHERE r.vehicle_id=s.vehicle_id AND r.created_at::date = s.created_at::date) as resolutions_that_day
+    FROM scans s
+    WHERE s.vehicle_id=$1
+    ORDER BY s.created_at DESC
+    LIMIT 100
+  `, [vehicleId]);
+
+  // All resolutions for this vehicle
+  const resolutions = await query(`
+    SELECT * FROM resolutions WHERE vehicle_id=$1 ORDER BY created_at DESC
+  `, [vehicleId]);
+
+  // DTC frequency stats
+  const dtcStats = await query(`
+    SELECT unnest(dtcs) as code, COUNT(*) as appearances,
+           MIN(created_at) as first_seen, MAX(created_at) as last_seen
+    FROM scans WHERE vehicle_id=$1
+    GROUP BY code ORDER BY appearances DESC
+  `, [vehicleId]);
+
+  // Cost history
+  const costs = await query(`
+    SELECT DATE_TRUNC('month', created_at) as month,
+           SUM(cost_usd) as total_cost, COUNT(*) as repairs
+    FROM resolutions WHERE vehicle_id=$1 AND cost_usd IS NOT NULL
+    GROUP BY month ORDER BY month DESC
+  `, [vehicleId]);
+
+  return {
+    scans: scans.rows,
+    resolutions: resolutions.rows,
+    dtc_stats: dtcStats.rows,
+    cost_by_month: costs.rows,
+  };
+}
+
+async function addScanNote(scanId, note) {
+  return (await query('UPDATE scans SET notes=$1 WHERE id=$2 RETURNING *', [note, scanId])).rows[0];
+}
+
+async function markDTCResolved(scanId, code, resolution) {
+  // Add code to resolved_codes array of that scan
+  await query(`UPDATE scans SET resolved_codes = array_append(resolved_codes, $1) WHERE id=$2`, [code, scanId]);
+  return true;
+}
+
 module.exports = {
   query,connectDB,pool,
   getVehicles,getVehicle,createVehicle,updateVehicle,deleteVehicle,
-  saveScan,getScans,
+  saveScan,getScans,saveFullScan,getVehicleHistory,addScanNote,markDTCResolved,
   getDTCInfo,upsertDTCInfo,
   getResolutions,saveResolution,getResolutionStats,
   getJobs,createJob,updateJobStatus,

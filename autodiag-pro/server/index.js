@@ -801,6 +801,32 @@ app.get('/app', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
+
+// ── HISTORIAL COMPLETO DEL VEHÍCULO ──────────────────────────
+app.get('/api/vehicles/:id/history', async (req, res) => {
+  if (!db) return res.json({ ok: true, data: { scans:[], resolutions:[], dtc_stats:[], cost_by_month:[] } });
+  try {
+    const data = await db.getVehicleHistory(req.params.id);
+    res.json({ ok: true, data });
+  } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.patch('/api/scans/:id/note', async (req, res) => {
+  if (!db) return res.status(503).json({ ok: false, error: 'Sin DB' });
+  try {
+    const scan = await db.addScanNote(req.params.id, req.body.note);
+    res.json({ ok: true, data: scan });
+  } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post('/api/vehicles/:id/scans/full', async (req, res) => {
+  if (!db) return res.status(503).json({ ok: false, error: 'Sin DB' });
+  try {
+    const scan = await db.saveFullScan(req.params.id, req.body);
+    res.json({ ok: true, data: scan });
+  } catch(e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
 // SPA fallback
 app.get('*', (req,res) => res.sendFile(path.join(__dirname,'../public/index.html')));
 

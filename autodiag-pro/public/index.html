@@ -1115,6 +1115,152 @@ a, button, [role=button], .btn, .vcard, .dtcrow, .ws-card,
 .nhtsa-tab-pane { display: none; }
 .nhtsa-tab-pane.active { display: block; }
 
+
+/* ═══════════════════════════════════════════════
+   HISTORIAL — TIMELINE COMPLETO
+   ═══════════════════════════════════════════════ */
+
+/* Summary cards at top */
+.hist-summary {
+  display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; flex-shrink: 0;
+}
+.hs-card {
+  padding: 16px; border-radius: var(--r2);
+  background: var(--glass); border: 1px solid var(--b1);
+  position: relative; overflow: hidden;
+}
+.hs-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+}
+.hs-card.blue::before  { background: linear-gradient(90deg,var(--blue),var(--cyan)); }
+.hs-card.red::before   { background: linear-gradient(90deg,var(--red),var(--ora)); }
+.hs-card.grn::before   { background: linear-gradient(90deg,var(--grn),var(--cyan)); }
+.hs-card.yel::before   { background: linear-gradient(90deg,var(--yel),var(--ora)); }
+.hs-card-icon { font-size: 20px; margin-bottom: 10px; }
+.hs-card-num  { font-family: var(--syne); font-size: 32px; font-weight: 800; line-height: 1; }
+.hs-card-lbl  { font-size: 10px; color: var(--t2); font-family: var(--mono); margin-top: 4px; letter-spacing: .5px; }
+.hs-card.blue .hs-card-num { color: var(--blue2); }
+.hs-card.red  .hs-card-num { color: var(--red); }
+.hs-card.grn  .hs-card-num { color: var(--grn); }
+.hs-card.yel  .hs-card-num { color: var(--yel); }
+
+/* DTC Frequency bars */
+.dtc-freq { display: flex; flex-direction: column; gap: 7px; }
+.dtc-freq-row { display: flex; align-items: center; gap: 10px; }
+.dtc-freq-code { font-family: var(--syne); font-size: 11px; font-weight: 700; color: var(--blue2); min-width: 52px; }
+.dtc-freq-bar-wrap { flex: 1; height: 5px; background: rgba(255,255,255,.05); border-radius: 3px; }
+.dtc-freq-bar { height: 5px; border-radius: 3px; background: linear-gradient(90deg,var(--blue),var(--cyan)); transition: width .8s ease; }
+.dtc-freq-count { font-family: var(--mono); font-size: 10px; color: var(--t2); min-width: 40px; text-align: right; }
+
+/* Cost chart */
+.cost-bars { display: flex; align-items: flex-end; gap: 8px; height: 80px; }
+.cost-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end; }
+.cost-bar { width: 100%; border-radius: 4px 4px 0 0; background: linear-gradient(180deg,var(--grn),rgba(52,211,153,.3)); min-height: 4px; transition: height .6s ease; }
+.cost-bar-lbl { font-size: 8px; color: var(--t3); font-family: var(--mono); }
+.cost-bar-val { font-size: 8px; color: var(--grn); font-family: var(--mono); }
+
+/* Timeline */
+.timeline { display: flex; flex-direction: column; gap: 0; position: relative; }
+.timeline::before {
+  content: ''; position: absolute; left: 19px; top: 0; bottom: 0; width: 1px;
+  background: linear-gradient(180deg, var(--blue), rgba(59,130,246,.1));
+}
+.tl-item { display: flex; gap: 16px; margin-bottom: 0; animation: fadeUp .3s ease; position: relative; }
+.tl-dot-wrap { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+.tl-dot {
+  width: 39px; height: 39px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; border: 2px solid var(--b1); position: relative; z-index: 1;
+  transition: all .2s;
+}
+.tl-dot.critical { background: rgba(248,113,113,.15); border-color: rgba(248,113,113,.4); }
+.tl-dot.moderate { background: rgba(251,191,36,.1);  border-color: rgba(251,191,36,.35); }
+.tl-dot.ok       { background: rgba(52,211,153,.1);  border-color: rgba(52,211,153,.35); }
+.tl-dot.info     { background: rgba(59,130,246,.1);  border-color: rgba(59,130,246,.35); }
+.tl-connector { width: 1px; flex: 1; min-height: 12px; background: transparent; }
+.tl-card {
+  flex: 1; padding: 14px 16px; border-radius: var(--r2);
+  background: var(--glass); border: 1px solid var(--b1);
+  margin-bottom: 10px; transition: all .2s; cursor: pointer;
+  position: relative; overflow: hidden;
+}
+.tl-card:hover { border-color: var(--b2); background: rgba(255,255,255,.04); }
+.tl-card.expanded { border-color: rgba(59,130,246,.3); }
+.tl-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.tl-date { font-family: var(--mono); font-size: 10px; color: var(--t2); flex-shrink: 0; }
+.tl-title { font-family: var(--syne); font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+.tl-sub { font-size: 11px; color: var(--t2); }
+.tl-tags { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 8px; }
+.tl-tag { font-size: 9px; font-family: var(--mono); padding: 2px 8px; border-radius: 20px; }
+.tl-tag.dtc  { background: rgba(248,113,113,.1); color: var(--red); border: 1px solid rgba(248,113,113,.2); }
+.tl-tag.res  { background: rgba(52,211,153,.08); color: var(--grn); border: 1px solid rgba(52,211,153,.2); }
+.tl-tag.cost { background: rgba(251,191,36,.08); color: var(--yel); border: 1px solid rgba(251,191,36,.2); }
+.tl-tag.prot { background: rgba(59,130,246,.08); color: var(--blue2); border: 1px solid rgba(59,130,246,.2); }
+.tl-chevron { color: var(--t3); font-size: 12px; transition: transform .2s; flex-shrink: 0; margin-top: 2px; }
+.tl-card.expanded .tl-chevron { transform: rotate(90deg); color: var(--blue2); }
+
+/* Expanded detail */
+.tl-detail {
+  display: none; margin-top: 12px; padding-top: 12px;
+  border-top: 1px solid var(--b1);
+  animation: fadeUp .2s ease;
+}
+.tl-card.expanded .tl-detail { display: block; }
+.tl-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.tl-dlbl { font-size: 8px; font-family: var(--mono); color: var(--blue2); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; }
+.tl-dtxt { font-size: 11px; color: var(--text); line-height: 1.65; }
+.tl-live-mini { display: grid; grid-template-columns: repeat(3,1fr); gap: 5px; }
+.tl-lm-item { padding: 6px 8px; border-radius: 8px; background: var(--b1); text-align: center; }
+.tl-lm-val { font-family: var(--syne); font-size: 12px; font-weight: 700; color: var(--blue2); }
+.tl-lm-lbl { font-size: 8px; color: var(--t2); font-family: var(--mono); margin-top: 1px; }
+
+/* Note input on scan */
+.tl-note-row { display: flex; gap: 7px; margin-top: 10px; }
+.tl-note-in { flex: 1; padding: 7px 10px; border-radius: 9px; background: rgba(255,255,255,.04); border: 1px solid var(--b2); color: var(--text); font-size: 11px; outline: none; }
+.tl-note-in:focus { border-color: rgba(59,130,246,.4); }
+.tl-save-btn { padding: 7px 14px; border-radius: 9px; background: var(--blue); color: #fff; font-size: 11px; font-weight: 600; border: none; cursor: pointer; }
+
+/* Resolution badge on timeline */
+.tl-resolved-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px; border-radius: 20px; margin-top: 6px;
+  background: rgba(52,211,153,.08); color: var(--grn);
+  font-size: 9px; font-family: var(--mono);
+  border: 1px solid rgba(52,211,153,.2);
+}
+
+/* Filter bar */
+.hist-filters { display: flex; gap: 7px; flex-wrap: wrap; flex-shrink: 0; align-items: center; }
+.hf-btn {
+  padding: 6px 14px; border-radius: 8px; border: 1px solid var(--b2);
+  background: rgba(255,255,255,.02); font-size: 11px; color: var(--t2);
+  cursor: pointer; transition: all .2s; font-family: var(--sans);
+}
+.hf-btn.active { background: rgba(59,130,246,.1); border-color: rgba(59,130,246,.3); color: var(--blue2); }
+.hf-search {
+  flex: 1; min-width: 160px; padding: 7px 12px; border-radius: 9px;
+  background: rgba(255,255,255,.04); border: 1px solid var(--b2);
+  color: var(--text); font-size: 12px; outline: none;
+}
+.hf-search:focus { border-color: rgba(59,130,246,.4); }
+
+/* Empty state */
+.hist-empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 60px 20px; gap: 14px; text-align: center; color: var(--t3);
+}
+.hist-empty-icon { font-size: 48px; opacity: .2; }
+.hist-empty-text { font-size: 13px; }
+
+/* Responsive */
+@media(max-width:768px){
+  .hist-summary { grid-template-columns: 1fr 1fr; }
+  .tl-detail-grid { grid-template-columns: 1fr; }
+  .tl-live-mini { grid-template-columns: 1fr 1fr; }
+  .timeline::before { left: 17px; }
+  .tl-dot { width: 35px; height: 35px; font-size: 14px; }
+}
+
 </style>
 </head>
 <body>
@@ -1241,6 +1387,7 @@ a, button, [role=button], .btn, .vcard, .dtcrow, .ws-card,
       <button class="tb-btn" onclick="goView('learning',this)">Aprendizaje</button>
       <button class="tb-btn" onclick="goView('diagnostico',this)">Diagnóstico</button>
       <button class="tb-btn" onclick="goView('ficha',this)">Ficha</button>
+      <button class="tb-btn" onclick="goView('historial',this)">Historial</button>
     </nav>
     <div class="tb-right">
       <a href="/" style="display:flex;align-items:center;gap:5px;padding:5px 12px;border-radius:8px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);font-size:11px;color:var(--t2);transition:all .2s;text-decoration:none;font-family:var(--mono);letter-spacing:.5px" onmouseover="this.style.background='rgba(255,255,255,.08)';this.style.color='var(--text)'" onmouseout="this.style.background='rgba(255,255,255,.04)';this.style.color='var(--t2)'">← Inicio</a>
@@ -1666,6 +1813,72 @@ a, button, [role=button], .btn, .vcard, .dtcrow, .ws-card,
         </div>
       </div>
 
+
+      <!-- HISTORIAL -->
+      <div id="view-historial" class="view">
+        <div class="stitle">Historial <span class="stitle-sub" id="histVehLabel">SELECCIONÁ UN VEHÍCULO</span></div>
+
+        <!-- Summary -->
+        <div class="hist-summary" id="histSummary">
+          <div class="hs-card blue"><div class="hs-card-icon">🔌</div><div class="hs-card-num" id="hs-scans">0</div><div class="hs-card-lbl">ESCANEOS TOTALES</div></div>
+          <div class="hs-card red"><div class="hs-card-icon">⚠</div><div class="hs-card-num" id="hs-dtcs">0</div><div class="hs-card-lbl">DTC ÚNICOS</div></div>
+          <div class="hs-card grn"><div class="hs-card-icon">✅</div><div class="hs-card-num" id="hs-resolved">0</div><div class="hs-card-lbl">RESUELTOS</div></div>
+          <div class="hs-card yel"><div class="hs-card-icon">💰</div><div class="hs-card-num" id="hs-cost">$0</div><div class="hs-card-lbl">INVERTIDO USD</div></div>
+        </div>
+
+        <div class="g2s" style="align-items:start; flex:1; min-height:0">
+          <!-- Timeline -->
+          <div style="display:flex;flex-direction:column;gap:12px;min-height:0">
+            <!-- Filters -->
+            <div class="hist-filters">
+              <button class="hf-btn active" onclick="filterHist('all',this)">Todos</button>
+              <button class="hf-btn" onclick="filterHist('critical',this)">⚠ Críticos</button>
+              <button class="hf-btn" onclick="filterHist('resolved',this)">✅ Resueltos</button>
+              <button class="hf-btn" onclick="filterHist('cost',this)">💰 Con costo</button>
+              <input class="hf-search" id="histSearch" placeholder="Buscar código, fecha..." oninput="searchHist(this.value)">
+            </div>
+            <!-- Timeline -->
+            <div id="histTimeline" class="timeline">
+              <div class="hist-empty">
+                <div class="hist-empty-icon">📅</div>
+                <div class="hist-empty-text">Seleccioná un vehículo para ver su historial completo</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right panel: stats -->
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <!-- DTC Frequency -->
+            <div class="gcard">
+              <div class="gcard-head"><div class="gcard-title">Códigos más frecuentes</div><span class="gcard-tag">TOP DTC</span></div>
+              <div class="gcard-body" id="histDTCFreq">
+                <div style="font-size:10px;color:var(--t3);text-align:center;padding:10px">Sin datos</div>
+              </div>
+            </div>
+            <!-- Cost by month -->
+            <div class="gcard">
+              <div class="gcard-head"><div class="gcard-title">Inversión por mes</div><span class="gcard-tag">USD</span></div>
+              <div class="gcard-body">
+                <div class="cost-bars" id="histCostBars">
+                  <div style="font-size:10px;color:var(--t3);text-align:center;width:100%;padding:10px">Sin datos</div>
+                </div>
+              </div>
+            </div>
+            <!-- Quick add resolution -->
+            <div class="gcard">
+              <div class="gcard-head"><div class="gcard-title">Registrar reparación</div></div>
+              <div class="gcard-body" style="display:flex;flex-direction:column;gap:9px">
+                <div class="field"><label class="flbl">Código DTC</label><input class="finput" id="hr-code" placeholder="P0171" oninput="this.value=this.value.toUpperCase()"></div>
+                <div class="field"><label class="flbl">Causa y solución</label><input class="finput" id="hr-cause" placeholder="MAF sucio — limpieza con spray"></div>
+                <div class="field"><label class="flbl">Costo USD</label><input class="finput" id="hr-cost" placeholder="25" type="number"></div>
+                <div class="field"><label class="flbl">Repuestos usados</label><input class="finput" id="hr-parts" placeholder="Sensor MAF, filtro aire"></div>
+                <button class="btn btn-blue" onclick="saveHistResolution()" style="width:100%;justify-content:center">✅ Guardar reparación</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div><!-- /content -->
   </div><!-- /main -->
 
@@ -1677,6 +1890,7 @@ a, button, [role=button], .btn, .vcard, .dtcrow, .ws-card,
       <button class="bnav-item" onclick="goBNav('diagnostico',this,'Diagnóstico')" id="bnav-diagnostico"><span class="bnav-icon">🧠</span><span class="bnav-lbl">Diagnóstico</span></button>
       <button class="bnav-item" onclick="goBNav('research',this,'IA Research')" id="bnav-research"><span class="bnav-icon">⚡</span><span class="bnav-lbl">IA</span></button>
       <button class="bnav-item" onclick="goBNav('workshop',this,'Taller')" id="bnav-workshop"><span class="bnav-icon">🔧</span><span class="bnav-lbl">Taller</span></button>
+      <button class="bnav-item" onclick="goBNav('historial',this,'Historial')" id="bnav-historial"><span class="bnav-icon">📅</span><span class="bnav-lbl">Historial</span></button>
       <button class="bnav-item" onclick="toggleSidebar()" id="bnav-more"><span class="bnav-icon">⋯</span><span class="bnav-lbl">Más</span></button>
     </div>
   </div>
@@ -1907,7 +2121,7 @@ window.goView = function(name, btn) {
   const titles = {
     dashboard:'Dashboard', charts:'Gráficas', multicode:'Multi-DTC',
     symptoms:'Síntomas', scan:'Escaneo', workshop:'Taller',
-    research:'IA Research', learning:'Aprendizaje', diagnostico:'Diagnóstico IA', ficha:'Ficha Técnica'
+    research:'IA Research', learning:'Aprendizaje', diagnostico:'Diagnóstico IA', ficha:'Ficha Técnica', historial:'Historial'
   };
   if (titleEl) titleEl.textContent = titles[name] || name;
 
@@ -3479,6 +3693,346 @@ function renderFicha(p, vData) {
 
 // ── MODALS ──
 document.querySelectorAll('.modal-bg').forEach(bg=>bg.addEventListener('click',e=>{if(e.target===bg)bg.classList.remove('open');}));
+
+
+// ═══════════════════════════════════════════════════════════
+// HISTORIAL COMPLETO DEL VEHÍCULO
+// ═══════════════════════════════════════════════════════════
+
+let historialData = { scans:[], resolutions:[], dtc_stats:[], cost_by_month:[] };
+let historialFilter = 'all';
+let historialSearch = '';
+
+async function loadHistorial(vehicleId) {
+  if (!vehicleId) return;
+
+  const veh = vehiclesList.find(v => v.id === vehicleId);
+  const labelEl = document.getElementById('histVehLabel');
+  if (labelEl) labelEl.textContent = veh ? (veh.make + ' ' + veh.model + ' ' + veh.year).toUpperCase() : '';
+
+  // Show loading
+  const timeline = document.getElementById('histTimeline');
+  if (timeline) timeline.innerHTML = '<div class="hist-empty"><div class="hist-empty-icon" style="animation:spin .8s linear infinite;display:inline-block">⚙</div><div class="hist-empty-text">Cargando historial...</div></div>';
+
+  try {
+    const res = await API.get('/api/vehicles/' + vehicleId + '/history');
+    if (!res.ok) throw new Error(res.error);
+    historialData = res.data;
+    renderHistorial();
+  } catch(e) {
+    // Fallback: use existing scan data
+    const scansRes = await API.get('/api/vehicles/' + vehicleId + '/scans');
+    historialData = {
+      scans: scansRes.ok ? scansRes.data : [],
+      resolutions: [],
+      dtc_stats: [],
+      cost_by_month: [],
+    };
+    renderHistorial();
+  }
+}
+
+function renderHistorial() {
+  renderHistSummary();
+  renderHistTimeline();
+  renderHistDTCFreq();
+  renderHistCostBars();
+}
+
+function renderHistSummary() {
+  const d = historialData;
+  const totalDTCs = new Set(d.scans.flatMap(s => s.dtcs || [])).size;
+  const totalResolved = d.resolutions.length;
+  const totalCost = d.resolutions.reduce((sum, r) => sum + (parseFloat(r.cost_usd)||0), 0);
+
+  const setEl = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
+  setEl('hs-scans',    d.scans.length);
+  setEl('hs-dtcs',     totalDTCs);
+  setEl('hs-resolved', totalResolved);
+  setEl('hs-cost',     '$' + Math.round(totalCost));
+}
+
+function renderHistTimeline() {
+  const timeline = document.getElementById('histTimeline');
+  if (!timeline) return;
+
+  let scans = [...historialData.scans];
+
+  // Apply filter
+  if (historialFilter === 'critical') {
+    scans = scans.filter(s => (s.dtcs||[]).length > 0);
+  } else if (historialFilter === 'resolved') {
+    const resolvedDates = new Set(historialData.resolutions.map(r => r.created_at?.substring(0,10)));
+    scans = scans.filter(s => resolvedDates.has(s.created_at?.substring(0,10)));
+  } else if (historialFilter === 'cost') {
+    scans = scans.filter(s => s.total_cost_usd || 
+      historialData.resolutions.some(r => r.created_at?.substring(0,10) === s.created_at?.substring(0,10) && r.cost_usd));
+  }
+
+  // Apply search
+  if (historialSearch) {
+    const q = historialSearch.toLowerCase();
+    scans = scans.filter(s => 
+      (s.dtcs||[]).some(d => d.toLowerCase().includes(q)) ||
+      (s.notes||'').toLowerCase().includes(q) ||
+      (s.created_at||'').includes(q)
+    );
+  }
+
+  if (!scans.length) {
+    timeline.innerHTML = '<div class="hist-empty"><div class="hist-empty-icon">🔍</div><div class="hist-empty-text">Sin resultados para este filtro</div></div>';
+    return;
+  }
+
+  // Build timeline
+  timeline.innerHTML = scans.map(function(scan, idx) {
+    const dtcs = scan.dtcs || [];
+    const hasCritical = dtcs.length > 0;
+    const date = scan.created_at ? new Date(scan.created_at) : new Date();
+    const dateStr = date.toLocaleDateString('es-AR', { day:'2-digit', month:'short', year:'numeric' });
+    const timeStr = date.toLocaleTimeString('es-AR', { hour:'2-digit', minute:'2-digit' });
+
+    // Find resolutions on same day
+    const scanDay = scan.created_at?.substring(0,10);
+    const dayResolutions = historialData.resolutions.filter(r => r.created_at?.substring(0,10) === scanDay);
+
+    // Severity
+    let dotClass = 'info', dotIcon = '🔌';
+    if (dtcs.length >= 3) { dotClass = 'critical'; dotIcon = '🚨'; }
+    else if (dtcs.length > 0) { dotClass = 'moderate'; dotIcon = '⚠'; }
+    else if (dayResolutions.length > 0) { dotClass = 'ok'; dotIcon = '✅'; }
+
+    // Live data highlights
+    const ld = scan.live_data || {};
+    const rpm  = ld.rpm?.value  || ld.RPM  || null;
+    const temp = ld.coolant?.value || ld.temp || null;
+    const ftl  = ld.fuel_trim_long?.value || null;
+    const volt = ld.voltage?.value || null;
+
+    const liveItems = [
+      rpm  ? {val: rpm,        unit:'rpm', lbl:'RPM'} : null,
+      temp ? {val: temp+'°',   unit:'',    lbl:'Temp'} : null,
+      ftl  ? {val: '+'+ftl+'%',unit:'',   lbl:'FT L', warn:parseFloat(ftl)>15} : null,
+      volt ? {val: volt+'V',   unit:'',    lbl:'Volt'} : null,
+    ].filter(Boolean);
+
+    const totalCostDay = dayResolutions.reduce((s,r) => s+(parseFloat(r.cost_usd)||0), 0);
+
+    return '<div class="tl-item">'
+      + '<div class="tl-dot-wrap">'
+      + '<div class="tl-dot ' + dotClass + '">' + dotIcon + '</div>'
+      + (idx < scans.length-1 ? '<div class="tl-connector"></div>' : '')
+      + '</div>'
+      + '<div class="tl-card" id="tlcard-'+scan.id+'" onclick="toggleTLCard('+scan.id+')">'
+      + '<div class="tl-card-top">'
+      + '<div style="flex:1">'
+      + '<div class="tl-title">'
+      + (dtcs.length > 0 ? dtcs.length + ' DTC' + (dtcs.length>1?'s':'') + ' detectado' + (dtcs.length>1?'s':'') : 'Escaneo sin errores')
+      + (dayResolutions.length > 0 ? ' · ✅ Resuelto' : '')
+      + '</div>'
+      + '<div class="tl-sub">'
+      + (scan.protocol || 'OBD-II')
+      + (scan.notes ? ' · ' + scan.notes : '')
+      + '</div>'
+      + '<div class="tl-tags">'
+      + dtcs.map(function(d){ return '<span class="tl-tag dtc">' + d + '</span>'; }).join('')
+      + dayResolutions.map(function(r){ return '<span class="tl-tag res">✅ ' + (r.cause_found||'Resuelto') + '</span>'; }).join('')
+      + (totalCostDay > 0 ? '<span class="tl-tag cost">$' + totalCostDay + ' USD</span>' : '')
+      + (scan.protocol ? '<span class="tl-tag prot">' + scan.protocol + '</span>' : '')
+      + '</div>'
+      + '</div>'
+      + '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">'
+      + '<div class="tl-date">' + dateStr + '</div>'
+      + '<div class="tl-date">' + timeStr + '</div>'
+      + '<span class="tl-chevron">›</span>'
+      + '</div>'
+      + '</div>'
+      // Detail (expanded)
+      + '<div class="tl-detail">'
+      + (dtcs.length > 0 ? '<div class="tl-dlbl" style="margin-bottom:6px">Códigos DTC</div>'
+        + '<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px">'
+        + dtcs.map(function(code){
+            return '<span class="tl-tag dtc" style="cursor:pointer;font-size:11px;font-weight:700" data-dtccode="'+code+'" onclick="event.stopPropagation();openDTCFromHistory(this.dataset.dtccode)">'+code+' ↗</span>';
+          }).join('')
+        + '</div>' : '')
+      + (liveItems.length > 0 ? '<div class="tl-dlbl" style="margin-bottom:6px">Datos del scanner</div>'
+        + '<div class="tl-live-mini" style="margin-bottom:12px">'
+        + liveItems.map(function(item){
+            return '<div class="tl-lm-item"><div class="tl-lm-val" style="' + (item.warn ? 'color:var(--red)' : '') + '">' + item.val + '</div><div class="tl-lm-lbl">' + item.lbl + '</div></div>';
+          }).join('')
+        + '</div>' : '')
+      + (dayResolutions.length > 0 ? '<div class="tl-dlbl" style="margin-bottom:6px">Resoluciones</div>'
+        + dayResolutions.map(function(r){
+            return '<div style="padding:8px 10px;border-radius:9px;background:rgba(52,211,153,.06);border:1px solid rgba(52,211,153,.15);margin-bottom:6px;font-size:11px">'
+              + '<div style="font-weight:600;color:var(--grn);margin-bottom:3px">✅ ' + (r.cause_found||'Resuelto') + '</div>'
+              + (r.fix_applied ? '<div style="color:var(--t2)">Solución: ' + r.fix_applied + '</div>' : '')
+              + (r.cost_usd ? '<div style="color:var(--yel);font-family:var(--mono);font-size:10px;margin-top:3px">Costo: $' + r.cost_usd + ' USD</div>' : '')
+              + '</div>';
+          }).join('') : '')
+      + '<div class="tl-dlbl" style="margin-bottom:5px">Notas</div>'
+      + '<div class="tl-note-row">'
+      + '<input class="tl-note-in" id="note-'+scan.id+'" placeholder="Agregar nota a este escaneo..." value="' + (scan.notes||'') + '" onclick="event.stopPropagation()">'
+      + '<button class="tl-save-btn" onclick="event.stopPropagation();saveScanNote('+scan.id+')">Guardar</button>'
+      + '</div>'
+      + '</div>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+function toggleTLCard(scanId) {
+  const card = document.getElementById('tlcard-' + scanId);
+  if (!card) return;
+  card.classList.toggle('expanded');
+}
+
+async function saveScanNote(scanId) {
+  const input = document.getElementById('note-' + scanId);
+  if (!input) return;
+  const note = input.value.trim();
+  try {
+    await API.patch('/api/scans/' + scanId + '/note', { note });
+    showNotif('✓ Nota guardada', 'success');
+    // Update local data
+    const scan = historialData.scans.find(s => s.id === scanId);
+    if (scan) scan.notes = note;
+  } catch(e) { showNotif('Error al guardar nota', 'error'); }
+}
+
+function renderHistDTCFreq() {
+  const el = document.getElementById('histDTCFreq');
+  if (!el) return;
+
+  // Build freq from scans if dtc_stats not available
+  let stats = historialData.dtc_stats || [];
+  if (!stats.length && historialData.scans.length) {
+    const freq = {};
+    historialData.scans.forEach(s => (s.dtcs||[]).forEach(d => { freq[d] = (freq[d]||0)+1; }));
+    stats = Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([code,count])=>({code,appearances:count}));
+  }
+
+  if (!stats.length) {
+    el.innerHTML = '<div style="font-size:10px;color:var(--t3);text-align:center;padding:10px">Sin datos de DTCs</div>';
+    return;
+  }
+
+  const max = Math.max(...stats.map(s => parseInt(s.appearances)||0)) || 1;
+  el.innerHTML = '<div class="dtc-freq">'
+    + stats.slice(0,6).map(function(s) {
+        const pct = Math.round(((parseInt(s.appearances)||0) / max) * 100);
+        const code = s.code || s.dtc_code || '';
+        return '<div class="dtc-freq-row">'
+          + '<span class="dtc-freq-code">' + code + '</span>'
+          + '<div class="dtc-freq-bar-wrap"><div class="dtc-freq-bar" style="width:' + pct + '%"></div></div>'
+          + '<span class="dtc-freq-count">' + (s.appearances||0) + 'x</span>'
+          + '</div>';
+      }).join('')
+    + '</div>';
+}
+
+function renderHistCostBars() {
+  const el = document.getElementById('histCostBars');
+  if (!el) return;
+
+  let months = historialData.cost_by_month || [];
+  // Build from resolutions if not available
+  if (!months.length && historialData.resolutions.length) {
+    const byMonth = {};
+    historialData.resolutions.forEach(r => {
+      if (!r.cost_usd) return;
+      const m = (r.created_at||'').substring(0,7);
+      if (m) byMonth[m] = (byMonth[m]||0) + parseFloat(r.cost_usd);
+    });
+    months = Object.entries(byMonth).sort().slice(-6).map(([month,total])=>({month, total_cost:total}));
+  }
+
+  if (!months.length) {
+    el.innerHTML = '<div style="font-size:10px;color:var(--t3);text-align:center;width:100%;padding:10px">Sin datos de costos</div>';
+    return;
+  }
+
+  const max = Math.max(...months.map(m => parseFloat(m.total_cost)||0)) || 1;
+  el.innerHTML = months.slice(-6).map(function(m) {
+    const cost = parseFloat(m.total_cost)||0;
+    const pct = Math.round((cost/max)*100);
+    const monthLabel = m.month ? m.month.substring(5) : '';
+    return '<div class="cost-bar-wrap">'
+      + '<div class="cost-bar-val">$'+Math.round(cost)+'</div>'
+      + '<div class="cost-bar" style="height:'+Math.max(4,pct*0.6)+'px"></div>'
+      + '<div class="cost-bar-lbl">'+monthLabel+'</div>'
+      + '</div>';
+  }).join('');
+}
+
+
+function openDTCFromHistory(code) {
+  const inp = document.getElementById('rCode');
+  if (inp) inp.value = code;
+  const btn = document.querySelectorAll('.tb-btn')[6];
+  goView('research', btn);
+}
+
+function filterHist(type, btn) {
+  historialFilter = type;
+  document.querySelectorAll('.hf-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderHistTimeline();
+}
+
+function searchHist(val) {
+  historialSearch = val;
+  renderHistTimeline();
+}
+
+async function saveHistResolution() {
+  const code  = document.getElementById('hr-code')?.value.trim().toUpperCase();
+  const cause = document.getElementById('hr-cause')?.value.trim();
+  const cost  = document.getElementById('hr-cost')?.value.trim();
+  const parts = document.getElementById('hr-parts')?.value.trim();
+
+  if (!code || !cause) { showNotif('Completá código y causa', 'error'); return; }
+
+  const veh = vehiclesList.find(v => v.id === activeVehicleId);
+  try {
+    await API.post('/api/learn/case', {
+      vehicle_id: activeVehicleId,
+      dtc_code: code,
+      brand: veh?.make || '',
+      model: veh?.model || '',
+      year: veh?.year || null,
+      cause_found: cause,
+      fix_applied: cause,
+      cost_usd: cost ? parseFloat(cost) : null,
+      parts_replaced: parts ? parts.split(',').map(p=>p.trim()).filter(Boolean) : [],
+      confirmed: true,
+    });
+    showNotif('✅ Reparación guardada en el historial', 'success');
+    ['hr-code','hr-cause','hr-cost','hr-parts'].forEach(id => {
+      const el = document.getElementById(id); if(el) el.value='';
+    });
+    // Reload historial
+    if (activeVehicleId) setTimeout(() => loadHistorial(activeVehicleId), 500);
+  } catch(e) { showNotif('Error al guardar', 'error'); }
+}
+
+// Hook into vehicle selection to auto-load historial
+const _origSelectVehicle = window.selectVehicle;
+window.selectVehicle = function(id) {
+  if (typeof _origSelectVehicle === 'function') _origSelectVehicle(id);
+  // Auto-load historial if that view is active
+  if (document.getElementById('view-historial')?.classList.contains('active')) {
+    loadHistorial(id);
+  }
+};
+
+// Load when switching to historial view
+const _origGoView2 = window.goView;
+window.goView = function(name, btn) {
+  _origGoView2(name, btn);
+  if (name === 'historial' && activeVehicleId) {
+    loadHistorial(activeVehicleId);
+  }
+};
 
 // ── PWA ──────────────────────────────────────────────────────
 if ('serviceWorker' in navigator) {
