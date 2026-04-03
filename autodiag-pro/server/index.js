@@ -112,6 +112,17 @@ async function requireAuth(req, res, next) {
 
 // ── GLOBALS ───────────────────────────────────────────────────
 function generateToken() { return crypto.randomBytes(32).toString('hex'); }
+
+// Wait for DB to be ready (up to 10s on startup)
+async function waitForDB(maxWaitMs = 10000) {
+  if (db) return db;
+  const start = Date.now();
+  while (!db && Date.now() - start < maxWaitMs) {
+    await new Promise(r => setTimeout(r, 200));
+  }
+  return db;
+}
+
 let db  = null;
 let obd = null;
 
