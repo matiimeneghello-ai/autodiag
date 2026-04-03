@@ -1770,7 +1770,7 @@ function closeSidebar() {
 // ── BOTTOM NAV ────────────────────────────────────────────
 function goBNav(viewName, btn, title) {
   // Update view
-  const navBtn = document.querySelector('.nav-btn[onclick*="' + viewName + '"]');
+  const navBtn = document.querySelector('.tb-btn[onclick*="' + viewName + '"]');
   goView(viewName, navBtn);
 
   // Update bottom nav active state
@@ -1889,7 +1889,7 @@ function updateAssistantSuggestions() {
       '¿Cuál es el más urgente?',
       'Estimá el costo de reparación',
       '¿Cuánto tiempo lleva la reparación?'
-    ].map(q => '<div class="ap-chip" onclick="askAssistant('' + q + '')">' + q + '</div>').join('');
+    ].map(q => '<div class="ap-chip" onclick="askAssistant(\'' + q.replace(/'/g,'') + '\')">' + q + '</div>').join('');
   }
 }
 
@@ -2183,7 +2183,7 @@ function showAuthError(msg) {
 
 function enterApp(isNew=false) {
   document.getElementById('loginScreen').style.display = 'none';
-  document.getElementById('appShell').style.display = 'flex';
+  document.getElementById('app').style.display = 'flex';
   document.getElementById('userName').textContent = currentUser?.tallerName || currentUser?.email?.split('@')[0] || 'Usuario';
   document.getElementById('userAv').textContent = (currentUser?.tallerName||currentUser?.email||'?')[0].toUpperCase();
   initApp();
@@ -2272,7 +2272,7 @@ window.addEventListener('load', () => {
 // ── NAV ──
 function goView(name,btn){
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
-  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.tb-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('view-'+name).classList.add('active');
   if(btn)btn.classList.add('active');
 }
@@ -2756,7 +2756,7 @@ function quickR(code,brand,model,sym,scanner){
   runResearch();
 }
 function researchDTC(code,brand,model){
-  goView('research',document.querySelectorAll('.nav-btn')[6]);
+  goView('research',document.querySelectorAll('.tb-btn')[6]);
   document.getElementById('rCode').value=code;
   document.getElementById('rBrand').value=brand;
   document.getElementById('rModel').value=model;
@@ -3150,7 +3150,7 @@ function selectFromSearch(code) {
 // ── FICHA TECNICA ──
 function openFicha() {
   if (!activeVehicleId) { showNotif('Seleccioná un vehículo primero', 'error'); return; }
-  const navBtns = document.querySelectorAll('.nav-btn');
+  const navBtns = document.querySelectorAll('.tb-btn');
   // Find ficha button (last one)
   const fichaBtn = navBtns[navBtns.length - 1];
   goView('ficha', fichaBtn);
@@ -3350,13 +3350,13 @@ if ('serviceWorker' in navigator) {
 
 // Splash handled by inline script above
 
-// Install prompt
-let deferredPrompt = null;
+// PWA install (deferredPrompt declared in PWA section above)
 window.addEventListener('beforeinstallprompt', e => {
   e.preventDefault(); deferredPrompt = e;
   setTimeout(() => {
     if (!localStorage.getItem('pwa_dismissed')) {
-      document.getElementById('installBanner').classList.add('show');
+      const b = document.getElementById('installBanner');
+      if (b) b.classList.add('show');
     }
   }, 4000);
 });
@@ -3365,7 +3365,8 @@ async function installPWA() {
   deferredPrompt.prompt();
   const { outcome } = await deferredPrompt.userChoice;
   if (outcome === 'accepted') { localStorage.setItem('pwa_dismissed','1'); }
-  document.getElementById('installBanner').classList.remove('show');
+  const b = document.getElementById('installBanner');
+  if (b) b.classList.remove('show');
   deferredPrompt = null;
 }
 window.addEventListener('appinstalled', () => { localStorage.setItem('pwa_dismissed','1'); showNotif('✓ App instalada','success'); });
