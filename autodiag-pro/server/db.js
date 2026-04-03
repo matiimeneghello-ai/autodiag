@@ -43,18 +43,23 @@ async function runMigrations() {
 
   await query(`
     CREATE TABLE IF NOT EXISTS vehicles (
-      id          SERIAL PRIMARY KEY,
-      user_id     INTEGER REFERENCES users(id) ON DELETE CASCADE,
-      make        VARCHAR(100) NOT NULL,
-      model       VARCHAR(100) NOT NULL,
-      year        INTEGER,
-      engine      VARCHAR(100),
-      vin         VARCHAR(17),
-      owner_name  VARCHAR(200),
-      owner_phone VARCHAR(50),
-      notes       TEXT,
-      created_at  TIMESTAMP DEFAULT NOW(),
-      updated_at  TIMESTAMP DEFAULT NOW()
+      id           SERIAL PRIMARY KEY,
+      user_id      INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      make         VARCHAR(100) NOT NULL,
+      model        VARCHAR(100) NOT NULL,
+      year         INTEGER,
+      engine       VARCHAR(100),
+      vin          VARCHAR(17),
+      owner_name   VARCHAR(200),
+      owner_phone  VARCHAR(50),
+      notes        TEXT,
+      mileage_km   INTEGER,
+      fuel_type    VARCHAR(20) DEFAULT 'Nafta',
+      transmission VARCHAR(20) DEFAULT 'Manual',
+      color        VARCHAR(50),
+      license_plate VARCHAR(20),
+      created_at   TIMESTAMP DEFAULT NOW(),
+      updated_at   TIMESTAMP DEFAULT NOW()
     )
   `);
 
@@ -193,6 +198,14 @@ async function runMigrations() {
   );
   // Index for cleanup
   await query("CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)").catch(()=>{});
+  // Add new vehicle columns if they don't exist
+  await query("ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS mileage_km INTEGER").catch(()=>{});
+  await query("ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS fuel_type VARCHAR(20) DEFAULT 'Nafta'").catch(()=>{});
+  await query("ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS transmission VARCHAR(20) DEFAULT 'Manual'").catch(()=>{});
+  await query("ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS color VARCHAR(50)").catch(()=>{});
+  await query("ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS license_plate VARCHAR(20)").catch(()=>{});
+  // Add mileage to scans for tracking km at time of scan
+  await query("ALTER TABLE scans ADD COLUMN IF NOT EXISTS mileage_km INTEGER").catch(()=>{});
   // Clean expired sessions on startup
   await query("DELETE FROM sessions WHERE expires_at < NOW()").catch(()=>{});
 

@@ -395,12 +395,18 @@ app.post('/api/vehicles', async (req,res) => {
     const { make, model, year, engine, vin, owner_name } = req.body;
     if (!make || !model) return res.status(400).json({ok:false,error:'Marca y modelo requeridos'});
     const clean = {
-      make:       sanitizeString(make, 50),
-      model:      sanitizeString(model, 50),
-      year:       year ? parseInt(year) : null,
-      engine:     sanitizeString(engine||'', 50),
-      vin:        sanitizeString(vin||'', 20).toUpperCase(),
-      owner_name: sanitizeString(owner_name||'', 100),
+      make:          sanitizeString(make, 50),
+      model:         sanitizeString(model, 50),
+      year:          year ? parseInt(year) : null,
+      engine:        sanitizeString(engine||'', 50),
+      vin:           sanitizeString(vin||'', 20).toUpperCase(),
+      owner_name:    sanitizeString(owner_name||'', 100),
+      owner_phone:   sanitizeString(req.body.owner_phone||'', 30),
+      mileage_km:    req.body.mileage_km ? parseInt(req.body.mileage_km) : null,
+      fuel_type:     sanitizeString(req.body.fuel_type||'Nafta', 20),
+      transmission:  sanitizeString(req.body.transmission||'Manual', 20),
+      color:         sanitizeString(req.body.color||'', 30),
+      license_plate: sanitizeString(req.body.license_plate||'', 20).toUpperCase(),
     };
     res.json({ok:true,data:await db.createVehicle(clean)});
   } catch(e) { res.status(500).json({ok:false,error:safeError(e)}); }
@@ -621,9 +627,23 @@ app.post('/api/ai/diagnose', aiLimiter, async (req,res) => {
       localLines = 'Descripcion: '+(localDTC.description||'')+' | Causas: '+(localDTC.causes||[]).join(', ')+' | Costo LATAM: '+(localDTC.latam_cost_usd||'N/A');
     }
 
-    const prompt = 'Experto diagnostico automotriz Argentina. Codigo: '+code+'. Vehiculo: '+brand+' '+model+'. '
-      + 'BASE LOCAL: '+localLines+'. SCANNER: '+scannerLines+'. COMUNIDAD: '+communityLines+'. '
-      + 'SOLO JSON: {"code":"'+code+'","primary_diagnosis":"","confidence":85,"scanner_interpretation":"","recommended_action":"","differential":[{"cause":"","probability":75,"evidence_for":"","evidence_against":"","confirming_test":"","estimated_cost_usd":"XX-XXX"}],"parts_to_check":[],"tools_needed":[],"latam_availability":""}';
+    // Extra context
+    const diagMileage = req.body.mileage_km ? 'Kilometraje: '+req.body.mileage_km+' km. ' : '';
+    const diagFuel    = req.body.fuel_type ? 'Combustible: '+sanitizeString(req.body.fuel_type,20)+'. ' : '';
+    const diagFreeze  = req.body.freeze_frame && Object.keys(req.body.freeze_frame).length
+      ? 'FREEZE FRAME (datos al momento del fallo): '+Object.values(req.body.freeze_frame).filter(v=>v&&v.value!==undefined).map(v=>v.label+': '+v.value+(v.unit||'')).join(', ')+'. '
+      : '';
+    const diagHistory = req.body.repair_history && req.body.repair_history.length
+      ? 'HISTORIAL PREVIO: '+req.body.repair_history.slice(0,5).map(h=>h.dtc_code+' → '+h.cause_found+(h.cost_usd?' ($'+h.cost_usd+')':'')).join(' | ')+'. '
+      : '';
+
+    const prompt = 'Experto diagnostico automotriz Argentina. Codigo: '+code+'. Vehiculo: '+brand+' '+model+' '+req.body.year+'. '
+      + diagMileage + diagFuel
+      + 'BASE LOCAL: '+localLines+'. SCANNER ACTUAL: '+scannerLines+'. '
+      + diagFreeze + diagHistory
+      + 'COMUNIDAD: '+communityLines+'. '
+      + 'Prioriza causas según kilometraje (desgaste a >100k km). Si hay historial, considera si ya se reparó antes. '
+      + 'SOLO JSON: {"code":"'+code+'","primary_diagnosis":"","confidence":85,"scanner_interpretation":"","freeze_frame_analysis":"","mileage_context":"","history_context":"","recommended_action":"","differential":[{"cause":"","probability":75,"evidence_for":"","evidence_against":"","confirming_test":"","estimated_cost_usd":"XX-XXX"}],"parts_to_check":[],"tools_needed":[],"latam_availability":""}';
 
     const raw = await callClaude(prompt, false, 1500);
     const clean = raw.replace(/```json/g,'').replace(/```/g,'');
@@ -655,10 +675,27 @@ app.post('/api/ai/research', aiLimiter, async (req,res) => {
       if (localDTC) localContext = 'Datos locales: causas='+( localDTC.causes||[]).join(', ')+', costo LATAM='+(localDTC.latam_cost_usd||'N/A')+'. ';
     }
 
-    const prompt = 'Experto tecnico automotriz LATAM Argentina. Codigo DTC '+code+' para '+brand+' '+model+'. '
-      + (symptoms?'Sintomas: '+symptoms+'. ':'') + (scanner?'Scanner: '+scanner+'. ':'') + localContext
-      + 'Busca en fuentes tecnicas. Prioriza info y precios para Argentina. '
-      + 'SOLO JSON: {"code":"'+code+'","title":"","severity":"Critico|Moderado|Bajo","system":"","description":"","brands":[],"causes":[],"diagnosis_steps":[],"brand_specific":"","latam_notes":"","scanner_interpretation":"","costs":{"diagnostic":"","repair_low":"","repair_high":"","latam_parts_usd":""},"sources":[]}';
+    // Extra context from request
+    const mileage    = req.body.mileage_km ? 'Kilometraje: '+req.body.mileage_km+' km. ' : '';
+    const fuelType   = req.body.fuel_type ? 'Combustible: '+req.body.fuel_type+'. ' : '';
+    const freezeCtx  = req.body.freeze_frame ? 'Freeze frame: '+JSON.stringify(req.body.freeze_frame)+'. ' : '';
+    const historyCtx = req.body.repair_history && req.body.repair_history.length
+      ? 'Historial previo de reparaciones: '+req.body.repair_history.slice(0,3).map(h=>h.cause_found+' ($'+h.cost_usd+')').join(', ')+'. '
+      : '';
+    const tsbCtx     = req.body.tsb_issues && req.body.tsb_issues.length
+      ? 'Problemas sistémicos reportados por propietarios (NHTSA): '+req.body.tsb_issues.slice(0,3).map(t=>t.component+': '+t.frequency+' casos').join(', ')+'. '
+      : '';
+
+    const prompt = 'Experto tecnico automotriz LATAM Argentina. Codigo DTC '+code+' para '+brand+' '+model+' '+req.body.year+'. '
+      + mileage + fuelType
+      + (symptoms?'Sintomas del cliente: '+symptoms+'. ':'')
+      + (scanner?'Datos scanner: '+scanner+'. ':'')
+      + freezeCtx
+      + historyCtx
+      + tsbCtx
+      + localContext
+      + 'Busca en fuentes tecnicas especificas para este modelo. Considera el kilometraje para priorizar causas por desgaste. Prioriza info y precios para Argentina/LATAM. '
+      + 'SOLO JSON: {"code":"'+code+'","title":"","severity":"Critico|Moderado|Bajo","system":"","description":"","brands":[],"causes":[],"diagnosis_steps":[],"brand_specific":"","mileage_notes":"","latam_notes":"","scanner_interpretation":"","freeze_frame_analysis":"","history_notes":"","costs":{"diagnostic":"","repair_low":"","repair_high":"","latam_parts_usd":""},"sources":[]}';
 
     const raw = await callClaude(prompt, true, 1500);
     const clean = raw.replace(/```json/g,'').replace(/```/g,'');
@@ -877,6 +914,99 @@ app.get('/api/debug/status', async (req, res) => {
     });
   } catch(e) {
     res.json({ ok: false, error: e.message });
+  }
+});
+
+
+// ── TSBs — Technical Service Bulletins ────────────────────────
+app.get('/api/nhtsa/tsb', nhtsaLimiter, async (req, res) => {
+  try {
+    const make  = sanitizeString(req.query.make||'', 50);
+    const model = sanitizeString(req.query.model||'', 50);
+    const year  = parseInt(req.query.year) || 0;
+    if (!make || !model || !year) return res.status(400).json({ ok:false, error:'make, model y year requeridos' });
+
+    const fetch = require('node-fetch');
+    const enc = encodeURIComponent;
+    const nhtsaMake = (require('./index.js') || { MAKE_MAP: {} }).MAKE_MAP?.[make.toLowerCase()] || make;
+
+    // NHTSA complaints can hint at common issues (TSBs aren't directly in free API)
+    // Use NHTSA complaints grouped by component as proxy for TSB-like data
+    const [complaintsR, recallsR] = await Promise.allSettled([
+      fetch(`https://api.nhtsa.dot.gov/complaints/complaintsByVehicle?make=${enc(make)}&model=${enc(model)}&modelYear=${year}`, { timeout: 10000 }).then(r => r.json()),
+      fetch(`https://api.nhtsa.dot.gov/recalls/recallsByVehicle?make=${enc(make)}&model=${enc(model)}&modelYear=${year}`, { timeout: 10000 }).then(r => r.json()),
+    ]);
+
+    const complaints = complaintsR.status === 'fulfilled' ? (complaintsR.value.results || []) : [];
+    const recalls    = recallsR.status === 'fulfilled'    ? (recallsR.value.results || []) : [];
+
+    // Group complaints by component to find systemic issues (TSB-like)
+    const byComponent = {};
+    complaints.forEach(c => {
+      const comp = c.components || 'UNKNOWN';
+      if (!byComponent[comp]) byComponent[comp] = { component: comp, count: 0, complaints: [] };
+      byComponent[comp].count++;
+      byComponent[comp].complaints.push(c.summary?.substring(0, 200) || '');
+    });
+
+    // Sort by frequency — most complained component = most likely TSB-worthy
+    const issues = Object.values(byComponent)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10)
+      .map(i => ({
+        component: i.component,
+        frequency: i.count,
+        description: i.complaints[0] || '',
+        likely_tsb: i.count >= 5,
+      }));
+
+    res.json({ ok: true, make, model, year, systemic_issues: issues, recalls: recalls.length, total_complaints: complaints.length });
+  } catch(e) {
+    console.error('TSB error:', e.message);
+    res.json({ ok: true, systemic_issues: [], error: safeError(e) });
+  }
+});
+
+
+// ── MERCADOLIBRE — Precios de repuestos en tiempo real ────────
+app.get('/api/prices/mercadolibre', async (req, res) => {
+  try {
+    const query = sanitizeString(req.query.q || '', 100);
+    if (!query) return res.status(400).json({ ok: false, error: 'Query requerida' });
+
+    const fetch = require('node-fetch');
+    // ML Argentina API - public, no auth needed for basic search
+    const url = `https://api.mercadolibre.com/sites/MLA/search?q=${encodeURIComponent(query)}&limit=6&condition=new`;
+    const r = await fetch(url, { timeout: 8000 });
+    if (!r.ok) throw new Error('ML API error: ' + r.status);
+    const data = await r.json();
+
+    const results = (data.results || []).slice(0, 6).map(item => ({
+      id:        item.id,
+      title:     item.title,
+      price_ars: item.price,
+      price_usd: Math.round(item.price / 1000), // rough estimate
+      currency:  item.currency_id,
+      condition: item.condition,
+      url:       item.permalink,
+      seller:    item.seller?.nickname || '',
+      location:  item.address?.city_name || item.address?.state_name || '',
+      thumbnail: item.thumbnail,
+    }));
+
+    // Stats
+    const prices = results.map(r => r.price_ars).filter(Boolean);
+    const stats = prices.length > 0 ? {
+      min_ars: Math.min(...prices),
+      max_ars: Math.max(...prices),
+      avg_ars: Math.round(prices.reduce((a,b) => a+b, 0) / prices.length),
+      count:   prices.length,
+    } : null;
+
+    res.json({ ok: true, query, results, stats, currency: 'ARS' });
+  } catch(e) {
+    console.error('ML price error:', e.message);
+    res.json({ ok: true, results: [], stats: null, error: safeError(e) });
   }
 });
 
