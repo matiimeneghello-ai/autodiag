@@ -194,6 +194,8 @@ a, button, [role=button], .btn, .vcard, .dtcrow, .ws-card,
 .login-tab {
   flex: 1; padding: 9px; text-align: center; border-radius: 8px;
   font-size: 13px; font-weight: 500; cursor: pointer; transition: all .2s; color: var(--t2);
+  background: none; border: none; font-family: var(--sans);
+  -webkit-tap-highlight-color: transparent;
 }
 .login-tab.active { background: var(--blue); color: #fff; box-shadow: 0 2px 10px rgba(59,130,246,.4); }
 .lfield { margin-bottom: 14px; }
@@ -1187,8 +1189,8 @@ a, button, [role=button], .btn, .vcard, .dtcrow, .ws-card,
     </div>
     <div class="login-body">
       <div class="login-tabs">
-        <div class="login-tab active" onclick="switchTab('login')">Iniciar sesión</div>
-        <div class="login-tab" onclick="switchTab('register')">Registrarse</div>
+        <button type="button" class="login-tab active" id="tab-login" onclick="switchTab('login')">Iniciar sesión</button>
+        <button type="button" class="login-tab" id="tab-register" onclick="switchTab('register')">Registrarse</button>
       </div>
       <div id="lerror" class="lerror"></div>
       <div id="regField" class="lfield" style="display:none">
@@ -2222,10 +2224,20 @@ const API = {
 let loginMode = 'login';
 function switchTab(mode) {
   loginMode = mode;
-  document.querySelectorAll('.login-tab').forEach((t,i)=>t.classList.toggle('active', (i===0&&mode==='login')||(i===1&&mode==='register')));
-  document.getElementById('regField').style.display = mode==='register'?'block':'none';
-  document.getElementById('authBtn').textContent = mode==='login'?'Iniciar sesión':'Crear cuenta';
-  document.getElementById('lerror').classList.remove('show');
+  // Update tab active state
+  const tabLogin    = document.getElementById('tab-login');
+  const tabRegister = document.getElementById('tab-register');
+  if (tabLogin)    tabLogin.classList.toggle('active', mode === 'login');
+  if (tabRegister) tabRegister.classList.toggle('active', mode === 'register');
+  // Show/hide register field
+  const regField = document.getElementById('regField');
+  if (regField) regField.style.display = mode === 'register' ? 'block' : 'none';
+  // Update button text
+  const btn = document.getElementById('authBtn');
+  if (btn) btn.textContent = mode === 'login' ? 'Ingresar' : 'Crear cuenta';
+  // Clear errors
+  const err = document.getElementById('lerror');
+  if (err) err.classList.remove('show');
 }
 
 async function doAuth() {
@@ -2233,6 +2245,9 @@ async function doAuth() {
   const pass  = document.getElementById('loginPass').value;
   const taller = document.getElementById('tallerName').value.trim();
   if (!email||!pass) { showAuthError('Completá email y contraseña'); return; }
+  if (loginMode === 'register' && !document.getElementById('tallerName').value.trim()) {
+    showAuthError('Ingresá el nombre de tu taller'); return;
+  }
 
   const btn = document.getElementById('authBtn');
   btn.textContent = 'Cargando...';
@@ -2249,7 +2264,7 @@ async function doAuth() {
     enterApp(loginMode==='register');
   } else {
     showAuthError(res.error || 'Error de autenticación');
-    btn.textContent = loginMode==='login'?'Iniciar sesión':'Crear cuenta';
+    btn.textContent = loginMode==='login'?'Ingresar':'Crear cuenta';
   }
 }
 
