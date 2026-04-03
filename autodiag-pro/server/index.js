@@ -18,6 +18,8 @@ const server = http.createServer(app);
 const wss    = new WebSocket.Server({ server });
 
 // ── SECURITY MIDDLEWARE ───────────────────────────────────────
+// Trust Railway's reverse proxy (needed for correct IP in rate limiting)
+app.set('trust proxy', 1);
 // Helmet: security headers
 if (helmet) {
   app.use(helmet({
@@ -58,8 +60,11 @@ function makeRateLimit(windowMs, max, message) {
     legacyHeaders: false,
     // Key by IP + user token if available
     keyGenerator: (req) => {
-      const token = req.headers['x-auth-token'] || '';
-      return (req.ip || 'unknown') + '_' + token.substring(0, 16);
+      try {
+        const token = req.headers['x-auth-token'] || '';
+        const ip = req.ip || req.connection?.remoteAddress || 'unknown';
+        return ip + '_' + token.substring(0, 16);
+      } catch(e) { return 'unknown'; }
     },
   });
 }
@@ -83,8 +88,8 @@ function sanitizeString(str, maxLen = 255) {
   return str.trim().substring(0, maxLen).replace(/[<>]/g, '');
 }
 function safeError(e, fallback = 'Error interno del servidor') {
-  // Never expose raw error messages to clients
-  if (process.env.NODE_ENV === 'development') return e.message;
+  // Show full error in non-production for debugging
+  if (process.env.NODE_ENV !== 'production') return (fallback + ': ' + (e?.message||'')).trim();
   return fallback;
 }
 
@@ -272,8 +277,8 @@ app.post('/api/auth/register', authLimiter, async (req, res) => {
     console.log('NEW USER:', user.email, '|', user.taller_name, '|', new Date().toISOString());
     res.json({ ok: true, token, user: { id: user.id, email: user.email, tallerName: user.taller_name } });
   } catch(e) {
-    console.error('Register error:', e.message);
-    res.status(500).json({ ok: false, error: safeError(e, 'Error al crear la cuenta') });
+    console.error('Register error:', e.message, e.stack);
+    res.status(500).json({ ok: false, error: safeError(e, 'Error al crear la cuenta: ' + e.message) });
   }
 });
 
@@ -300,8 +305,8 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
     await db.createSession(token, user.id, user.email, user.taller_name);
     res.json({ ok: true, token, user: { id: user.id, email: user.email, tallerName: user.taller_name } });
   } catch(e) {
-    console.error('Login error:', e.message);
-    res.status(500).json({ ok: false, error: safeError(e, 'Error al iniciar sesión') });
+    console.error('Login error:', e.message, e.stack);
+    res.status(500).json({ ok: false, error: safeError(e, 'Error al iniciar sesión: ' + e.message) });
   }
 });
 

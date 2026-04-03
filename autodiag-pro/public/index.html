@@ -2443,8 +2443,17 @@ const API = {
     if (body) opts.body = JSON.stringify(body);
     try {
       const r = await fetch(path, opts);
-      return r.json();
-    } catch(e) { return { ok:false, error:e.message }; }
+      const text = await r.text();
+      try {
+        return JSON.parse(text);
+      } catch(je) {
+        console.error('Non-JSON response:', text.substring(0,200));
+        return { ok: false, error: 'Respuesta inválida del servidor ('+r.status+')' };
+      }
+    } catch(e) {
+      console.error('Fetch error:', e.message);
+      return { ok:false, error: 'Sin conexión al servidor' };
+    }
   },
   get: (p) => API.req('GET',p),
   post: (p,b) => API.req('POST',p,b),
@@ -2495,7 +2504,9 @@ async function doAuth() {
     localStorage.setItem('autodiag_user', JSON.stringify(currentUser));
     enterApp(loginMode==='register');
   } else {
-    showAuthError(res.error || 'Error de autenticación');
+    const errMsg = res.error || res.message || 'Error de autenticación';
+    console.error('Auth error:', errMsg, res);
+    showAuthError(errMsg);
     btn.textContent = loginMode==='login'?'Ingresar':'Crear cuenta';
   }
 }
