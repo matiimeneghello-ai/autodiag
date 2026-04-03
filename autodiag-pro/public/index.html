@@ -2186,7 +2186,7 @@ function enterApp(isNew=false) {
   document.getElementById('app').style.display = 'flex';
   document.getElementById('userName').textContent = currentUser?.tallerName || currentUser?.email?.split('@')[0] || 'Usuario';
   document.getElementById('userAv').textContent = (currentUser?.tallerName||currentUser?.email||'?')[0].toUpperCase();
-  initApp();
+  initApp().catch(e => console.error('initApp error:', e));
   if (isNew) showOnboarding();
 }
 
