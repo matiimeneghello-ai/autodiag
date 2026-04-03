@@ -114,14 +114,12 @@ async function requireAuth(req, res, next) {
 function generateToken() { return crypto.randomBytes(32).toString('hex'); }
 
 // Wait for DB to be ready (up to 10s on startup)
-async function waitForDB(maxWaitMs = 30000) {
+async function waitForDB(maxWaitMs = 5000) {
   if (db) return db;
-  console.log('Waiting for DB connection...');
   const start = Date.now();
   while (!db && Date.now() - start < maxWaitMs) {
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise(r => setTimeout(r, 200));
   }
-  if (!db) console.error('DB not available after', maxWaitMs, 'ms');
   return db;
 }
 
@@ -269,10 +267,20 @@ wss.on('connection', (ws, req) => {
 setInterval(() => { wss.clients.forEach(ws => { if(ws.readyState===1) ws.send(JSON.stringify({type:'heartbeat',ts:Date.now()})); }); }, 25000);
 
 // ── HEALTH ────────────────────────────────────────────────────
-app.get('/health', (req, res) => res.json({
-  status: 'ok', db: db?'connected':'disconnected',
-  sim_mode: obd?.simMode||false, uptime: Math.round(process.uptime()), version:'2.1.0'
-}));
+app.get('/health', async (req, res) => {
+  // Trigger DB connection if not ready (wakes up the pool)
+  if (!db) {
+    try {
+      const dbModule = require('./db');
+      await dbModule.connectDB();
+      db = dbModule;
+    } catch(e) {}
+  }
+  res.json({
+    status: 'ok', db: db?'connected':'disconnected',
+    sim_mode: obd?.simMode||false, uptime: Math.round(process.uptime()), version:'2.1.0'
+  });
+});
 
 // ── AUTH ──────────────────────────────────────────────────────
 app.post('/api/auth/register', authLimiter, async (req, res) => {

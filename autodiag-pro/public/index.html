@@ -1303,6 +1303,19 @@ a, button, [role=button], .btn, .vcard, .dtcrow, .ws-card,
   setTimeout(function() {
     killSplash();
   }, 2000);
+
+  // WAKE UP SERVER: ping /health immediately on page load
+  // This wakes Railway's sleeping server before the user clicks anything
+  (function wakeServer() {
+    fetch('/health', { method: 'GET', cache: 'no-store' })
+      .then(function(r) {
+        if (r.ok) console.log('✓ Server awake');
+      })
+      .catch(function() {
+        // Server still waking up, retry in 3s
+        setTimeout(wakeServer, 3000);
+      });
+  })();
 })();
 </script>
 
