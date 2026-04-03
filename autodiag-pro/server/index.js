@@ -69,12 +69,12 @@ function makeRateLimit(windowMs, max, message) {
   });
 }
 
-const authLimiter    = makeRateLimit(15 * 60 * 1000, 10,  'Demasiados intentos de login. Esperá 15 minutos.');
+const authLimiter    = makeRateLimit(15 * 60 * 1000, 50,  'Demasiados intentos. Esperá 15 minutos.');
 const aiLimiter      = makeRateLimit(60 * 60 * 1000, 30,  'Límite de IA alcanzado (30/hora). Reintentá en 1 hora.');
 const apiLimiter     = makeRateLimit(60 * 1000,       120, 'Demasiadas requests. Esperá un minuto.');
 const nhtsaLimiter   = makeRateLimit(60 * 1000,       20,  'Límite NHTSA alcanzado.');
 
-app.use('/api/', apiLimiter);
+app.use('/api/', (req, res, next) => req.path.startsWith('/auth/') ? next() : apiLimiter(req, res, next));
 
 // ── INPUT VALIDATION HELPERS ──────────────────────────────────
 function validateEmail(email) {
@@ -840,6 +840,25 @@ app.get('/api/nhtsa/full', nhtsaLimiter, async (req,res) => {
   } catch(e) {
     console.error('NHTSA error:', e.message);
     res.json({ok:true,recalls:[],complaints:[],ratings:[],error:safeError(e)});
+  }
+});
+
+
+// ── TEMP DEBUG — remove after testing ──────────────────────────
+app.get('/api/debug/status', async (req, res) => {
+  try {
+    const dbOk = !!db;
+    let userCount = 0;
+    let sessionCount = 0;
+    if (db) {
+      const u = await db.query('SELECT COUNT(*) FROM users').catch(()=>({rows:[{count:0}]}));
+      const s = await db.query('SELECT COUNT(*) FROM sessions').catch(()=>({rows:[{count:0}]}));
+      userCount = parseInt(u.rows[0].count);
+      sessionCount = parseInt(s.rows[0].count);
+    }
+    res.json({ ok: true, db: dbOk, users: userCount, sessions: sessionCount, uptime: Math.round(process.uptime()) });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
   }
 });
 
