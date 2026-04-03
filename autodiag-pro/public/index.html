@@ -1050,6 +1050,37 @@ a, button, [role=button], .btn, .vcard, .dtcrow, .ws-card,
   <div class="splash-sub">INICIANDO SISTEMA...</div>
   <div class="splash-bar"><div class="splash-fill"></div></div>
 </div>
+<script>
+// Inline splash killer — runs immediately, no waiting for anything
+(function() {
+  function killSplash() {
+    var s = document.getElementById('splash');
+    if (!s || s._killed) return;
+    s._killed = true;
+    s.style.transition = 'opacity 0.4s';
+    s.style.opacity = '0';
+    s.style.pointerEvents = 'none';
+    setTimeout(function() { if (s.parentNode) s.parentNode.removeChild(s); }, 450);
+    // Show login or app
+    var token = localStorage.getItem('autodiag_token');
+    var user = localStorage.getItem('autodiag_user');
+    if (token && user) {
+      var app = document.getElementById('app');
+      if (app) app.style.display = 'flex';
+    } else {
+      var login = document.getElementById('loginScreen');
+      if (login) login.style.display = 'flex';
+    }
+  }
+  // Kill after 1.2s
+  setTimeout(killSplash, 1200);
+  // Kill on any interaction
+  document.addEventListener('click', killSplash, {once:true, capture:true});
+  document.addEventListener('touchstart', killSplash, {once:true, capture:true});
+  // Kill on load
+  window.addEventListener('load', function() { setTimeout(killSplash, 300); });
+})();
+</script>
 
 <!-- INSTALL BANNER -->
 <div class="install-banner" id="installBanner">
@@ -1063,7 +1094,7 @@ a, button, [role=button], .btn, .vcard, .dtcrow, .ws-card,
 <div id="sidebarOverlay" onclick="closeSidebar()"></div>
 
 <!-- LOGIN -->
-<div id="loginScreen">
+<div id="loginScreen" style="display:none">
   <div class="login-card">
     <div class="login-top">
       <div class="login-icon">⚙</div>
@@ -2231,6 +2262,10 @@ async function initApp() {
 window.addEventListener('load', () => {
   if (authToken && currentUser) {
     enterApp(false);
+  } else {
+    // Make sure login is visible
+    const login = document.getElementById('loginScreen');
+    if (login) login.style.display = 'flex';
   }
 });
 
@@ -3313,11 +3348,7 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(()=>{}));
 }
 
-// Splash hide
-setTimeout(() => {
-  const s = document.getElementById('splash');
-  if (s) { s.classList.add('gone'); setTimeout(()=>s.remove(), 500); }
-}, 1200);
+// Splash handled by inline script above
 
 // Install prompt
 let deferredPrompt = null;
