@@ -2125,6 +2125,7 @@ body::before {
 <!-- Install banner removed - PWA installs via browser prompt -->
 
 <!-- SIDEBAR OVERLAY -->
+<div id="installBanner" style="display:none!important"></div>
 <div id="sidebarOverlay" onclick="closeSidebar()"></div>
 
 <!-- LOGIN -->
@@ -5582,3 +5583,15 @@ if (typeof _origRunScan === 'function') {
 </script>
 </body>
 </html>
+        <!-- MercadoLibre Prices -->
+        <div class="gcard" id="mlPriceCard" style="display:none">
+          <div class="gcard-head">
+            <div class="gcard-title">💰 Precios MercadoLibre Argentina</div>
+            <span class="gcard-tag">TIEMPO REAL</span>
+          </div>
+          <div class="gcard-body" id="mlPriceResults">
+            <div style="font-size:11px;color:var(--t2);text-align:center;padding:10px">Buscando precios...</div>
+          </div>
+        </div>
+
+
