@@ -882,8 +882,9 @@ body::before {
 #onboardingScreen {
   position: fixed; inset: 0; z-index: 490;
   background: rgba(8,12,20,.97); backdrop-filter: blur(20px);
-  display: flex; align-items: center; justify-content: center; padding: 20px;
+  display: none; align-items: center; justify-content: center; padding: 20px;
 }
+#onboardingScreen.show { display: flex; animation: fadeIn .3s ease; }
 .ob-card {
   width: 100%; max-width: 480px;
   background: rgba(12,18,32,.98);
