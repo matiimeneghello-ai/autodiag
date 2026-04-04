@@ -499,18 +499,22 @@ body::before {
 #app {
   display: none; position: fixed; inset: 0;
   flex-direction: row;
+  overflow: hidden;
 }
 #app > .sidebar { /* already styled */ }
 .content {
   flex: 1; margin-left: 230px; margin-top: 56px;
   overflow-y: auto; overflow-x: hidden;
-  padding: 20px; padding-bottom: calc(20px + var(--sab));
+  padding: 20px; padding-bottom: calc(80px + var(--sab));
   display: flex; flex-direction: column; gap: 14px;
   position: relative; z-index: 1;
+  /* Critical for scroll to work in fixed layout */
+  height: calc(100vh - 56px);
+  max-height: calc(100vh - 56px);
 }
 
 /* ── VIEWS ──────────────────────────────────────────────────── */
-.view { display: none; flex-direction: column; gap: 14px; flex: 1; }
+.view { display: none; flex-direction: column; gap: 14px; flex: 1; min-height: min-content; }
 .view.active { display: flex; animation: viewIn .25s ease; }
 @keyframes viewIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
 
@@ -1390,7 +1394,13 @@ body::before {
   /* Layout */
   .sidebar { transform: translateX(-100%); box-shadow: none; }
   .sidebar.open { transform: translateX(0); box-shadow: 4px 0 40px rgba(0,0,0,.7); }
-  .content { margin-left: 0 !important; padding: 12px; padding-bottom: calc(70px + env(safe-area-inset-bottom,0px) + 12px); }
+  .content { 
+    margin-left: 0 !important; 
+    padding: 12px; 
+    padding-bottom: calc(70px + env(safe-area-inset-bottom,0px) + 12px);
+    height: calc(100vh - 52px);
+    max-height: calc(100vh - 52px);
+  }
   .bnav { display: block; }
   
   /* Topbar */
@@ -2187,7 +2197,7 @@ const wsClient = new WS();
 
 
 function hideLoading() {
-  const el = document.getElementById('appLoading');
+  const el = document.getElementById('appLoading') || document.createElement('div');
   if (el) { el.classList.add('hidden'); setTimeout(()=>el.remove(), 400); }
 }
 
