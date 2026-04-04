@@ -1378,20 +1378,52 @@ body::before {
 .nhtsa-logo { width:32px; height:32px; border-radius:8px; background:rgba(37,99,235,.15); display:flex; align-items:center; justify-content:center; font-size:18px; border:1px solid rgba(37,99,235,.2); }
 
 /* ── RESPONSIVE EXTRAS ──────────────────────────────────────── */
+/* ── DESKTOP — hamburger hidden ─────────────────────────────── */
+@media (min-width: 769px) {
+  .tb-menu-btn { display: none; }
+  .sidebar { transform: none !important; }
+  #sidebarOverlay { display: none !important; }
+}
+
+/* ── MOBILE ─────────────────────────────────────────────────── */
 @media (max-width: 768px) {
+  /* Layout */
+  .sidebar { transform: translateX(-100%); box-shadow: none; }
+  .sidebar.open { transform: translateX(0); box-shadow: 4px 0 40px rgba(0,0,0,.7); }
+  .content { margin-left: 0 !important; padding: 12px; padding-bottom: calc(70px + env(safe-area-inset-bottom,0px) + 12px); }
+  .bnav { display: block; }
+  
+  /* Topbar */
+  .topbar { height: 52px; padding: 0 10px; }
+  .tb-menu-btn { display: flex; }
+  .tb-clock { display: none; }
+  .tb-logo-name { display: none; }
+  .tb-nav { display: none; }
+  .tb-page-title { display: block; }
+  .content { margin-top: 52px; }
+  
+  /* Grids */
   .metrics { grid-template-columns: 1fr 1fr; }
   .scan-layout { grid-template-columns: 1fr; }
   .dd-grid { grid-template-columns: 1fr; }
   .spec-grid { grid-template-columns: 1fr; }
   .sym-grid { grid-template-columns: 1fr 1fr; }
-  .tb-clock, .tb-user .tb-uname { display: none; }
-  .topbar { height: 52px; }
-  .content { margin-top: 52px; }
+  .g2s { grid-template-columns: 1fr; }
+  .ws-columns { flex-direction: column; }
+  .hist-summary { grid-template-columns: 1fr 1fr; }
+  .tl-live-mini { grid-template-columns: 1fr 1fr; }
+  .modal { border-radius: 16px; max-width: 100%; }
+  .mrow { grid-template-columns: 1fr; }
+  
+  /* Topbar user */  
+  .tb-user .tb-uname { display: none; }
 }
+
 @media (max-width: 480px) {
   .metrics { grid-template-columns: 1fr 1fr; }
-  .m-val { font-size: 22px; }
+  .m-val { font-size: 20px; }
   .gcard-body { padding: 10px 12px; }
+  .g2, .g3, .g4 { grid-template-columns: 1fr; }
 }
 
 
@@ -2858,11 +2890,27 @@ window.addEventListener('load', async () => {
 });
 
 // ── NAV ──
+const VIEW_TITLES = {
+  dashboard:'Dashboard', charts:'Gráficas', multicode:'Multi-DTC',
+  symptoms:'Síntomas', scan:'Escaneo', workshop:'Taller',
+  research:'IA Research', learning:'Aprendizaje', diagnostico:'Diagnóstico',
+  ficha:'Ficha Técnica', historial:'Historial'
+};
 function goView(name,btn){
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.querySelectorAll('.tb-btn').forEach(b=>b.classList.remove('active'));
-  document.getElementById('view-'+name).classList.add('active');
-  if(btn)btn.classList.add('active');
+  document.querySelectorAll('.bnav-item').forEach(b=>b.classList.remove('active'));
+  const view = document.getElementById('view-'+name);
+  if (view) view.classList.add('active');
+  if (btn) btn.classList.add('active');
+  // Mobile: update page title
+  const titleEl = document.getElementById('mobileTitle');
+  if (titleEl) titleEl.textContent = VIEW_TITLES[name] || name;
+  // Mobile: close sidebar after navigation
+  if (window.innerWidth <= 768) {
+    document.getElementById('sidebar')?.classList.remove('open');
+    document.getElementById('sidebarOverlay')?.classList.remove('show');
+  }
 }
 
 // ── VEHICLES ──
