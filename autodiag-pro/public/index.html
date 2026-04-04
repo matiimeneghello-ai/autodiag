@@ -2985,14 +2985,95 @@ function toggleAssistant() {
   assistantOpen = !assistantOpen;
   const panel = document.getElementById('assistantPanel');
   const fab   = document.getElementById('fab');
-  panel.classList.toggle('open', assistantOpen);
-  fab.style.display = assistantOpen ? 'none' : 'flex';
   if (assistantOpen) {
+    panel.classList.add('visible');
+    panel.classList.remove('minimized');
+    fab.style.display = 'none';
+    // Reset position to default if not dragged
+    if (!panel.dataset.dragged) {
+      panel.style.right = '16px';
+      panel.style.bottom = 'calc(70px + env(safe-area-inset-bottom, 0px) + 72px)';
+      panel.style.left = '';
+      panel.style.top = '';
+    }
     setTimeout(() => document.getElementById('apInput')?.focus(), 100);
-    // Update suggestions based on active DTCs
     updateAssistantSuggestions();
+  } else {
+    panel.classList.remove('visible');
+    fab.style.display = 'flex';
   }
 }
+
+function minimizeAssistant() {
+  const panel = document.getElementById('assistantPanel');
+  panel.classList.toggle('minimized');
+}
+
+// ── FAB + PANEL DRAG ──────────────────────────────────────────
+(function() {
+  let dragEl = null, dragOffX = 0, dragOffY = 0, isDragging = false, startX = 0, startY = 0;
+
+  function startDrag(e, el) {
+    const touch = e.touches ? e.touches[0] : e;
+    startX = touch.clientX; startY = touch.clientY;
+    isDragging = false; dragEl = el;
+    const rect = el.getBoundingClientRect();
+    dragOffX = touch.clientX - rect.left;
+    dragOffY = touch.clientY - rect.top;
+    el.classList.add('dragging');
+    if (el.id === 'assistantPanel') el.classList.add('dragging-panel');
+    e.preventDefault();
+  }
+
+  function moveDrag(e) {
+    if (!dragEl) return;
+    const touch = e.touches ? e.touches[0] : e;
+    const dx = Math.abs(touch.clientX - startX), dy = Math.abs(touch.clientY - startY);
+    if (!isDragging && (dx > 5 || dy > 5)) isDragging = true;
+    if (!isDragging) return;
+    const x = touch.clientX - dragOffX;
+    const y = touch.clientY - dragOffY;
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const w = dragEl.offsetWidth, h = dragEl.offsetHeight;
+    dragEl.style.left   = Math.max(4, Math.min(vw - w - 4, x)) + 'px';
+    dragEl.style.top    = Math.max(60, Math.min(vh - h - 4, y)) + 'px';
+    dragEl.style.right  = 'auto';
+    dragEl.style.bottom = 'auto';
+    dragEl.dataset.dragged = '1';
+    e.preventDefault();
+  }
+
+  function endDrag(e) {
+    if (!dragEl) return;
+    dragEl.classList.remove('dragging', 'dragging-panel');
+    // If barely moved = it was a click, not a drag
+    if (!isDragging) {
+      if (dragEl.id === 'fab') toggleAssistant();
+    }
+    dragEl = null; isDragging = false;
+  }
+
+  document.addEventListener('mousemove', moveDrag);
+  document.addEventListener('mouseup',   endDrag);
+  document.addEventListener('touchmove', moveDrag, { passive: false });
+  document.addEventListener('touchend',  endDrag);
+
+  window.addEventListener('load', () => {
+    const fab = document.getElementById('fab');
+    if (fab) {
+      // Remove onclick — drag handles the click
+      fab.removeAttribute('onclick');
+      fab.addEventListener('mousedown',  e => startDrag(e, fab));
+      fab.addEventListener('touchstart', e => startDrag(e, fab), { passive: false });
+    }
+    const panel = document.getElementById('assistantPanel');
+    const handle = document.getElementById('apDragHandle');
+    if (handle && panel) {
+      handle.addEventListener('mousedown',  e => startDrag(e, panel));
+      handle.addEventListener('touchstart', e => startDrag(e, panel), { passive: false });
+    }
+  });
+})();
 
 function updateAssistantSuggestions() {
   const dtcEl = document.getElementById('dtcCount');
