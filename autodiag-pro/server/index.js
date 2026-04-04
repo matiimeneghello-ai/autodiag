@@ -1012,10 +1012,12 @@ app.get('/api/prices/mercadolibre', async (req, res) => {
 
 // ── ROUTING ──────────────────────────────────────────────────
 app.get('/', (req,res) => res.sendFile(path.join(__dirname,'../public/landing/index.html')));
+app.get('/landing', (req,res) => res.sendFile(path.join(__dirname,'../public/landing/index.html')));
 app.get('/app', (req,res) => res.sendFile(path.join(__dirname,'../public/index.html')));
+app.get('/app/*', (req,res) => res.sendFile(path.join(__dirname,'../public/index.html')));
 
-// SPA fallback
-app.get('*', (req,res) => res.sendFile(path.join(__dirname,'../public/index.html')));
+// SPA fallback → landing
+app.get('*', (req,res) => res.sendFile(path.join(__dirname,'../public/landing/index.html')));
 
 // ── GLOBAL ERROR HANDLER ──────────────────────────────────────
 app.use((err, req, res, next) => {
