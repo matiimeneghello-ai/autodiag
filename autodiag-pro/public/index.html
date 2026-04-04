@@ -2776,15 +2776,7 @@ body::before {
   </div>
 </div>
 
-<div class="modal-bg" id="modal-pdf">
-  <div class="modal" style="max-width:560px">
-    <div class="modal-head"><span>Reporte PDF</span><button class="modal-close" onclick="closeModal('modal-pdf')">✕</button></div>
-    <div class="modal-body">
-      <div id="pdfPreviewContent" class="pdf-preview"></div>
-      <button class="btn btn-blue" onclick="downloadPDF()" style="width:100%;justify-content:center;margin-top:4px">↓ Descargar PDF</button>
-    </div>
-  </div>
-</div>
+<!-- PDF modal removed -->
 
 <div class="notif" id="notif"></div>
 
@@ -4119,18 +4111,8 @@ function renderLearning(){
 }
 
 // ── PDF ──
-function generatePDF(){
-  const veh=activeVehicleName||'Vehículo';
-  const date=new Date().toLocaleDateString('es-AR');
-  document.getElementById('pdfPreviewContent').innerHTML=`
-    <div style="display:flex;justify-content:space-between;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #2563eb">
-      <div><div style="font-size:18px;font-weight:700;color:#2563eb">⚙ AutoDiag Pro</div><div style="font-size:10px;color:#666">Reporte de diagnóstico · ${date}</div></div>
-      <div style="text-align:right;font-size:10px;color:#666">${veh}</div></div>
-    <div style="margin-bottom:12px"><div style="font-size:10px;font-weight:700;color:#2563eb;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid #eee;padding-bottom:3px;margin-bottom:6px">Sistema activo</div>
-    <div style="font-size:11px;line-height:1.7">Generado por: ${currentUser?.tallerName||'AutoDiag Pro'}<br>Vehículo: ${veh}<br>Fecha: ${date}</div></div>
-    <div style="margin-top:16px;padding-top:10px;border-top:1px solid #eee;font-size:9px;color:#999;text-align:center">AutoDiag Pro v2.0 · Reporte informativo</div>`;
-  openModal('modal-pdf');
-}
+function generatePDF(){ downloadPDF(); }
+
 function downloadPDF() {
   try {
     const { jsPDF } = window.jspdf;
