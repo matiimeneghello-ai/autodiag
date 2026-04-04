@@ -2718,7 +2718,7 @@ body::before {
   🤖<div class="fab-badge" id="fabBadge"></div>
 </button>
 
-<div class="ap" id="assistantPanel">
+<div class="ap" id="assistantPanel" style="display:none;position:fixed;bottom:80px;right:16px;width:340px;max-height:520px;z-index:300;flex-direction:column;border-radius:16px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.05);backdrop-filter:blur(24px)">
   <div class="ap-head">
     <div class="ap-av">🤖</div>
     <div><div class="ap-name">Asistente AutoDiag</div><div class="ap-status">Activo · Con contexto</div></div>
@@ -2986,20 +2986,24 @@ function toggleAssistant() {
   const panel = document.getElementById('assistantPanel');
   const fab   = document.getElementById('fab');
   if (assistantOpen) {
-    panel.classList.add('visible');
-    panel.classList.remove('minimized');
-    fab.style.display = 'none';
-    // Reset position to default if not dragged
+    // Show panel with inline styles — no CSS class dependency
+    panel.style.display = 'flex';
+    panel.style.flexDirection = 'column';
     if (!panel.dataset.dragged) {
+      panel.style.position = 'fixed';
+      panel.style.bottom = '80px';
       panel.style.right = '16px';
-      panel.style.bottom = 'calc(70px + env(safe-area-inset-bottom, 0px) + 72px)';
-      panel.style.left = '';
-      panel.style.top = '';
+      panel.style.left = 'auto';
+      panel.style.top = 'auto';
+      panel.style.width = '340px';
+      panel.style.maxHeight = '520px';
+      panel.style.zIndex = '300';
     }
+    fab.style.display = 'none';
     setTimeout(() => document.getElementById('apInput')?.focus(), 100);
     updateAssistantSuggestions();
   } else {
-    panel.classList.remove('visible');
+    panel.style.display = 'none';
     fab.style.display = 'flex';
   }
 }
