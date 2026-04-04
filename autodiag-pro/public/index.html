@@ -3011,28 +3011,31 @@ function minimizeAssistant() {
 
 // ── FAB + PANEL DRAG ──────────────────────────────────────────
 (function() {
-  let dragEl = null, dragOffX = 0, dragOffY = 0, isDragging = false, startX = 0, startY = 0;
+  let dragEl = null, dragOffX = 0, dragOffY = 0;
+  let moved = false, startX = 0, startY = 0;
 
-  function startDrag(e, el) {
-    const touch = e.touches ? e.touches[0] : e;
-    startX = touch.clientX; startY = touch.clientY;
-    isDragging = false; dragEl = el;
-    const rect = el.getBoundingClientRect();
-    dragOffX = touch.clientX - rect.left;
-    dragOffY = touch.clientY - rect.top;
+  function onDown(e, el) {
+    const t = e.touches ? e.touches[0] : e;
+    startX = t.clientX; startY = t.clientY;
+    moved = false; dragEl = el;
+    const r = el.getBoundingClientRect();
+    dragOffX = t.clientX - r.left;
+    dragOffY = t.clientY - r.top;
     el.classList.add('dragging');
     if (el.id === 'assistantPanel') el.classList.add('dragging-panel');
-    e.preventDefault();
+    // Don't preventDefault on FAB mousedown so click still fires
+    if (e.touches) e.preventDefault();
   }
 
-  function moveDrag(e) {
+  function onMove(e) {
     if (!dragEl) return;
-    const touch = e.touches ? e.touches[0] : e;
-    const dx = Math.abs(touch.clientX - startX), dy = Math.abs(touch.clientY - startY);
-    if (!isDragging && (dx > 5 || dy > 5)) isDragging = true;
-    if (!isDragging) return;
-    const x = touch.clientX - dragOffX;
-    const y = touch.clientY - dragOffY;
+    const t = e.touches ? e.touches[0] : e;
+    const dx = Math.abs(t.clientX - startX), dy = Math.abs(t.clientY - startY);
+    if (!moved && (dx > 6 || dy > 6)) moved = true;
+    if (!moved) return;
+    e.preventDefault();
+    const x = t.clientX - dragOffX;
+    const y = t.clientY - dragOffY;
     const vw = window.innerWidth, vh = window.innerHeight;
     const w = dragEl.offsetWidth, h = dragEl.offsetHeight;
     dragEl.style.left   = Math.max(4, Math.min(vw - w - 4, x)) + 'px';
@@ -3040,37 +3043,37 @@ function minimizeAssistant() {
     dragEl.style.right  = 'auto';
     dragEl.style.bottom = 'auto';
     dragEl.dataset.dragged = '1';
-    e.preventDefault();
   }
 
-  function endDrag(e) {
+  function onUp(e) {
     if (!dragEl) return;
     dragEl.classList.remove('dragging', 'dragging-panel');
-    // If barely moved = it was a click, not a drag
-    if (!isDragging) {
-      if (dragEl.id === 'fab') toggleAssistant();
+    // If barely moved on touch = treat as tap → open assistant
+    if (!moved && e.touches !== undefined && dragEl.id === 'fab') {
+      toggleAssistant();
     }
-    dragEl = null; isDragging = false;
+    dragEl = null;
   }
 
-  document.addEventListener('mousemove', moveDrag);
-  document.addEventListener('mouseup',   endDrag);
-  document.addEventListener('touchmove', moveDrag, { passive: false });
-  document.addEventListener('touchend',  endDrag);
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup',   onUp);
+  document.addEventListener('touchmove', onMove, { passive: false });
+  document.addEventListener('touchend',  onUp);
 
   window.addEventListener('load', () => {
+    // FAB: mousedown for drag, onclick stays for click
     const fab = document.getElementById('fab');
     if (fab) {
-      // Remove onclick — drag handles the click
-      fab.removeAttribute('onclick');
-      fab.addEventListener('mousedown',  e => startDrag(e, fab));
-      fab.addEventListener('touchstart', e => startDrag(e, fab), { passive: false });
+      fab.addEventListener('mousedown',  e => { if (e.button === 0) onDown(e, fab); });
+      fab.addEventListener('touchstart', e => onDown(e, fab), { passive: false });
     }
-    const panel = document.getElementById('assistantPanel');
+    // Panel header: drag only
     const handle = document.getElementById('apDragHandle');
+    const panel  = document.getElementById('assistantPanel');
     if (handle && panel) {
-      handle.addEventListener('mousedown',  e => startDrag(e, panel));
-      handle.addEventListener('touchstart', e => startDrag(e, panel), { passive: false });
+      handle.style.cursor = 'grab';
+      handle.addEventListener('mousedown',  e => { e.preventDefault(); onDown(e, panel); });
+      handle.addEventListener('touchstart', e => onDown(e, panel), { passive: false });
     }
   });
 })();
