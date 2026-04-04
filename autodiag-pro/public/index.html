@@ -901,7 +901,7 @@ body::before {
 
 /* ── INSTALL BANNER ─────────────────────────────────────────── */
 .install-banner {
-  position: fixed; bottom: calc(70px + var(--sab) + 12px); left: 16px; right: 76px; z-index: 500;
+  display: none !important; position: fixed; bottom: calc(70px + var(--sab) + 12px); left: 16px; right: 76px; z-index: 500;
   display: flex; align-items: center; gap: 12px;
   padding: 12px 14px; border-radius: 14px;
   background: rgba(12,18,32,.97); border: 1px solid var(--b3);
@@ -2122,12 +2122,7 @@ body::before {
 </script>
 
 <!-- INSTALL BANNER -->
-<div class="install-banner" id="installBanner">
-  <div class="ib-icon">⚙</div>
-  <div class="ib-text"><div class="ib-title">Instalar AutoDiag Pro</div><div class="ib-sub">Acceso directo desde tu pantalla de inicio</div></div>
-  <button class="ib-btn" onclick="installPWA()">Instalar</button>
-  <button class="ib-close" onclick="this.closest('.install-banner').classList.remove('show')">✕</button>
-</div>
+<!-- Install banner removed - PWA installs via browser prompt -->
 
 <!-- SIDEBAR OVERLAY -->
 <div id="sidebarOverlay" onclick="closeSidebar()"></div>
@@ -2865,17 +2860,7 @@ window.addEventListener('beforeinstallprompt', (e) => {
   }, 3000);
 });
 
-async function installPWA() {
-  if (!deferredPrompt) return;
-  deferredPrompt.prompt();
-  const { outcome } = await deferredPrompt.userChoice;
-  if (outcome === 'accepted') {
-    localStorage.setItem('pwa_installed', '1');
-    document.getElementById('installBanner').classList.remove('show');
-    showNotif('✓ AutoDiag Pro instalado', 'success');
-  }
-  deferredPrompt = null;
-}
+async // installPWA defined below
 
 window.addEventListener('appinstalled', () => {
   localStorage.setItem('pwa_installed', '1');
@@ -3537,15 +3522,8 @@ async function selectVehicle(v) {
   }
 }
 
-function renderHistorial(scans) {
-  const list = document.getElementById('histList');
-  if (!scans.length) { list.innerHTML='<div style="font-size:10px;color:var(--t3);text-align:center;padding:10px">Sin historial aún</div>'; return; }
-  list.innerHTML = scans.slice(0,6).map(s=>`
-    <div class="hist-item">
-      <span class="hist-date">${new Date(s.created_at).toLocaleString('es-AR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</span>
-      <div class="hist-dtcs">${(s.dtcs||[]).map(d=>`<span class="hist-dtc">${d}</span>`).join('')||'<span style="font-size:9px;color:var(--t3)">Sin DTCs</span>'}</div>
-    </div>`).join('');
-}
+
+// renderHistorial moved to historial module below
 
 function renderDashDTCs(dtcs) {
   const el = document.getElementById('dashDTCList');
@@ -5325,7 +5303,10 @@ async function installPWA() {
   if (!deferredPrompt) return;
   deferredPrompt.prompt();
   const { outcome } = await deferredPrompt.userChoice;
-  if (outcome === 'accepted') { localStorage.setItem('pwa_dismissed','1'); }
+  if (outcome === 'accepted') {
+    localStorage.setItem('pwa_installed', '1');
+    showNotif('✓ AutoDiag Pro instalado correctamente', 'success');
+  }
   const b = document.getElementById('installBanner');
   if (b) b.classList.remove('show');
   deferredPrompt = null;
