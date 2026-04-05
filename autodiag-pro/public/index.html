@@ -1468,6 +1468,54 @@ body::before {
 @media (max-width: 900px) {
   .tb-status span { display: none; }
 }
+
+/* ── USER MENU ──────────────────────────────────────────────── */
+.user-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 200px;
+  background: rgba(10,15,30,.99);
+  border: 1px solid rgba(99,130,180,.25);
+  border-radius: 14px;
+  box-shadow: 0 20px 50px rgba(0,0,0,.8), 0 0 0 1px rgba(255,255,255,.04);
+  backdrop-filter: blur(24px);
+  z-index: 9999;
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 220px;
+}
+.user-menu.open { display: flex; animation: fadeIn .15s ease; }
+.user-menu::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, var(--blue), var(--cyan));
+}
+.um-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(99,130,180,.1);
+  display: flex; align-items: center; gap: 10px;
+}
+.um-av {
+  width: 34px; height: 34px; border-radius: 9px;
+  background: linear-gradient(135deg, var(--blue), var(--cyan));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; font-weight: 700; color: #fff; flex-shrink: 0;
+}
+.um-name { font-size: 13px; font-weight: 600; color: var(--text); }
+.um-email { font-size: 10px; color: var(--t3); margin-top: 1px; }
+.um-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px; font-size: 12px; color: var(--t2);
+  cursor: pointer; transition: all .15s; text-decoration: none;
+  border: none; background: none; width: 100%; text-align: left;
+  font-family: var(--sans); font-weight: 500;
+}
+.um-item:hover { background: rgba(255,255,255,.05); color: var(--text); }
+.um-item.danger:hover { background: rgba(239,68,68,.1); color: var(--red2); }
+.um-item-icon { font-size: 16px; width: 22px; text-align: center; flex-shrink: 0; }
+
 </style>
 
 </head>
@@ -1600,36 +1648,37 @@ body::before {
     </nav>
     <div class="tb-right">
       <div class="tb-status"><div class="tb-dot"></div><span id="statusText">OBD OK</span></div>
-      <div class="tb-status" id="agentStatus" style="display:none;background:rgba(16,185,129,.1);border-color:rgba(16,185,129,.3);cursor:default">
-        <div class="tb-status-dot" style="background:var(--grn2);box-shadow:0 0 6px var(--grn2);animation:pulse 2s infinite"></div>
-        <span style="color:var(--grn2);font-weight:700;font-family:var(--mono);font-size:10px">J2534</span>
+      <div class="tb-status" id="agentStatus" style="display:none;background:rgba(16,185,129,.1);border-color:rgba(16,185,129,.3)">
+        <div class="tb-dot" style="background:var(--grn2);box-shadow:0 0 6px var(--grn2)"></div>
+        <span style="color:var(--grn2);font-family:var(--mono);font-size:10px;font-weight:700">J2534</span>
       </div>
       <div class="tb-clock" id="clk">00:00:00</div>
-      <div style="position:relative">
-        <div class="tb-user" onclick="toggleUserMenu()" title="Menú usuario">
-          <div class="tb-av" id="userAv">?</div>
-          <span class="tb-uname" id="userName">Usuario</span>
-        </div>
-        <div class="user-menu" id="userMenu">
-          <div class="um-header">
-            <div class="um-av" id="umAv">?</div>
+      <div style="position:relative;flex-shrink:0">
+        <button onclick="toggleUserMenu()" style="display:flex;align-items:center;gap:7px;padding:4px 8px;border-radius:9px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);cursor:pointer;transition:all .2s" onmouseover="this.style.background='rgba(255,255,255,.1)'" onmouseout="this.style.background='rgba(255,255,255,.05)'">
+          <div class="tb-av" id="userAv" style="width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,var(--blue),var(--cyan));display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff">?</div>
+          <span class="tb-uname" id="userName" style="font-size:11px;font-weight:600;color:var(--t1);max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Usuario</span>
+          <span style="color:var(--t3);font-size:10px">▾</span>
+        </button>
+        <div id="userMenu" style="display:none;position:absolute;top:calc(100% + 8px);right:0;min-width:220px;background:rgba(10,15,30,.99);border:1px solid rgba(99,130,180,.25);border-radius:14px;box-shadow:0 20px 50px rgba(0,0,0,.8);backdrop-filter:blur(24px);z-index:9999;overflow:hidden;flex-direction:column">
+          <div style="padding:14px 16px;border-bottom:1px solid rgba(99,130,180,.1);display:flex;align-items:center;gap:10px">
+            <div id="umAv" style="width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--blue),var(--cyan));display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:#fff;flex-shrink:0">?</div>
             <div>
-              <div class="um-name" id="umName">Usuario</div>
-              <div class="um-email" id="umEmail"></div>
+              <div id="umName" style="font-size:13px;font-weight:600;color:var(--text)">Usuario</div>
+              <div id="umEmail" style="font-size:10px;color:var(--t3);margin-top:1px"></div>
             </div>
           </div>
-          <button class="um-item" onclick="closeUserMenu();goToLanding()">
-            <span class="um-item-icon">🏠</span> Ir a la landing
+          <button onclick="closeUserMenu();goToLanding()" style="display:flex;align-items:center;gap:10px;padding:11px 16px;font-size:12px;color:var(--t2);cursor:pointer;border:none;background:none;width:100%;text-align:left;font-family:var(--sans);font-weight:500;transition:all .15s" onmouseover="this.style.background='rgba(255,255,255,.05)';this.style.color='var(--text)'" onmouseout="this.style.background='none';this.style.color='var(--t2)'">
+            <span style="font-size:16px;width:22px;text-align:center">🏠</span> Ir a la landing
           </button>
-          <button class="um-item" onclick="closeUserMenu();goView('ficha',null)">
-            <span class="um-item-icon">🚗</span> Ficha técnica
+          <button onclick="closeUserMenu();goView('ficha',document.getElementById('btn-more'))" style="display:flex;align-items:center;gap:10px;padding:11px 16px;font-size:12px;color:var(--t2);cursor:pointer;border:none;background:none;width:100%;text-align:left;font-family:var(--sans);font-weight:500;transition:all .15s" onmouseover="this.style.background='rgba(255,255,255,.05)';this.style.color='var(--text)'" onmouseout="this.style.background='none';this.style.color='var(--t2)'">
+            <span style="font-size:16px;width:22px;text-align:center">🚗</span> Ficha técnica
           </button>
-          <button class="um-item" onclick="closeUserMenu();goView('historial',null)">
-            <span class="um-item-icon">📋</span> Historial
+          <button onclick="closeUserMenu();goView('historial',document.getElementById('btn-historial'))" style="display:flex;align-items:center;gap:10px;padding:11px 16px;font-size:12px;color:var(--t2);cursor:pointer;border:none;background:none;width:100%;text-align:left;font-family:var(--sans);font-weight:500;transition:all .15s" onmouseover="this.style.background='rgba(255,255,255,.05)';this.style.color='var(--text)'" onmouseout="this.style.background='none';this.style.color='var(--t2)'">
+            <span style="font-size:16px;width:22px;text-align:center">📋</span> Historial
           </button>
-          <div style="height:1px;background:var(--b1);margin:4px 0"></div>
-          <button class="um-item danger" onclick="doLogout()">
-            <span class="um-item-icon">🚪</span> Cerrar sesión → landing
+          <div style="height:1px;background:rgba(99,130,180,.1);margin:4px 0"></div>
+          <button onclick="doLogout()" style="display:flex;align-items:center;gap:10px;padding:11px 16px;font-size:12px;color:var(--t2);cursor:pointer;border:none;background:none;width:100%;text-align:left;font-family:var(--sans);font-weight:500;transition:all .15s" onmouseover="this.style.background='rgba(239,68,68,.1)';this.style.color='var(--red2)'" onmouseout="this.style.background='none';this.style.color='var(--t2)'">
+            <span style="font-size:16px;width:22px;text-align:center">🚪</span> Cerrar sesión
           </button>
         </div>
       </div>
@@ -2835,26 +2884,27 @@ function closeMoreMenu() {
 function toggleUserMenu() {
   const menu = document.getElementById('userMenu');
   if (!menu) return;
-  const isOpen = menu.classList.contains('open');
-  // Update menu with current user info
-  if (!isOpen && currentUser) {
-    const umName = document.getElementById('umName');
-    const umEmail = document.getElementById('umEmail');
-    const umAv = document.getElementById('umAv');
-    if (umName) umName.textContent = currentUser.tallerName || 'Mi taller';
-    if (umEmail) umEmail.textContent = currentUser.email || '';
-    if (umAv) umAv.textContent = (currentUser.tallerName || currentUser.email || '?')[0].toUpperCase();
-  }
-  menu.classList.toggle('open', !isOpen);
-  // Close when clicking outside
+  const isOpen = menu.style.display === 'flex';
   if (!isOpen) {
-    setTimeout(() => {
-      document.addEventListener('click', closeUserMenu, { once: true });
-    }, 10);
+    // Update user info
+    if (currentUser) {
+      const n = currentUser.tallerName || currentUser.email || 'Usuario';
+      const e = document.getElementById('umName'); if(e) e.textContent = n;
+      const em = document.getElementById('umEmail'); if(em) em.textContent = currentUser.email || '';
+      const av1 = document.getElementById('umAv'); if(av1) av1.textContent = n[0].toUpperCase();
+      const av2 = document.getElementById('userAv'); if(av2) av2.textContent = n[0].toUpperCase();
+      const un = document.getElementById('userName'); if(un) un.textContent = n;
+    }
+    menu.style.display = 'flex';
+    menu.style.flexDirection = 'column';
+    setTimeout(() => document.addEventListener('click', closeUserMenu, { once: true }), 50);
+  } else {
+    menu.style.display = 'none';
   }
 }
 function closeUserMenu() {
-  document.getElementById('userMenu')?.classList.remove('open');
+  const menu = document.getElementById('userMenu');
+  if (menu) menu.style.display = 'none';
 }
 
 async function doAuth() {
