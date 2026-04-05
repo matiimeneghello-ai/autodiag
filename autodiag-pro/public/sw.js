@@ -52,13 +52,12 @@ self.addEventListener('fetch', (e) => {
   // WebSocket — never intercept
   if (url.protocol === 'ws:' || url.protocol === 'wss:') return;
 
-  // HTML pages — always network, no cache (so updates deploy immediately)
-  if (e.request.destination === 'document') {
-    e.respondWith(
-      fetch(e.request).catch(() =>
-        caches.match(e.request)
-      )
-    );
+  // HTML pages — ALWAYS network, never cache
+  // This ensures landing and app always load fresh from server
+  if (e.request.destination === 'document' || 
+      e.request.url.includes('railway.app/') ||
+      e.request.headers.get('accept')?.includes('text/html')) {
+    e.respondWith(fetch(e.request));
     return;
   }
 
