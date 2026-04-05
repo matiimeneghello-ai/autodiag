@@ -1,0 +1,28 @@
+{
+  "name": "autodiag-agent",
+  "version": "1.0.0",
+  "description": "AutoDiag Pro — Agente desktop J2534 para Windows",
+  "main": "agent.js",
+  "scripts": {
+    "start": "node agent.js",
+    "build": "pkg agent.js --targets node18-win-x64 --output dist/AutoDiagAgent.exe --compress GZip"
+  },
+  "dependencies": {
+    "ws": "^8.18.0",
+    "ffi-napi": "^4.0.3",
+    "ref-napi": "^3.0.3",
+    "ref-struct-napi": "^1.1.1",
+    "node-hid": "^3.1.0",
+    "serialport": "^12.0.0",
+    "chalk": "^4.1.2",
+    "open": "^8.4.2",
+    "readline": "^1.3.0"
+  },
+  "devDependencies": {
+    "pkg": "^5.8.1"
+  },
+  "pkg": {
+    "assets": ["*.dll", "config.json"],
+    "targets": ["node18-win-x64"]
+  }
+}

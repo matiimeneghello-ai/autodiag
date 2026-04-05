@@ -239,13 +239,49 @@ function sendTo(ws, type, payload) {
   if(ws.readyState===1) ws.send(JSON.stringify({type, payload, ts: Date.now()}));
 }
 
+// Track agents separately
+const agents = new Map();
+
 wss.on('connection', (ws, req) => {
   const id = uuidv4();
+  const isAgent = req.url === '/agent';
+
+  if (isAgent) {
+    // J2534 desktop agent connection
+    agents.set(id, { ws, vehicleId: null, token: req.headers['x-agent-token'], version: req.headers['x-agent-version'] });
+    console.log(`🔌 Agente J2534 conectado: ${id} v${req.headers['x-agent-version'] || '?'}`);
+    sendTo(ws, 'agent_connected', { agentId: id, serverVersion: '2.1.0' });
+
+    ws.on('message', async (raw) => {
+      try {
+        const msg = JSON.parse(raw.toString());
+        // Forward agent data to all browser clients
+        if (['live_data','module_dtcs','scan_complete','module_scanned','scan_started','pong'].includes(msg.type)) {
+          broadcast(msg.type, { ...msg.payload, source: 'j2534_agent' });
+        }
+        // Handle agent hello
+        if (msg.type === 'agent_hello') {
+          console.log(`🔧 Agente info: ${JSON.stringify(msg.payload)}`);
+          broadcast('agent_status', { connected: true, ...msg.payload });
+        }
+      } catch(e) {}
+    });
+
+    ws.on('close', () => {
+      agents.delete(id);
+      console.log(`🔌 Agente J2534 desconectado: ${id}`);
+      broadcast('agent_status', { connected: false });
+    });
+    return;
+  }
+
+  // Regular browser client
   clients.set(id, { ws, vehicleId: null });
   sendTo(ws, 'connected', {
     clientId: id, sim_mode: obd?.simMode||true,
     live_data: obd?.getLiveData()||{}, dtcs: obd?.getDTCs()||[],
     history: obd?.getHistory ? obd.getHistory() : [],
+    agents_connected: agents.size,
   });
   ws.on('message', async (raw) => {
     if (raw.length > 10240) return; // 10kb max WS message
@@ -1008,6 +1044,29 @@ app.get('/api/prices/mercadolibre', async (req, res) => {
     console.error('ML price error:', e.message);
     res.json({ ok: true, results: [], stats: null, error: safeError(e) });
   }
+});
+
+
+// ── AGENT COMMANDS ────────────────────────────────────────────
+app.post('/api/agent/command', requireAuth, async (req, res) => {
+  try {
+    if (agents.size === 0) return res.json({ ok: false, error: 'No hay agente J2534 conectado. Iniciá AutoDiagAgent en tu PC.' });
+    const { action, payload } = req.body;
+    const validActions = ['scan_all_modules','scan_module','clear_dtcs','read_live','set_vehicle','set_protocol','ping'];
+    if (!validActions.includes(action)) return res.status(400).json({ ok: false, error: 'Acción inválida' });
+    // Send command to all connected agents
+    agents.forEach(agent => {
+      sendTo(agent.ws, 'command', { action, payload });
+    });
+    res.json({ ok: true, agents: agents.size });
+  } catch(e) {
+    res.status(500).json({ ok: false, error: safeError(e) });
+  }
+});
+
+app.get('/api/agent/status', async (req, res) => {
+  res.json({ ok: true, connected: agents.size > 0, count: agents.size,
+    agents: [...agents.values()].map(a => ({ version: a.version, vehicleId: a.vehicleId })) });
 });
 
 // ── ROUTING ──────────────────────────────────────────────────
