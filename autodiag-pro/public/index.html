@@ -1518,6 +1518,9 @@ body::before {
 
 </style>
 
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
 </head>
 <body>
 
@@ -2301,12 +2304,15 @@ let radarChart;
 // ── PWA & MOBILE ──────────────────────────────────────────
 
 // Register service worker
+// Force unregister ALL service workers — prevents stale cache
 if ('serviceWorker' in navigator) {
-  // Unregister all old service workers that might be intercepting requests
   navigator.serviceWorker.getRegistrations().then(regs => {
-    regs.forEach(r => r.unregister());
-    console.log('SW: unregistered', regs.length, 'workers');
+    regs.forEach(r => { r.unregister(); console.log('SW unregistered:', r.scope); });
   });
+  // Also clear all caches
+  if ('caches' in window) {
+    caches.keys().then(keys => keys.forEach(k => caches.delete(k)));
+  }
 }
 
 // Hide loading screen
