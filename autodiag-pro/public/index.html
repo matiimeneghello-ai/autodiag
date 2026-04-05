@@ -1437,6 +1437,20 @@ body::before {
 }
 
 
+
+/* ── MORE MENU ───────────────────────────────────────────────── */
+.tb-more-item {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; padding: 9px 14px; border: none; background: none;
+  color: var(--t2); font-size: 12px; cursor: pointer; transition: all .15s;
+  font-family: var(--sans); text-align: left;
+}
+.tb-more-item:hover { background: var(--b1); color: var(--text); }
+
+/* Fix topbar overflow */
+.tb-nav { overflow: visible !important; flex-wrap: nowrap; }
+.topbar { overflow: visible; }
+
 </style>
 
 </head>
@@ -1550,29 +1564,57 @@ body::before {
     </div>
     <div class="tb-page-title" id="mobileTitle">Dashboard</div>
     <nav class="tb-nav" id="tbNav">
-      <button class="tb-btn active" onclick="goView('dashboard',this)">Dashboard</button>
-      <button class="tb-btn" onclick="goView('charts',this)">Gráficas</button>
-      <button class="tb-btn" onclick="goView('multicode',this)">Multi-DTC</button>
-      <button class="tb-btn" onclick="goView('symptoms',this)">Síntomas</button>
-      <button class="tb-btn" onclick="goView('scan',this)">Escaneo</button>
-      <button class="tb-btn" onclick="goView('workshop',this)">Taller</button>
-      <button class="tb-btn" onclick="goView('research',this)">IA Research</button>
-      <button class="tb-btn" onclick="goView('learning',this)">Aprendizaje</button>
-      <button class="tb-btn" onclick="goView('diagnostico',this)">Diagnóstico</button>
-      <button class="tb-btn" onclick="goView('ficha',this)">Ficha</button>
-      <button class="tb-btn" onclick="goView('historial',this)">Historial</button>
+      <button class="tb-btn active" onclick="goView('dashboard',this)" id="btn-dashboard">Dashboard</button>
+      <button class="tb-btn" onclick="goView('scan',this)" id="btn-scan">Escaneo</button>
+      <button class="tb-btn" onclick="goView('research',this)" id="btn-research">IA Research</button>
+      <button class="tb-btn" onclick="goView('diagnostico',this)" id="btn-diagnostico">Diagnóstico</button>
+      <button class="tb-btn" onclick="goView('workshop',this)" id="btn-workshop">Taller</button>
+      <button class="tb-btn" onclick="goView('historial',this)" id="btn-historial">Historial</button>
+      <div style="position:relative">
+        <button class="tb-btn" onclick="toggleMoreMenu(this)" id="btn-more">Más ▾</button>
+        <div id="moreMenu" style="display:none;position:absolute;top:calc(100% + 6px);left:0;min-width:160px;background:rgba(12,18,32,.98);border:1px solid var(--b3);border-radius:12px;box-shadow:0 16px 40px rgba(0,0,0,.6);z-index:500;overflow:hidden;backdrop-filter:blur(20px)">
+          <button class="tb-more-item" onclick="goView('charts',this);closeMoreMenu()">📈 Gráficas</button>
+          <button class="tb-more-item" onclick="goView('multicode',this);closeMoreMenu()">🔀 Multi-DTC</button>
+          <button class="tb-more-item" onclick="goView('symptoms',this);closeMoreMenu()">🩺 Síntomas</button>
+          <button class="tb-more-item" onclick="goView('learning',this);closeMoreMenu()">🧠 Aprendizaje</button>
+          <button class="tb-more-item" onclick="goView('ficha',this);closeMoreMenu()">🚗 Ficha técnica</button>
+        </div>
+      </div>
     </nav>
     <div class="tb-right">
-      <button onclick="goToLanding()" style="display:flex;align-items:center;gap:5px;padding:5px 12px;border-radius:8px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);font-size:11px;color:var(--t2);transition:all .2s;font-family:var(--mono);letter-spacing:.5px;cursor:pointer" onmouseover="this.style.background='rgba(255,255,255,.08)';this.style.color='var(--text)'" onmouseout="this.style.background='rgba(255,255,255,.04)';this.style.color='var(--t2)'">← Inicio</button>
-      <div class="tb-status"><div class="tb-dot"></div><span id="statusText">Sistema OK</span></div>
-      <div class="tb-status" id="agentStatus" style="display:none;background:rgba(16,185,129,.1);border-color:rgba(16,185,129,.3)">
-        <div class="tb-status-dot" style="background:var(--grn2);box-shadow:0 0 6px var(--grn2)"></div>
-        <span style="color:var(--grn2);font-weight:600">J2534</span>
+      <div class="tb-status"><div class="tb-dot"></div><span id="statusText">OBD OK</span></div>
+      <div class="tb-status" id="agentStatus" style="display:none;background:rgba(16,185,129,.1);border-color:rgba(16,185,129,.3);cursor:default">
+        <div class="tb-status-dot" style="background:var(--grn2);box-shadow:0 0 6px var(--grn2);animation:pulse 2s infinite"></div>
+        <span style="color:var(--grn2);font-weight:700;font-family:var(--mono);font-size:10px">J2534</span>
       </div>
       <div class="tb-clock" id="clk">00:00:00</div>
-      <div class="tb-user" onclick="doLogout()">
-        <div class="tb-av" id="userAv">?</div>
-        <span class="tb-uname" id="userName">Usuario</span>
+      <div style="position:relative">
+        <div class="tb-user" onclick="toggleUserMenu()" title="Menú usuario">
+          <div class="tb-av" id="userAv">?</div>
+          <span class="tb-uname" id="userName">Usuario</span>
+        </div>
+        <div class="user-menu" id="userMenu">
+          <div class="um-header">
+            <div class="um-av" id="umAv">?</div>
+            <div>
+              <div class="um-name" id="umName">Usuario</div>
+              <div class="um-email" id="umEmail"></div>
+            </div>
+          </div>
+          <button class="um-item" onclick="closeUserMenu();goToLanding()">
+            <span class="um-item-icon">🏠</span> Ir a la landing
+          </button>
+          <button class="um-item" onclick="closeUserMenu();goView('ficha',null)">
+            <span class="um-item-icon">🚗</span> Ficha técnica
+          </button>
+          <button class="um-item" onclick="closeUserMenu();goView('historial',null)">
+            <span class="um-item-icon">📋</span> Historial
+          </button>
+          <div style="height:1px;background:var(--b1);margin:4px 0"></div>
+          <button class="um-item danger" onclick="doLogout()">
+            <span class="um-item-icon">🚪</span> Cerrar sesión → landing
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -2761,6 +2803,18 @@ function switchTab(mode) {
   if (err) err.classList.remove('show');
 }
 
+
+function toggleMoreMenu(btn) {
+  const menu = document.getElementById('moreMenu');
+  if (!menu) return;
+  const isOpen = menu.style.display !== 'none';
+  menu.style.display = isOpen ? 'none' : 'block';
+  if (!isOpen) setTimeout(() => document.addEventListener('click', closeMoreMenu, { once: true }), 10);
+}
+function closeMoreMenu() {
+  const menu = document.getElementById('moreMenu');
+  if (menu) menu.style.display = 'none';
+}
 function toggleUserMenu() {
   const menu = document.getElementById('userMenu');
   if (!menu) return;
