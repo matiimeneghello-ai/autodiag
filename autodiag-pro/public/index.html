@@ -2954,13 +2954,7 @@ window.addEventListener('load', async () => {
 
 // ── NAV ──
 function goToLanding() {
-  // Unregister service worker and go to landing to avoid SW intercept
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistrations().then(regs => {
-      regs.forEach(r => r.unregister());
-    });
-  }
-  window.location.replace('/');
+  window.location.href = 'https://autodiag-production.up.railway.app/';
 }
 
 const VIEW_TITLES = {

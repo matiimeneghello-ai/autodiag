@@ -1,77 +1,41 @@
-const CACHE_NAME = 'autodiag-v3';
-const STATIC_CACHE = [
-  '/manifest.json',
-];
+// Service Worker v4 — minimal, no caching of HTML
+const CACHE_NAME = 'autodiag-v4';
 
-// Install — minimal cache
-self.addEventListener('install', (e) => {
-  e.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(STATIC_CACHE))
-  );
-  self.skipWaiting();
-});
-
-// Activate — clean old caches immediately
+self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => {
   e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => {
-        console.log('SW: deleting old cache', k);
-        return caches.delete(k);
-      }))
-    ).then(() => self.clients.claim())
+    caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
   );
 });
 
-// Fetch handler
+// Only cache fonts, never HTML
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
-
-  // API calls — ALWAYS go direct to network, NO SW interference
-  // Use a timeout so they don't hang forever
-  if (url.pathname.startsWith('/api/') || url.pathname === '/health') {
-    e.respondWith(
-      Promise.race([
-        fetch(e.request.clone()),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('timeout')), 25000)
-        )
-      ]).catch((err) => {
-        const msg = err.message === 'timeout'
-          ? 'El servidor tardó demasiado. Recargá la página.'
-          : 'Sin conexión al servidor.';
-        return new Response(JSON.stringify({ ok: false, error: msg }), {
-          status: 503,
-          headers: { 'Content-Type': 'application/json' }
-        });
-      })
-    );
-    return;
-  }
-
-  // WebSocket — never intercept
+  
+  // API and WebSocket — always network
+  if (url.pathname.startsWith('/api/') || url.pathname === '/health') return;
   if (url.protocol === 'ws:' || url.protocol === 'wss:') return;
-
-  // HTML pages — ALWAYS network, never cache
-  // This ensures landing and app always load fresh from server
-  if (e.request.destination === 'document' || 
-      e.request.url.includes('railway.app/') ||
-      e.request.headers.get('accept')?.includes('text/html')) {
+  
+  // HTML — always network, no cache
+  if (e.request.destination === 'document') {
     e.respondWith(fetch(e.request));
     return;
   }
-
-  // Static assets (fonts, icons) — cache first
-  e.respondWith(
-    caches.match(e.request).then(cached => {
-      if (cached) return cached;
-      return fetch(e.request).then(response => {
-        if (response.ok && e.request.url.includes('fonts.googleapis')) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
-        }
-        return response;
-      }).catch(() => cached);
-    })
-  );
+  
+  // Google Fonts — cache
+  if (url.hostname.includes('fonts.googleapis') || url.hostname.includes('fonts.gstatic')) {
+    e.respondWith(
+      caches.match(e.request).then(cached => cached || 
+        fetch(e.request).then(r => {
+          const clone = r.clone();
+          caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
+          return r;
+        })
+      )
+    );
+    return;
+  }
+  
+  // Everything else — network
 });
