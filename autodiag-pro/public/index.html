@@ -2757,6 +2757,31 @@ function switchTab(mode) {
   if (err) err.classList.remove('show');
 }
 
+function toggleUserMenu() {
+  const menu = document.getElementById('userMenu');
+  if (!menu) return;
+  const isOpen = menu.classList.contains('open');
+  // Update menu with current user info
+  if (!isOpen && currentUser) {
+    const umName = document.getElementById('umName');
+    const umEmail = document.getElementById('umEmail');
+    const umAv = document.getElementById('umAv');
+    if (umName) umName.textContent = currentUser.tallerName || 'Mi taller';
+    if (umEmail) umEmail.textContent = currentUser.email || '';
+    if (umAv) umAv.textContent = (currentUser.tallerName || currentUser.email || '?')[0].toUpperCase();
+  }
+  menu.classList.toggle('open', !isOpen);
+  // Close when clicking outside
+  if (!isOpen) {
+    setTimeout(() => {
+      document.addEventListener('click', closeUserMenu, { once: true });
+    }, 10);
+  }
+}
+function closeUserMenu() {
+  document.getElementById('userMenu')?.classList.remove('open');
+}
+
 async function doAuth() {
   const email  = document.getElementById('loginEmail').value.trim();
   const pass   = document.getElementById('loginPass').value;
