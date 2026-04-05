@@ -2081,7 +2081,7 @@ body::before {
 </button>
 
 <div class="ap" id="assistantPanel" style="display:none;position:fixed;bottom:80px;right:16px;width:340px;max-height:520px;z-index:300;flex-direction:column;border-radius:16px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.05);backdrop-filter:blur(24px)">
-  <div class="ap-head">
+  <div class="ap-head" id="apDragHandle">
     <div class="ap-av">🤖</div>
     <div><div class="ap-name">Asistente AutoDiag</div><div class="ap-status">Activo · Con contexto</div></div>
     <button class="ap-close" onclick="toggleAssistant()">✕</button>
@@ -2116,9 +2116,37 @@ body::before {
         <div class="field"><label class="flbl">Año</label><input class="finput" id="av-year" placeholder="2019" type="number"></div>
         <div class="field"><label class="flbl">Motor</label><input class="finput" id="av-engine" placeholder="1.8L" autocomplete="off"></div>
       </div>
-      <div class="field"><label class="flbl">VIN (opcional)</label><input class="finput" id="av-vin" placeholder="1NXBR12E6YZ348201" style="text-transform:uppercase"></div>
+      <div class="mrow">
+        <div class="field"><label class="flbl">VIN (opcional)</label><input class="finput" id="av-vin" placeholder="1NXBR12E6YZ348201" style="text-transform:uppercase"></div>
+        <div class="field"><label class="flbl">Patente</label><input class="finput" id="av-plate" placeholder="ABC 123" style="text-transform:uppercase"></div>
+      </div>
+      <div class="mrow">
+        <div class="field"><label class="flbl">Kilometraje</label><input class="finput" id="av-mileage" placeholder="85000" type="number" min="0"></div>
+        <div class="field"><label class="flbl">Combustible</label>
+          <select class="finput" id="av-fuel">
+            <option value="Nafta">Nafta</option>
+            <option value="GNC">GNC</option>
+            <option value="GLP">GLP</option>
+            <option value="Diesel">Diesel</option>
+            <option value="Híbrido">Híbrido</option>
+            <option value="Eléctrico">Eléctrico</option>
+          </select>
+        </div>
+      </div>
+      <div class="mrow">
+        <div class="field"><label class="flbl">Transmisión</label>
+          <select class="finput" id="av-trans">
+            <option value="Manual">Manual</option>
+            <option value="Automática">Automática</option>
+            <option value="CVT">CVT</option>
+            <option value="DCT">Doble embrague</option>
+          </select>
+        </div>
+        <div class="field"><label class="flbl">Color</label><input class="finput" id="av-color" placeholder="Blanco"></div>
+      </div>
       <div class="field"><label class="flbl">Propietario / Cliente</label><input class="finput" id="av-owner" placeholder="Nombre del cliente" autocomplete="off"></div>
-      <button class="btn btn-blue" onclick="saveVehicle()" style="width:100%;justify-content:center;margin-top:4px">Guardar vehículo</button>
+      <div class="field"><label class="flbl">Teléfono</label><input class="finput" id="av-phone" placeholder="+54 9 11 1234-5678" type="tel"></div>
+      <button class="btn btn-blue" onclick="saveVehicle()" style="width:100%;justify-content:center;margin-top:8px">Guardar vehículo</button>
     </div>
   </div>
 </div>
@@ -3011,22 +3039,44 @@ function updateSidebarStats() {
 }
 
 async function saveVehicle() {
-  const brand=document.getElementById('av-brand').value.trim();
-  const model=document.getElementById('av-model').value.trim();
-  const year=document.getElementById('av-year').value.trim();
-  const engine=document.getElementById('av-engine').value.trim();
-  const vin=document.getElementById('av-vin').value.trim().toUpperCase();
-  const owner=document.getElementById('av-owner').value.trim();
-  if(!brand||!model){showNotif('Ingresá marca y modelo','error');return;}
-  const res=await API.post('/api/vehicles',{make:brand,model,year:year?parseInt(year):null,engine,vin:vin||null,owner_name:owner||null,user_id:currentUser?.userId});
-  if(res.ok){
+  const brand   = document.getElementById('av-brand')?.value.trim() || '';
+  const model   = document.getElementById('av-model')?.value.trim() || '';
+  const year    = document.getElementById('av-year')?.value.trim()  || '';
+  const engine  = document.getElementById('av-engine')?.value.trim()|| '';
+  const vin     = (document.getElementById('av-vin')?.value.trim()  || '').toUpperCase();
+  const owner   = document.getElementById('av-owner')?.value.trim() || '';
+  const phone   = document.getElementById('av-phone')?.value.trim() || '';
+  const mileage = document.getElementById('av-mileage')?.value.trim()|| '';
+  const fuel    = document.getElementById('av-fuel')?.value         || 'Nafta';
+  const trans   = document.getElementById('av-trans')?.value        || 'Manual';
+  const color   = document.getElementById('av-color')?.value.trim() || '';
+  const plate   = (document.getElementById('av-plate')?.value.trim()|| '').toUpperCase();
+
+  if (!brand || !model) { showNotif('Ingresá marca y modelo', 'error'); return; }
+
+  const payload = {
+    make: brand, model, year: year ? parseInt(year) : null,
+    engine, vin: vin || null, owner_name: owner || null,
+    owner_phone: phone || null,
+    mileage_km: mileage ? parseInt(mileage) : null,
+    fuel_type: fuel, transmission: trans,
+    color: color || null, license_plate: plate || null,
+  };
+
+  const res = await API.post('/api/vehicles', payload);
+  if (res.ok) {
     closeModal('modal-addveh');
-    showNotif('✓ Vehículo guardado: '+brand+' '+model,'success');
+    showNotif('✓ Vehículo guardado: ' + brand + ' ' + model, 'success');
     await loadVehicles();
-    ['av-brand','av-model','av-year','av-engine','av-vin','av-owner'].forEach(id=>document.getElementById(id).value='');
-    // Si es desde onboarding
-    if(obStep===0){closeOnboardingStep();}
-  } else showNotif('Error: '+(res.error||'No se pudo guardar'),'error');
+    ['av-brand','av-model','av-year','av-engine','av-vin','av-owner',
+     'av-phone','av-mileage','av-color','av-plate'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    if (obStep === 0) closeOnboardingStep();
+  } else {
+    showNotif('Error: ' + (res.error || 'No se pudo guardar'), 'error');
+  }
 }
 
 // ── CHARTS ──

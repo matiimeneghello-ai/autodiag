@@ -222,13 +222,26 @@ async function getVehicles(userId) {
 }
 async function getVehicle(id) { return (await query('SELECT * FROM vehicles WHERE id=$1',[id])).rows[0]; }
 async function createVehicle(data) {
-  const r = await query(`INSERT INTO vehicles (user_id,make,model,year,engine,vin,owner_name,owner_phone,notes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-    [data.user_id||null,data.make,data.model,data.year,data.engine,data.vin||null,data.owner_name||null,data.owner_phone||null,data.notes||null]);
+  const r = await query(
+    `INSERT INTO vehicles (user_id,make,model,year,engine,vin,owner_name,owner_phone,notes,mileage_km,fuel_type,transmission,color,license_plate)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
+    [data.user_id||null, data.make, data.model, data.year||null, data.engine||null,
+     data.vin||null, data.owner_name||null, data.owner_phone||null, data.notes||null,
+     data.mileage_km||null, data.fuel_type||'Nafta', data.transmission||'Manual',
+     data.color||null, data.license_plate||null]
+  );
   return r.rows[0];
 }
 async function updateVehicle(id,data) {
-  const r = await query(`UPDATE vehicles SET make=$1,model=$2,year=$3,engine=$4,vin=$5,owner_name=$6,owner_phone=$7,notes=$8,updated_at=NOW() WHERE id=$9 RETURNING *`,
-    [data.make,data.model,data.year,data.engine,data.vin,data.owner_name,data.owner_phone,data.notes,id]);
+  const r = await query(
+    `UPDATE vehicles SET make=$1,model=$2,year=$3,engine=$4,vin=$5,owner_name=$6,owner_phone=$7,
+     notes=$8,mileage_km=$9,fuel_type=$10,transmission=$11,color=$12,license_plate=$13,updated_at=NOW()
+     WHERE id=$14 RETURNING *`,
+    [data.make, data.model, data.year||null, data.engine||null, data.vin||null,
+     data.owner_name||null, data.owner_phone||null, data.notes||null,
+     data.mileage_km||null, data.fuel_type||'Nafta', data.transmission||'Manual',
+     data.color||null, data.license_plate||null, id]
+  );
   return r.rows[0];
 }
 async function deleteVehicle(id) { await query('DELETE FROM vehicles WHERE id=$1',[id]); }
