@@ -301,12 +301,12 @@ body::before {
 /* ── TOPBAR ─────────────────────────────────────────────────── */
 .topbar {
   position: fixed; top: 0; left: 0; right: 0; z-index: 100;
-  height: 56px; display: flex; align-items: center; gap: 4px;
-  padding: 0 16px;
-  background: rgba(8,12,20,.92);
+  height: 56px; display: flex; align-items: center; gap: 6px;
+  padding: 0 12px; padding-top: var(--sat);
+  background: rgba(8,12,20,.95);
   backdrop-filter: blur(24px) saturate(180%);
   border-bottom: 1px solid var(--b2);
-  padding-top: var(--sat);
+  overflow: hidden;
 }
 .topbar::after {
   content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 1px;
@@ -316,8 +316,8 @@ body::before {
 
 /* Logo area */
 .tb-logo {
-  display: flex; align-items: center; gap: 9px; flex-shrink: 0;
-  margin-right: 8px;
+  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+  margin-right: 4px;
 }
 .tb-logo-mark {
   width: 32px; height: 32px; border-radius: 9px;
@@ -335,11 +335,12 @@ body::before {
 }
 
 .tb-btn {
-  padding: 6px 13px; border-radius: 8px; font-size: 11px;
+  padding: 6px 12px; border-radius: 8px; font-size: 11px;
   font-weight: 600; letter-spacing: .5px; text-transform: uppercase;
   color: var(--t2); background: transparent; border: none;
   transition: all .2s; white-space: nowrap; cursor: pointer;
-  font-family: var(--rajd);
+  font-family: var(--rajd); flex-shrink: 0;
+  scroll-snap-align: start;
 }
 .tb-btn:hover { color: var(--text); background: var(--b2); }
 .tb-btn.active {
@@ -357,7 +358,8 @@ body::before {
 
 /* Right side of topbar */
 .tb-right {
-  margin-left: auto; display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: center; gap: 6px;
+  flex-shrink: 0; margin-left: 8px;
 }
 
 
@@ -1151,7 +1153,14 @@ body::before {
 .m-grn  .m-val { color: var(--grn2); }
 
 /* ── TOPBAR ELEMENTS ─────────────────────────────────────────── */
-.tb-nav { display: flex; gap: 1px; flex: 1; overflow: hidden; }
+.tb-nav {
+  display: flex; gap: 1px; flex: 1;
+  overflow-x: auto; overflow-y: visible;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE */
+  scroll-snap-type: x mandatory;
+}
+.tb-nav::-webkit-scrollbar { display: none; }
 .tb-page-title { flex:1; font-family:var(--rajd); font-size:14px; font-weight:700; color:var(--text); text-align:center; display:none; }
 .tb-dot { width:5px; height:5px; border-radius:50%; background:var(--grn2); box-shadow:0 0 6px var(--grn2); animation:pulse 2s infinite; }
 .tb-clock { font-family:var(--mono); font-size:11px; color:var(--blue3); letter-spacing:2px; }
@@ -1451,6 +1460,14 @@ body::before {
 .tb-nav { overflow: visible !important; flex-wrap: nowrap; }
 .topbar { overflow: visible; }
 
+
+@media (max-width: 1100px) {
+  .tb-logo-name { display: none; }
+  .tb-clock { display: none; }
+}
+@media (max-width: 900px) {
+  .tb-status span { display: none; }
+}
 </style>
 
 </head>

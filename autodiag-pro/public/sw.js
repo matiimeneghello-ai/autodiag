@@ -1,5 +1,5 @@
 // Service Worker v4 — minimal, no caching of HTML
-const CACHE_NAME = 'autodiag-v4';
+const CACHE_NAME = 'autodiag-v5';
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => {
