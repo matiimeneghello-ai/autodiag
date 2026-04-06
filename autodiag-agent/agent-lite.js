@@ -24,18 +24,22 @@ let tick = 0;
 
 // ── KNOWN J2534 DLL PATHS ─────────────────────────────────────
 const KNOWN_DLLS = [
-  // VNCI Nano J2534 (y variantes VNCI)
+  // Rockway VNCI Nano — ruta exacta confirmada
+  { name: 'Rockway VNCI Nano J2534', paths: [
+    'C:\\Program Files (x86)\\Rockway\\VNCI Nano Driver\\VNCI.dll',
+    'C:\\Program Files (x86)\\Rockway\\VNCI Nano Driver\\VCI.dll',
+    'C:\\Program Files (x86)\\Rockway\\VNCI Nano Driver\\j2534.dll',
+    'C:\\Program Files (x86)\\Rockway\\VNCI Nano Driver\\vnci_j2534.dll',
+    'C:\\Program Files\\Rockway\\VNCI Nano Driver\\VNCI.dll',
+    'C:\\Program Files\\Rockway\\VNCI Nano Driver\\VCI.dll',
+    'C:\\Program Files\\Rockway\\VNCI Nano Driver\\j2534.dll',
+  ]},
+  // VNCI Nano J2534 (variantes VNCI)
   { name: 'VNCI Nano J2534', paths: [
     'C:\\Program Files\\VNCI\\VNCI.dll',
     'C:\\Program Files (x86)\\VNCI\\VNCI.dll',
-    'C:\\Program Files\\VNCI\\x64\\VNCI.dll',
-    'C:\\Program Files (x86)\\VNCI\\x86\\VNCI.dll',
-    'C:\\Program Files\\VCI\\VNCI.dll',
-    'C:\\Program Files (x86)\\VCI\\VNCI.dll',
     'C:\\Windows\\System32\\VNCI.dll',
     'C:\\Windows\\SysWOW64\\VNCI.dll',
-    'C:\\Program Files\\VNCI Nano\\VNCI.dll',
-    'C:\\Program Files (x86)\\VNCI Nano\\VNCI.dll',
   ]},
   // VNCI FC / TSMaster
   { name: 'VNCI FC / TSMaster', paths: [
@@ -170,7 +174,7 @@ function findDLLFromKnownPaths() {
 
 function scanProgramFilesForJ2534() {
   // Scan Program Files for any J2534-related DLL
-  const keywords = ['vnci','j2534','vxvci','openport','mongoose','obdlink','maxiflash','launch','passthru'];
+  const keywords = ['vnci','rockway','j2534','vxvci','openport','mongoose','obdlink','maxiflash','launch','passthru'];
   const searchDirs = [
     'C:\\Program Files',
     'C:\\Program Files (x86)',
