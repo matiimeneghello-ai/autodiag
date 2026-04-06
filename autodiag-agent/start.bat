@@ -11,24 +11,25 @@ echo.
 :: Check Node.js
 node --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo  [ERROR] Node.js no esta instalado!
+    echo  [!] Node.js no esta instalado.
     echo.
     echo  Instala Node.js desde: https://nodejs.org
-    echo  Descarga la version LTS (recomendada)
+    echo  Descarga la version LTS y vuelve a ejecutar este archivo.
     echo.
+    start https://nodejs.org
     pause
     exit /b 1
 )
 
-:: Install ws if needed
+:: Install ws dependency if needed
 if not exist node_modules\ws (
-    echo  Instalando dependencias...
-    npm install ws
+    echo  Instalando dependencias (solo la primera vez)...
+    npm install ws --silent
     echo.
 )
 
-echo  Iniciando agente...
-echo  (Cerralo con Ctrl+C cuando termines)
+echo  Iniciando conexion con AutoDiag Pro...
+echo  (Cerralo con Ctrl+C cuando termines el diagnostico)
 echo.
 
 node agent-lite.js %*
