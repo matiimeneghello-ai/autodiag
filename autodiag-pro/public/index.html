@@ -2181,7 +2181,53 @@ body::before {
   
       <!-- J2534 VIEW -->
       <div id="view-j2534" class="view">
-        <div class="stitle">Diagnóstico Multi-Módulo <span class="stitle-sub">J2534 PASS-THRU</span></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+          <div class="stitle">Diagnóstico Multi-Módulo <span class="stitle-sub">J2534 PASS-THRU</span></div>
+          <a href="https://github.com/matiimeneghello-ai/autodiag/releases/latest/download/AutoDiagAgent.exe" 
+             target="_blank"
+             style="display:inline-flex;align-items:center;gap:8px;padding:9px 18px;border-radius:10px;background:linear-gradient(135deg,var(--blue),var(--cyan));color:#fff;font-size:12px;font-weight:700;text-decoration:none;letter-spacing:.5px;box-shadow:0 4px 16px rgba(37,99,235,.4);transition:all .2s;white-space:nowrap"
+             onmouseover="this.style.boxShadow='0 6px 24px rgba(37,99,235,.6)';this.style.transform='translateY(-1px)'"
+             onmouseout="this.style.boxShadow='0 4px 16px rgba(37,99,235,.4)';this.style.transform='none'">
+            ⬇ Descargar AutoDiagAgent.exe
+          </a>
+        </div>
+
+        <!-- Download card -->
+        <div class="gcard" style="background:linear-gradient(135deg,rgba(37,99,235,.08),rgba(6,182,212,.04));border-color:rgba(37,99,235,.2)">
+          <div class="gcard-body" style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+            <div style="font-size:48px;flex-shrink:0">🖥️</div>
+            <div style="flex:1;min-width:200px">
+              <div style="font-family:var(--rajd);font-size:16px;font-weight:700;letter-spacing:1px;margin-bottom:6px">AutoDiag Agent v1.0</div>
+              <div style="font-size:12px;color:var(--t2);line-height:1.7;margin-bottom:10px">
+                Aplicación para Windows que conecta tu interfaz J2534 con AutoDiag Pro.<br>
+                Diagnóstico completo de <strong style="color:var(--text)">todos los módulos</strong>: Motor, ABS, Airbag, Transmisión, BCM, Climatizador, Dirección.
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <a href="https://github.com/matiimeneghello-ai/autodiag/releases/latest/download/AutoDiagAgent.exe"
+                   target="_blank"
+                   style="display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border-radius:10px;background:linear-gradient(135deg,var(--blue),var(--cyan));color:#fff;font-size:12px;font-weight:700;text-decoration:none;box-shadow:0 4px 16px rgba(37,99,235,.4)">
+                  ⬇ Descargar .exe (Windows)
+                </a>
+                <a href="https://github.com/matiimeneghello-ai/autodiag/tree/main/autodiag-agent"
+                   target="_blank"
+                   style="display:inline-flex;align-items:center;gap:7px;padding:9px 16px;border-radius:10px;background:rgba(255,255,255,.05);border:1px solid var(--b3);color:var(--t2);font-size:12px;font-weight:600;text-decoration:none">
+                  📂 Ver código fuente
+                </a>
+              </div>
+            </div>
+            <div style="flex-shrink:0;padding:14px;border-radius:12px;background:var(--b1);border:1px solid var(--b2);min-width:180px">
+              <div style="font-size:9px;font-family:var(--mono);color:var(--t3);letter-spacing:1px;margin-bottom:8px">REQUISITOS</div>
+              <div style="font-size:11px;color:var(--t2);line-height:1.9">
+                <div>✅ Windows 10/11</div>
+                <div>✅ Node.js 18+ <span style="font-size:9px;color:var(--t3)">(o .exe standalone)</span></div>
+                <div>✅ Interfaz J2534</div>
+                <div>✅ Puerto USB libre</div>
+                <div>✅ Conexión a internet</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- J2534 Multi-Módulo Panel — siempre visible -->
         <div class="gcard">
           <div class="gcard-head">
@@ -2199,7 +2245,7 @@ body::before {
                 <div style="flex:1;min-width:200px">
                   <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px">¿Cómo conectar tu interfaz J2534?</div>
                   <div style="font-size:12px;color:var(--t2);line-height:1.8">
-                    <div style="margin-bottom:4px"><span style="color:var(--blue3);font-weight:600">1.</span> Descargá <strong style="color:var(--text)">AutoDiagAgent</strong> desde el repositorio</div>
+                    <div style="margin-bottom:4px"><span style="color:var(--blue3);font-weight:600">1.</span> Descargá <a href="https://github.com/matiimeneghello-ai/autodiag/releases/latest/download/AutoDiagAgent.exe" target="_blank" style="color:var(--cyan2);font-weight:700;text-decoration:none">AutoDiagAgent.exe ⬇</a> (arriba en esta página)</div>
                     <div style="margin-bottom:4px"><span style="color:var(--blue3);font-weight:600">2.</span> Conectá tu interfaz J2534 al USB de la PC</div>
                     <div style="margin-bottom:4px"><span style="color:var(--blue3);font-weight:600">3.</span> Enchufá al conector OBD-II del vehículo</div>
                     <div style="margin-bottom:4px"><span style="color:var(--blue3);font-weight:600">4.</span> Ejecutá <code style="background:var(--b2);padding:1px 6px;border-radius:4px;font-family:var(--mono);font-size:10px">AutoDiagAgent.exe</code></div>

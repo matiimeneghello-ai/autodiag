@@ -1,0 +1,14 @@
+AutoDiag Pro - Agente J2534
+============================
+
+INSTALACION RAPIDA:
+1. Ejecutar install.bat (doble click)
+2. Ejecutar start.bat (doble click)
+3. Ingresar tu token de AutoDiag Pro cuando lo pide
+
+PRIMERA VEZ:
+- El agente detecta tu interfaz J2534 automaticamente
+- Si no la detecta, ejecuta: start.bat "C:\ruta\a\interfaz.dll"
+
+SOPORTE:
+https://github.com/matiimeneghello-ai/autodiag
