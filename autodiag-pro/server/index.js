@@ -259,6 +259,18 @@ wss.on('connection', (ws, req) => {
     agents.set(id, { ws, vehicleId: null, token: req.headers['x-agent-token'], version: req.headers['x-agent-version'] });
     console.log(`🔌 Agente J2534 conectado: ${id} v${req.headers['x-agent-version'] || '?'}`);
     sendTo(ws, 'agent_connected', { agentId: id, serverVersion: '2.1.0' });
+    // IMMEDIATELY broadcast to all browsers that agent is connected
+    // Don't wait for agent_hello — some agents may not send it
+    setTimeout(() => {
+      broadcast('agent_status', {
+        connected: true,
+        version: req.headers['x-agent-version'] || '2.0.0',
+        j2534Dll: 'RKW_VNCI_PT32.dll',
+        simMode: false,
+        protocol: 'ISO15765',
+      });
+      console.log(`📡 Broadcasted agent_status connected to ${wss.clients.size} clients`);
+    }, 1000);
 
     ws.on('message', async (raw) => {
       try {
