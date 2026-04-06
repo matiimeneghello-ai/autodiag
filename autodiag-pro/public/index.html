@@ -4426,6 +4426,20 @@ function clearAgentLog() {
   if (log) log.innerHTML = '<div style="color:var(--t3)">— Log limpiado</div>';
 }
 
+// Poll agent status every 5s as fallback (in case WS message was missed)
+async function pollAgentStatus() {
+  try {
+    const res = await API.get('/api/agent/status');
+    if (res.ok && res.connected !== agentConnected) {
+      handleAgentMessage('agent_status', {
+        connected: res.connected,
+        ...(res.agents?.[0] || {}),
+      });
+    }
+  } catch(e) {}
+}
+setInterval(pollAgentStatus, 5000);
+
 function startUptimeCounter() {
   uptimeSeconds = 0;
   stopUptimeCounter();

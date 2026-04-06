@@ -270,6 +270,15 @@ wss.on('connection', (ws, req) => {
         // Handle agent hello
         if (msg.type === 'agent_hello') {
           console.log(`🔧 Agente info: ${JSON.stringify(msg.payload)}`);
+          // Store agent info for late-connecting browsers
+          const agentData = agents.get(id);
+          if (agentData) {
+            agentData.dll      = msg.payload.j2534Dll;
+            agentData.simMode  = msg.payload.simMode;
+            agentData.protocol = msg.payload.protocol;
+            agentData.realOBD  = msg.payload.realOBD;
+            agents.set(id, agentData);
+          }
           broadcast('agent_status', { connected: true, ...msg.payload });
         }
       } catch(e) {}
@@ -291,6 +300,20 @@ wss.on('connection', (ws, req) => {
     history: obd?.getHistory ? obd.getHistory() : [],
     agents_connected: agents.size,
   });
+  // Immediately tell browser about any already-connected agents
+  if (agents.size > 0) {
+    const agentInfo = [...agents.values()][0];
+    setTimeout(() => {
+      sendTo(ws, 'agent_status', {
+        connected: true,
+        version: agentInfo.version || '2.1.0',
+        j2534Dll: agentInfo.dll || 'RKW_VNCI_PT32.dll',
+        simMode: agentInfo.simMode || false,
+        protocol: agentInfo.protocol || 'ISO15765',
+        realOBD: agentInfo.realOBD || true,
+      });
+    }, 500);
+  }
   ws.on('message', async (raw) => {
     if (raw.length > 10240) return; // 10kb max WS message
     let msg; try { msg = JSON.parse(raw); } catch(e) { return; }
@@ -1073,8 +1096,20 @@ app.post('/api/agent/command', requireAuth, async (req, res) => {
 });
 
 app.get('/api/agent/status', async (req, res) => {
-  res.json({ ok: true, connected: agents.size > 0, count: agents.size,
-    agents: [...agents.values()].map(a => ({ version: a.version, vehicleId: a.vehicleId })) });
+  const agentList = [...agents.values()].map(a => ({
+    version:  a.version,
+    vehicleId: a.vehicleId,
+    dll:      a.dll,
+    simMode:  a.simMode,
+    protocol: a.protocol,
+    realOBD:  a.realOBD,
+  }));
+  res.json({
+    ok: true,
+    connected: agents.size > 0,
+    count: agents.size,
+    agents: agentList,
+  });
 });
 
 // ── ROUTING ──────────────────────────────────────────────────
