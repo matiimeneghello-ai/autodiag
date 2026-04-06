@@ -284,20 +284,25 @@ async function initOBD() {
 
   if (dllPath) {
     log(`✅ Interfaz J2534 detectada: ${path.basename(dllPath)}`, 'g');
+    log(`   DLL: ${dllPath}`, 'g');
     config.dllPath = dllPath;
     saveConfig();
     // Try to load DLL via ffi-napi
     if (loadJ2534DLL(dllPath)) {
       useSimulation = false;
       obdReady = true;
+      log('✅ MODO REAL — DLL J2534 activa', 'g');
       return true;
     }
-    // ffi not available - try serial
-    return await initSerial() || await initSimulation(dllPath);
+    // ffi-napi not compiled yet — use simulation but report DLL found
+    log('⚠️  DLL encontrada pero ffi-napi no compilado.', 'y');
+    log('   Conectado en modo puente — datos en tiempo real próximamente.', 'y');
+    useSimulation = true;
+    return false;
   }
 
-  // Try ELM327 via serial/USB directly
-  log('🔍 Buscando interfaz ELM327 USB/Serial...', 'c');
+  // Only try ELM327 serial if NO J2534 DLL was found
+  log('🔍 No se encontró DLL J2534. Buscando ELM327 USB...', 'c');
   if (await initSerial()) return true;
 
   // Ask user to manually enter DLL path
@@ -577,12 +582,14 @@ function connect() {
   ws.on('open', () => {
     connected = true;
     log('✅ Conectado a AutoDiag Pro', 'g');
+    const dllName = config.dllPath ? path.basename(config.dllPath) : null;
     send('agent_hello', {
       version: VERSION,
-      j2534Dll: config.dllPath ? path.basename(config.dllPath) : (useSimulation ? 'Simulación' : 'ELM327 USB'),
+      j2534Dll: dllName || (obdReady ? 'ELM327 USB' : 'Simulación'),
       simMode: useSimulation,
       protocol: 'ISO15765',
       realOBD: !useSimulation && obdReady,
+      dllFound: !!config.dllPath,
     });
     liveTimer = setInterval(async () => {
       if (connected) send('live_data', await readLiveData());
