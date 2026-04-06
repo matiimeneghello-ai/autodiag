@@ -1646,6 +1646,7 @@ body::before {
           <button class="tb-more-item" onclick="goView('symptoms',this);closeMoreMenu()">🩺 Síntomas</button>
           <button class="tb-more-item" onclick="goView('learning',this);closeMoreMenu()">🧠 Aprendizaje</button>
           <button class="tb-more-item" onclick="goView('ficha',this);closeMoreMenu()">🚗 Ficha técnica</button>
+          <button class="tb-more-item" onclick="goView('j2534',this);closeMoreMenu()">🔌 J2534 Multi-módulo</button>
         </div>
       </div>
     </nav>
@@ -1776,71 +1777,6 @@ body::before {
         </div>
       </div>
 
-      
-        <!-- J2534 Multi-Módulo Panel — siempre visible -->
-        <div class="gcard" id="j2534Panel">
-          <div class="gcard-head">
-            <div class="gcard-title">🔌 DIAGNÓSTICO MULTI-MÓDULO J2534</div>
-            <div id="j2534Badge" style="display:flex;align-items:center;gap:6px;padding:3px 10px;border-radius:8px;background:rgba(100,116,139,.1);border:1px solid rgba(100,116,139,.2)">
-              <div id="j2534Dot" style="width:6px;height:6px;border-radius:50%;background:var(--t3)"></div>
-              <span id="j2534BadgeText" style="font-size:9px;font-family:var(--mono);color:var(--t3);letter-spacing:.5px">SIN AGENTE</span>
-            </div>
-          </div>
-          <div class="gcard-body">
-
-            <!-- Estado: sin agente -->
-            <div id="j2534NoAgent">
-              <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
-                <div style="flex:1;min-width:200px">
-                  <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px">¿Cómo conectar tu interfaz J2534?</div>
-                  <div style="font-size:12px;color:var(--t2);line-height:1.8">
-                    <div style="margin-bottom:4px"><span style="color:var(--blue3);font-weight:600">1.</span> Descargá <strong style="color:var(--text)">AutoDiagAgent</strong> desde el repositorio</div>
-                    <div style="margin-bottom:4px"><span style="color:var(--blue3);font-weight:600">2.</span> Conectá tu interfaz J2534 al USB de la PC</div>
-                    <div style="margin-bottom:4px"><span style="color:var(--blue3);font-weight:600">3.</span> Enchufá al conector OBD-II del vehículo</div>
-                    <div style="margin-bottom:4px"><span style="color:var(--blue3);font-weight:600">4.</span> Ejecutá <code style="background:var(--b2);padding:1px 6px;border-radius:4px;font-family:var(--mono);font-size:10px">AutoDiagAgent.exe</code></div>
-                    <div><span style="color:var(--blue3);font-weight:600">5.</span> Este panel se actualiza automáticamente</div>
-                  </div>
-                </div>
-                <div style="flex:1;min-width:180px">
-                  <div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:8px;font-family:var(--mono);letter-spacing:.5px;text-transform:uppercase">Interfaces compatibles</div>
-                  <div style="display:flex;flex-direction:column;gap:4px">
-                    <div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--t2)"><span style="color:var(--grn2)">✓</span> Tactrix Openport 2.0</div>
-                    <div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--t2)"><span style="color:var(--grn2)">✓</span> Drew Technologies MongoosePro</div>
-                    <div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--t2)"><span style="color:var(--grn2)">✓</span> OBDLINK EX / MX+</div>
-                    <div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--t2)"><span style="color:var(--grn2)">✓</span> Autel MaxiFlash J2534</div>
-                    <div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--t2)"><span style="color:var(--grn2)">✓</span> Cualquier interfaz J2534 SAE</div>
-                  </div>
-                </div>
-                <div style="flex:1;min-width:160px">
-                  <div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:8px;font-family:var(--mono);letter-spacing:.5px;text-transform:uppercase">Módulos detectables</div>
-                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px">
-                    <div style="font-size:10px;color:var(--t2);padding:4px 8px;border-radius:6px;background:var(--b1)">🔧 Motor (ECU)</div>
-                    <div style="font-size:10px;color:var(--t2);padding:4px 8px;border-radius:6px;background:var(--b1)">⚙️ Transmisión</div>
-                    <div style="font-size:10px;color:var(--t2);padding:4px 8px;border-radius:6px;background:var(--b1)">🛑 ABS / ESP</div>
-                    <div style="font-size:10px;color:var(--t2);padding:4px 8px;border-radius:6px;background:var(--b1)">🫧 Airbag SRS</div>
-                    <div style="font-size:10px;color:var(--t2);padding:4px 8px;border-radius:6px;background:var(--b1)">💡 BCM</div>
-                    <div style="font-size:10px;color:var(--t2);padding:4px 8px;border-radius:6px;background:var(--b1)">❄️ Climatizador</div>
-                    <div style="font-size:10px;color:var(--t2);padding:4px 8px;border-radius:6px;background:var(--b1)">🎯 Dirección EPS</div>
-                    <div style="font-size:10px;color:var(--t2);padding:4px 8px;border-radius:6px;background:var(--b1)">📊 Instrumentos</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Estado: agente conectado -->
-            <div id="j2534Connected" style="display:none">
-              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
-                <button class="btn btn-blue" onclick="agentScanAll()" style="font-size:11px;gap:6px">
-                  🔍 Escanear todos los módulos
-                </button>
-                <button class="btn btn-ghost" onclick="agentReadLive()" style="font-size:11px">
-                  📡 Actualizar live data
-                </button>
-                <div style="margin-left:auto;font-size:10px;color:var(--t3);font-family:var(--mono);align-self:center" id="j2534Info"></div>
-              </div>
-              <div id="moduleGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px"></div>
-              <div id="j2534Summary" style="display:none;margin-top:12px;padding:10px 14px;border-radius:10px;background:var(--b1);border:1px solid var(--b2);font-size:12px;color:var(--t2)"></div>
-            </div>
 
       <!-- GRÁFICAS -->
       <div id="view-charts" class="view">
@@ -2242,13 +2178,84 @@ body::before {
   </div><!-- /main -->
 
   <!-- BOTTOM NAV -->
-  <div class="bnav" id="bnav">
+  
+      <!-- J2534 VIEW -->
+      <div id="view-j2534" class="view">
+        <div class="stitle">Diagnóstico Multi-Módulo <span class="stitle-sub">J2534 PASS-THRU</span></div>
+        <!-- J2534 Multi-Módulo Panel — siempre visible -->
+        <div class="gcard">
+          <div class="gcard-head">
+            <div class="gcard-title">🔌 DIAGNÓSTICO MULTI-MÓDULO J2534</div>
+            <div id="j2534Badge" style="display:flex;align-items:center;gap:6px;padding:3px 10px;border-radius:8px;background:rgba(100,116,139,.1);border:1px solid rgba(100,116,139,.2)">
+              <div id="j2534Dot" style="width:6px;height:6px;border-radius:50%;background:var(--t3)"></div>
+              <span id="j2534BadgeText" style="font-size:9px;font-family:var(--mono);color:var(--t3);letter-spacing:.5px">SIN AGENTE</span>
+            </div>
+          </div>
+          <div class="gcard-body">
+
+            <!-- Estado: sin agente -->
+            <div id="j2534NoAgent">
+              <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+                <div style="flex:1;min-width:200px">
+                  <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px">¿Cómo conectar tu interfaz J2534?</div>
+                  <div style="font-size:12px;color:var(--t2);line-height:1.8">
+                    <div style="margin-bottom:4px"><span style="color:var(--blue3);font-weight:600">1.</span> Descargá <strong style="color:var(--text)">AutoDiagAgent</strong> desde el repositorio</div>
+                    <div style="margin-bottom:4px"><span style="color:var(--blue3);font-weight:600">2.</span> Conectá tu interfaz J2534 al USB de la PC</div>
+                    <div style="margin-bottom:4px"><span style="color:var(--blue3);font-weight:600">3.</span> Enchufá al conector OBD-II del vehículo</div>
+                    <div style="margin-bottom:4px"><span style="color:var(--blue3);font-weight:600">4.</span> Ejecutá <code style="background:var(--b2);padding:1px 6px;border-radius:4px;font-family:var(--mono);font-size:10px">AutoDiagAgent.exe</code></div>
+                    <div><span style="color:var(--blue3);font-weight:600">5.</span> Este panel se actualiza automáticamente</div>
+                  </div>
+                </div>
+                <div style="flex:1;min-width:180px">
+                  <div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:8px;font-family:var(--mono);letter-spacing:.5px;text-transform:uppercase">Interfaces compatibles</div>
+                  <div style="display:flex;flex-direction:column;gap:4px">
+                    <div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--t2)"><span style="color:var(--grn2)">✓</span> Tactrix Openport 2.0</div>
+                    <div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--t2)"><span style="color:var(--grn2)">✓</span> Drew Technologies MongoosePro</div>
+                    <div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--t2)"><span style="color:var(--grn2)">✓</span> OBDLINK EX / MX+</div>
+                    <div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--t2)"><span style="color:var(--grn2)">✓</span> Autel MaxiFlash J2534</div>
+                    <div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--t2)"><span style="color:var(--grn2)">✓</span> Cualquier interfaz J2534 SAE</div>
+                  </div>
+                </div>
+                <div style="flex:1;min-width:160px">
+                  <div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:8px;font-family:var(--mono);letter-spacing:.5px;text-transform:uppercase">Módulos detectables</div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px">
+                    <div style="font-size:10px;color:var(--t2);padding:4px 8px;border-radius:6px;background:var(--b1)">🔧 Motor (ECU)</div>
+                    <div style="font-size:10px;color:var(--t2);padding:4px 8px;border-radius:6px;background:var(--b1)">⚙️ Transmisión</div>
+                    <div style="font-size:10px;color:var(--t2);padding:4px 8px;border-radius:6px;background:var(--b1)">🛑 ABS / ESP</div>
+                    <div style="font-size:10px;color:var(--t2);padding:4px 8px;border-radius:6px;background:var(--b1)">🫧 Airbag SRS</div>
+                    <div style="font-size:10px;color:var(--t2);padding:4px 8px;border-radius:6px;background:var(--b1)">💡 BCM</div>
+                    <div style="font-size:10px;color:var(--t2);padding:4px 8px;border-radius:6px;background:var(--b1)">❄️ Climatizador</div>
+                    <div style="font-size:10px;color:var(--t2);padding:4px 8px;border-radius:6px;background:var(--b1)">🎯 Dirección EPS</div>
+                    <div style="font-size:10px;color:var(--t2);padding:4px 8px;border-radius:6px;background:var(--b1)">📊 Instrumentos</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Estado: agente conectado -->
+            <div id="j2534Connected" style="display:none">
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+                <button class="btn btn-blue" onclick="agentScanAll()" style="font-size:11px;gap:6px">
+                  🔍 Escanear todos los módulos
+                </button>
+                <button class="btn btn-ghost" onclick="agentReadLive()" style="font-size:11px">
+                  📡 Actualizar live data
+                </button>
+                <div style="margin-left:auto;font-size:10px;color:var(--t3);font-family:var(--mono);align-self:center" id="j2534Info"></div>
+              </div>
+              <div id="moduleGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px"></div>
+              <div id="j2534Summary" style="display:none;margin-top:12px;padding:10px 14px;border-radius:10px;background:var(--b1);border:1px solid var(--b2);font-size:12px;color:var(--t2)"></div>
+            </div>
+      </div>
+
+<div class="bnav" id="bnav">
     <div class="bnav-inner">
       <button class="bnav-item active" onclick="goBNav('dashboard',this,'Dashboard')" id="bnav-dashboard"><span class="bnav-icon">📊</span><span class="bnav-lbl">Dashboard</span></button>
       <button class="bnav-item" onclick="goBNav('scan',this,'Escaneo')" id="bnav-scan"><span class="bnav-icon">🔌</span><span class="bnav-lbl">Escaneo</span></button>
       <button class="bnav-item" onclick="goBNav('diagnostico',this,'Diagnóstico')" id="bnav-diagnostico"><span class="bnav-icon">🧠</span><span class="bnav-lbl">Diagnóstico</span></button>
       <button class="bnav-item" onclick="goBNav('research',this,'IA Research')" id="bnav-research"><span class="bnav-icon">⚡</span><span class="bnav-lbl">IA</span></button>
       <button class="bnav-item" onclick="goBNav('workshop',this,'Taller')" id="bnav-workshop"><span class="bnav-icon">🔧</span><span class="bnav-lbl">Taller</span></button>
+      <button class="bnav-item" onclick="goBNav('j2534',this,'J2534')" id="bnav-j2534"><span class="bnav-icon">🔌</span><span class="bnav-lbl">J2534</span></button>
       <button class="bnav-item" onclick="goBNav('historial',this,'Historial')" id="bnav-historial"><span class="bnav-icon">📅</span><span class="bnav-lbl">Historial</span></button>
       <button class="bnav-item" onclick="toggleSidebar()" id="bnav-more"><span class="bnav-icon">⋯</span><span class="bnav-lbl">Más</span></button>
     </div>
