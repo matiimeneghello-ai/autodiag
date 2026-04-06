@@ -2304,15 +2304,10 @@ let radarChart;
 // ── PWA & MOBILE ──────────────────────────────────────────
 
 // Register service worker
-// Force unregister ALL service workers — prevents stale cache
+// NO service worker — causes cache conflicts between landing and app
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then(regs => {
-    regs.forEach(r => { r.unregister(); console.log('SW unregistered:', r.scope); });
-  });
-  // Also clear all caches
-  if ('caches' in window) {
-    caches.keys().then(keys => keys.forEach(k => caches.delete(k)));
-  }
+  navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
+  if ('caches' in window) caches.keys().then(keys => keys.forEach(k => caches.delete(k)));
 }
 
 // Hide loading screen

@@ -1274,5 +1274,13 @@ const heroObs=new IntersectionObserver(entries=>{
 },{threshold:.2});
 heroObs.observe(document.querySelector('.hero'));
 </script>
+
+<script>
+// Unregister any service workers from /app that might intercept this page
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
+  if ('caches' in window) caches.keys().then(keys => keys.forEach(k => caches.delete(k)));
+}
+</script>
 </body>
 </html>

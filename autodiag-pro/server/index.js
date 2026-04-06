@@ -1078,9 +1078,21 @@ app.get('/api/agent/status', async (req, res) => {
 });
 
 // ── ROUTING ──────────────────────────────────────────────────
-app.get('/', (req,res) => res.sendFile(path.join(__dirname,'../public/landing/index.html')));
-app.get('/landing', (req,res) => res.sendFile(path.join(__dirname,'../public/landing/index.html')));
-app.get('/app', (req,res) => res.sendFile(path.join(__dirname,'../public/index.html')));
+app.get('/', (req,res) => {
+  res.setHeader('X-Page', 'landing');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.sendFile(path.join(__dirname,'../public/landing/index.html'));
+});
+app.get('/landing', (req,res) => {
+  res.setHeader('X-Page', 'landing');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.sendFile(path.join(__dirname,'../public/landing/index.html'));
+});
+app.get('/app', (req,res) => {
+  res.setHeader('X-Page', 'app');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.sendFile(path.join(__dirname,'../public/index.html'));
+});
 app.get('/app/*', (req,res) => res.sendFile(path.join(__dirname,'../public/index.html')));
 
 // SPA fallback → landing
