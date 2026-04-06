@@ -2192,6 +2192,52 @@ body::before {
           </a>
         </div>
 
+        <!-- STATUS PANEL — siempre visible -->
+        <div class="gcard" id="agentStatusPanel">
+          <div class="gcard-body" style="padding:0">
+
+            <!-- Header con estado -->
+            <div style="display:flex;align-items:center;gap:0;border-bottom:1px solid var(--b1)">
+              <div id="statusHeader" style="flex:1;display:flex;align-items:center;gap:12px;padding:14px 16px">
+                <div id="statusCircle" style="width:12px;height:12px;border-radius:50%;background:var(--t3);flex-shrink:0;transition:all .5s"></div>
+                <div>
+                  <div id="statusTitle" style="font-size:13px;font-weight:700;color:var(--t2)">Agente desconectado</div>
+                  <div id="statusSub" style="font-size:10px;color:var(--t3);margin-top:1px;font-family:var(--mono)">Ejecutá AUTODIAG_PRO.bat en tu PC</div>
+                </div>
+              </div>
+              <!-- Stats row -->
+              <div style="display:flex;border-left:1px solid var(--b1)">
+                <div style="padding:12px 20px;text-align:center;border-right:1px solid var(--b1)">
+                  <div id="statUptime" style="font-size:16px;font-weight:700;font-family:var(--mono);color:var(--t2)">—</div>
+                  <div style="font-size:9px;color:var(--t3);letter-spacing:.5px;margin-top:2px">UPTIME</div>
+                </div>
+                <div style="padding:12px 20px;text-align:center;border-right:1px solid var(--b1)">
+                  <div id="statModules" style="font-size:16px;font-weight:700;font-family:var(--mono);color:var(--t2)">—</div>
+                  <div style="font-size:9px;color:var(--t3);letter-spacing:.5px;margin-top:2px">MÓDULOS</div>
+                </div>
+                <div style="padding:12px 20px;text-align:center;border-right:1px solid var(--b1)">
+                  <div id="statDTCs" style="font-size:16px;font-weight:700;font-family:var(--mono);color:var(--t2)">—</div>
+                  <div style="font-size:9px;color:var(--t3);letter-spacing:.5px;margin-top:2px">DTCs</div>
+                </div>
+                <div style="padding:12px 20px;text-align:center">
+                  <div id="statProtocol" style="font-size:11px;font-weight:700;font-family:var(--mono);color:var(--t2)">—</div>
+                  <div style="font-size:9px;color:var(--t3);letter-spacing:.5px;margin-top:2px">PROTOCOLO</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Log de eventos en tiempo real -->
+            <div style="padding:10px 16px 6px;display:flex;align-items:center;justify-content:space-between">
+              <div style="font-size:9px;font-family:var(--mono);color:var(--t3);letter-spacing:1px">REGISTRO DE EVENTOS</div>
+              <button onclick="clearAgentLog()" style="font-size:9px;color:var(--t3);background:none;border:none;cursor:pointer;font-family:var(--mono)">limpiar</button>
+            </div>
+            <div id="agentLog" style="font-family:var(--mono);font-size:10px;padding:0 16px 14px;max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:3px">
+              <div style="color:var(--t3)">— Esperando conexión del agente...</div>
+            </div>
+
+          </div>
+        </div>
+
         <!-- Download card -->
         <div class="gcard" style="background:linear-gradient(135deg,rgba(37,99,235,.08),rgba(6,182,212,.04));border-color:rgba(37,99,235,.2)">
           <div class="gcard-body">
@@ -4356,42 +4402,103 @@ function downloadPDF() {
 
 // ── AGENTE J2534 ──────────────────────────────────────────────
 let agentConnected = false;
+let uptimeTimer = null;
+let uptimeSeconds = 0;
+let totalDTCsFound = 0;
+let modulesScanned = 0;
+
+function addAgentLog(msg, color) {
+  const log = document.getElementById('agentLog');
+  if (!log) return;
+  const colors = { grn:'var(--grn2)', red:'var(--red2)', yel:'var(--yel2)', cyan:'var(--cyan2)', dim:'var(--t3)' };
+  const ts = new Date().toLocaleTimeString('es-AR');
+  const el = document.createElement('div');
+  el.style.color = colors[color] || 'var(--t2)';
+  el.textContent = '[' + ts + '] ' + msg;
+  log.appendChild(el);
+  log.scrollTop = log.scrollHeight;
+  // Keep max 50 lines
+  while (log.children.length > 50) log.removeChild(log.firstChild);
+}
+
+function clearAgentLog() {
+  const log = document.getElementById('agentLog');
+  if (log) log.innerHTML = '<div style="color:var(--t3)">— Log limpiado</div>';
+}
+
+function startUptimeCounter() {
+  uptimeSeconds = 0;
+  stopUptimeCounter();
+  uptimeTimer = setInterval(() => {
+    uptimeSeconds++;
+    const h = Math.floor(uptimeSeconds/3600);
+    const m = Math.floor((uptimeSeconds%3600)/60);
+    const s = uptimeSeconds%60;
+    const fmt = (h>0?h+'h ':'')+m+'m '+s+'s';
+    const el = document.getElementById('statUptime');
+    if (el) el.textContent = fmt;
+  }, 1000);
+}
+
+function stopUptimeCounter() {
+  if (uptimeTimer) { clearInterval(uptimeTimer); uptimeTimer = null; }
+  const el = document.getElementById('statUptime');
+  if (el) el.textContent = '—';
+}
 
 function handleAgentMessage(type, payload) {
   if (type === 'agent_status') {
     agentConnected = payload.connected;
-    // Topbar indicator
     const indicator = document.getElementById('agentStatus');
     if (indicator) indicator.style.display = payload.connected ? 'flex' : 'none';
-    // Dashboard panel
-    const noAgent   = document.getElementById('j2534NoAgent');
-    const connected = document.getElementById('j2534Connected');
-    const badge     = document.getElementById('j2534Badge');
-    const badgeTxt  = document.getElementById('j2534BadgeText');
-    const dot       = document.getElementById('j2534Dot');
+    const noAgent  = document.getElementById('j2534NoAgent');
+    const connected2 = document.getElementById('j2534Connected');
+    const badge    = document.getElementById('j2534Badge');
+    const badgeTxt = document.getElementById('j2534BadgeText');
+    const dot      = document.getElementById('j2534Dot');
+    // Status panel elements
+    const circle   = document.getElementById('statusCircle');
+    const stTitle  = document.getElementById('statusTitle');
+    const stSub    = document.getElementById('statusSub');
+    const statProt = document.getElementById('statProtocol');
     if (payload.connected) {
-      if (noAgent) noAgent.style.display = 'none';
-      if (connected) connected.style.display = 'block';
-      if (badge) { badge.style.background='rgba(16,185,129,.1)'; badge.style.borderColor='rgba(16,185,129,.3)'; }
+      if (noAgent)    noAgent.style.display = 'none';
+      if (connected2) connected2.style.display = 'block';
+      if (badge)    { badge.style.background='rgba(16,185,129,.1)'; badge.style.borderColor='rgba(16,185,129,.3)'; }
       if (badgeTxt) { badgeTxt.textContent='CONECTADO'; badgeTxt.style.color='var(--grn2)'; }
-      if (dot) { dot.style.background='var(--grn2)'; dot.style.boxShadow='0 0 6px var(--grn2)'; }
+      if (dot)      { dot.style.background='var(--grn2)'; dot.style.boxShadow='0 0 6px var(--grn2)'; }
+      // Status panel
+      if (circle)  { circle.style.background='var(--grn2)'; circle.style.boxShadow='0 0 8px var(--grn2)'; }
+      if (stTitle) { stTitle.textContent='Agente conectado'; stTitle.style.color='var(--grn2)'; }
+      if (stSub)   { stSub.textContent=(payload.j2534Dll||'AutoDiagAgent v'+payload.version) + ' · ' + new Date().toLocaleTimeString('es-AR'); }
+      if (statProt){ statProt.textContent = payload.protocol || 'ISO15765'; }
+      addAgentLog('✓ Agente conectado — ' + (payload.j2534Dll || 'simulación'), 'grn');
       const info = document.getElementById('j2534Info');
       if (info) info.textContent = payload.j2534Dll || 'Simulación activa';
-      showNotif('🔌 Agente J2534 conectado' + (payload.j2534Dll ? ' — ' + payload.j2534Dll : ''), 'success');
+      // Start uptime counter
+      startUptimeCounter();
+      showNotif('🔌 Agente J2534 conectado', 'success');
     } else {
-      if (noAgent) noAgent.style.display = 'block';
-      if (connected) connected.style.display = 'none';
-      if (badge) { badge.style.background='rgba(100,116,139,.1)'; badge.style.borderColor='rgba(100,116,139,.2)'; }
+      if (noAgent)    noAgent.style.display = 'block';
+      if (connected2) connected2.style.display = 'none';
+      if (badge)    { badge.style.background='rgba(100,116,139,.1)'; badge.style.borderColor='rgba(100,116,139,.2)'; }
       if (badgeTxt) { badgeTxt.textContent='SIN AGENTE'; badgeTxt.style.color='var(--t3)'; }
-      if (dot) { dot.style.background='var(--t3)'; dot.style.boxShadow='none'; }
+      if (dot)      { dot.style.background='var(--t3)'; dot.style.boxShadow='none'; }
+      if (circle)   { circle.style.background='var(--red2)'; circle.style.boxShadow='0 0 8px var(--red2)'; }
+      if (stTitle)  { stTitle.textContent='Agente desconectado'; stTitle.style.color='var(--t2)'; }
+      if (stSub)    { stSub.textContent='Ejecutá AUTODIAG_PRO.bat en tu PC'; stSub.style.color='var(--t3)'; }
+      stopUptimeCounter();
+      addAgentLog('✗ Agente desconectado', 'red');
     }
   }
 
   if (type === 'scan_started') {
+    addAgentLog('→ Iniciando escaneo de ' + (payload.modules||[]).length + ' módulos...', 'cyan');
     const grid = document.getElementById('moduleGrid');
     if (!grid) return;
     const summary = document.getElementById('j2534Summary');
     if (summary) summary.style.display = 'none';
+    modulesScanned = 0; totalDTCsFound = 0;
     grid.innerHTML = (payload.modules || []).map(key => `
       <div id="mc-${key}" style="padding:12px;border-radius:10px;background:var(--b1);border:1px solid var(--b2);text-align:center;transition:all .3s">
         <div style="font-size:20px;margin-bottom:6px">⏳</div>
@@ -4401,9 +4508,16 @@ function handleAgentMessage(type, payload) {
   }
 
   if (type === 'module_scanned') {
+    modulesScanned++;
+    totalDTCsFound += (payload.dtcs?.length || 0);
+    const el_mod = document.getElementById('statModules');
+    if (el_mod) el_mod.textContent = modulesScanned;
+    const el_dtc = document.getElementById('statDTCs');
+    if (el_dtc) el_dtc.textContent = totalDTCsFound;
+    const hasError = payload.dtcs?.length > 0;
+    addAgentLog((hasError?'⚠ ':'✓ ') + payload.name + (hasError?' — '+payload.dtcs.join(', '):''), hasError?'red':'dim');
     const card = document.getElementById('mc-' + payload.key);
     if (!card) return;
-    const hasError = payload.dtcs?.length > 0;
     card.style.borderColor = hasError ? 'rgba(239,68,68,.4)' : 'rgba(16,185,129,.3)';
     card.style.background  = hasError ? 'rgba(239,68,68,.06)' : 'rgba(16,185,129,.05)';
     card.innerHTML = `
@@ -4418,6 +4532,7 @@ function handleAgentMessage(type, payload) {
 
   if (type === 'scan_complete') {
     const total = payload.totalDTCs || 0;
+    addAgentLog('■ Escaneo completo: ' + total + ' DTC' + (total!==1?'s':'') + ' en ' + (payload.faultyModules||0) + ' módulo' + (payload.faultyModules!==1?'s':''), total>0?'yel':'grn');
     const summary = document.getElementById('j2534Summary');
     if (summary) {
       summary.style.display = 'block';
