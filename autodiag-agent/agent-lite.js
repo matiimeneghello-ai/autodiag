@@ -15,7 +15,7 @@ const https      = require('https');
 
 const VERSION     = '1.0.0';
 const SERVER_URL  = 'wss://autodiag-production.up.railway.app';
-const CONFIG_FILE = path.join(process.env.APPDATA || process.env.HOME || '.', 'AutoDiagAgent', 'config.json');
+const CONFIG_FILE = path.join(__dirname, 'config.json');
 
 let config = { serverUrl: SERVER_URL, authToken: null };
 let ws = null;
