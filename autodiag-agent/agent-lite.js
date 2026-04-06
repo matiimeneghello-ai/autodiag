@@ -217,6 +217,53 @@ let useSimulation = false;
 let serialPort = null;
 let obdReady = false;
 
+// ── J2534 DLL REAL via ffi-napi ───────────────────────────────
+let j2534lib = null;
+let j2534DeviceId = null;
+let j2534ChannelId = null;
+
+function loadJ2534DLL(dllPath) {
+  try {
+    const ffi    = require('ffi-napi');
+    const ref    = require('ref-napi');
+    const uint   = ref.types.uint32;
+    const uintPtr = ref.refType(uint);
+
+    j2534lib = ffi.Library(dllPath, {
+      'PassThruOpen':       ['int', ['pointer', uintPtr]],
+      'PassThruClose':      ['int', [uint]],
+      'PassThruConnect':    ['int', [uint, uint, uint, uint, uintPtr]],
+      'PassThruDisconnect': ['int', [uint]],
+      'PassThruReadMsgs':   ['int', [uint, 'pointer', uintPtr, uint]],
+      'PassThruWriteMsgs':  ['int', [uint, 'pointer', uint, uint]],
+      'PassThruIoctl':      ['int', [uint, uint, 'pointer', 'pointer']],
+      'PassThruGetLastError': ['int', ['pointer']],
+    });
+
+    // Open device
+    const devIdBuf = ref.alloc(uint);
+    const ret = j2534lib.PassThruOpen(null, devIdBuf);
+    if (ret !== 0) throw new Error(`PassThruOpen failed: ${ret}`);
+    j2534DeviceId = devIdBuf.deref();
+
+    // Connect channel - ISO15765 CAN 500kbps
+    const chIdBuf = ref.alloc(uint);
+    const retCh = j2534lib.PassThruConnect(j2534DeviceId, 0x06, 0, 500000, chIdBuf);
+    if (retCh !== 0) throw new Error(`PassThruConnect failed: ${retCh}`);
+    j2534ChannelId = chIdBuf.deref();
+
+    log(`✅ DLL J2534 cargada y canal abierto correctamente`, 'g');
+    return true;
+  } catch(e) {
+    if (e.code === 'MODULE_NOT_FOUND') {
+      log(`⚠️  ffi-napi no disponible — instalalo con: npm install ffi-napi`, 'y');
+    } else {
+      log(`⚠️  Error cargando DLL: ${e.message}`, 'y');
+    }
+    return false;
+  }
+}
+
 async function initOBD() {
   // Try to find J2534 DLL
   let dllPath = config.dllPath;
@@ -238,7 +285,13 @@ async function initOBD() {
     log(`✅ Interfaz J2534 detectada: ${path.basename(dllPath)}`, 'g');
     config.dllPath = dllPath;
     saveConfig();
-    // Try to use SerialPort as bridge to ELM327 USB
+    // Try to load DLL via ffi-napi
+    if (loadJ2534DLL(dllPath)) {
+      useSimulation = false;
+      obdReady = true;
+      return true;
+    }
+    // ffi not available - try serial
     return await initSerial() || await initSimulation(dllPath);
   }
 
@@ -379,34 +432,92 @@ async function readDTCs(moduleId) {
   if (useSimulation || !obdReady) return [];
   
   try {
-    // Set header for specific module
+    if (j2534lib && j2534ChannelId !== null) {
+      // Use real J2534 DLL
+      return await readDTCsViaJ2534(moduleId);
+    }
+    if (serialPort?.isOpen) {
+      // Use ELM327 serial
+      return await readDTCsViaELM(moduleId);
+    }
+    return [];
+  } catch(e) {
+    log(`Error leyendo DTCs módulo 0x${moduleId.toString(16)}: ${e.message}`, 'y');
+    return [];
+  }
+}
+
+async function readDTCsViaJ2534(moduleId) {
+  try {
+    const ref = require('ref-napi');
+    // Build ISO15765 message: request DTCs (Mode 03) to specific module
+    // PASSTHRU_MSG structure: ProtocolID, RxStatus, TxFlags, Timestamp, DataSize, ExtraDataIndex, Data[4128]
+    const msgSize = 4 + 4 + 4 + 4 + 4 + 4 + 4128; // PASSTHRU_MSG size
+    const txMsg = Buffer.alloc(msgSize, 0);
+    txMsg.writeUInt32LE(0x06, 0);  // ProtocolID = ISO15765
+    txMsg.writeUInt32LE(0x00, 4);  // RxStatus
+    txMsg.writeUInt32LE(0x40, 8);  // TxFlags = ISO15765_FRAME_PAD
+    txMsg.writeUInt32LE(0, 12);    // Timestamp
+    txMsg.writeUInt32LE(5, 16);    // DataSize = 5 bytes (4 addr + 1 data)
+    txMsg.writeUInt32LE(4, 20);    // ExtraDataIndex
+    // CAN ID (module address) + OBD request
+    txMsg.writeUInt8((moduleId >> 24) & 0xFF, 24);
+    txMsg.writeUInt8((moduleId >> 16) & 0xFF, 25);
+    txMsg.writeUInt8((moduleId >> 8) & 0xFF, 26);
+    txMsg.writeUInt8(moduleId & 0xFF, 27);
+    txMsg.writeUInt8(0x03, 28);    // Mode 03 = read DTCs
+
+    const numMsgs = ref.alloc('uint32', 1);
+    j2534lib.PassThruWriteMsgs(j2534ChannelId, txMsg, numMsgs, 100);
+
+    // Read response
+    const rxMsg = Buffer.alloc(msgSize * 4, 0);
+    const rxCount = ref.alloc('uint32', 4);
+    await sleep(200);
+    j2534lib.PassThruReadMsgs(j2534ChannelId, rxMsg, rxCount, 500);
+
+    const count = rxCount.deref();
+    const dtcs = [];
+    for (let m = 0; m < count; m++) {
+      const offset = m * msgSize;
+      const dataSize = rxMsg.readUInt32LE(offset + 16);
+      if (dataSize < 6) continue;
+      const dataStart = offset + 24 + 4; // skip CAN ID
+      for (let i = dataStart + 1; i < dataStart + dataSize - 4; i += 2) {
+        const b1 = rxMsg.readUInt8(i);
+        const b2 = rxMsg.readUInt8(i + 1);
+        if (b1 === 0 && b2 === 0) continue;
+        const type   = (b1 >> 6) & 0x03;
+        const digit  = (b1 >> 4) & 0x03;
+        const rest   = ((b1 & 0x0F) << 8) | b2;
+        const prefix = ['P','C','B','U'][type];
+        dtcs.push(prefix + digit + rest.toString(16).padStart(3,'0').toUpperCase());
+      }
+    }
+    return dtcs;
+  } catch(e) {
+    log(`J2534 DTC error: ${e.message}`, 'y');
+    return [];
+  }
+}
+
+async function readDTCsViaELM(moduleId) {
+  try {
     await sendELM('ATSH' + moduleId.toString(16).toUpperCase().padStart(3,'0'));
     await sleep(100);
-    
-    // Mode 03 = read stored DTCs
     const raw = await sendELM('03');
     if (!raw || raw.includes('NO DATA') || raw.includes('ERROR')) return [];
-
-    const bytes = raw.split(/\s+/)
-      .filter(b => /^[0-9A-F]{2}$/i.test(b))
-      .map(b => parseInt(b, 16));
-
+    const bytes = raw.split(/\s+/).filter(b => /^[0-9A-F]{2}$/i.test(b)).map(b => parseInt(b, 16));
     const dtcs = [];
-    // Response: 43 NN [DTC pairs...]
-    // NN = number of DTCs
     for (let i = 2; i < bytes.length - 1; i += 2) {
       if (bytes[i] === 0 && bytes[i+1] === 0) continue;
       const type  = (bytes[i] >> 6) & 0x03;
       const digit = (bytes[i] >> 4) & 0x03;
       const rest  = ((bytes[i] & 0x0F) << 8) | bytes[i+1];
-      const prefix = ['P','C','B','U'][type];
-      const dtc = prefix + digit.toString() + rest.toString(16).padStart(3,'0').toUpperCase();
-      dtcs.push(dtc);
+      dtcs.push(['P','C','B','U'][type] + digit + rest.toString(16).padStart(3,'0').toUpperCase());
     }
     return dtcs;
-  } catch(e) {
-    return [];
-  }
+  } catch(e) { return []; }
 }
 
 // ── SCAN ALL MODULES ───────────────────────────────────────────
