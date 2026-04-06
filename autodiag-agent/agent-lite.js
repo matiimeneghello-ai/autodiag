@@ -164,12 +164,27 @@ async function main() {
 
   // Ask for token if not set
   if (!config.authToken) {
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    console.log('[33m');
+    console.log('  PASO IMPORTANTE:');
+    console.log('  ==========================================');
+    console.log('  1. Abri AutoDiag Pro en el browser');
+    console.log('  2. Ir a: Mas > J2534 Multi-modulo');
+    console.log('  3. Click en "Copiar token"');
+    console.log('  4. Pega el token aqui abajo');
+    console.log('  ==========================================');
+    console.log('[0m');
+    const rl2 = readline.createInterface({ input: process.stdin, output: process.stdout });
     config.authToken = await new Promise(r => {
-      rl.question('🔑 Token de AutoDiag Pro (lo encontrás en la web): ', ans => { rl.close(); r(ans.trim()); });
+      rl2.question('  Pega tu token y presiona Enter: ', ans => { rl2.close(); r(ans.trim()); });
     });
+    if (!config.authToken) {
+      console.log('[31m  [Error] No ingresaste un token. Cerrando...[0m');
+      process.exit(1);
+    }
     saveConfig();
-    log('✓ Token guardado. No te lo pedirá de nuevo.', 'g');
+    log('✓ Token guardado. La proxima vez no te lo pedira.', 'g');
+  } else {
+    log('✓ Token cargado desde configuracion guardada.', 'g');
   }
 
   log('🚀 Iniciando agente...', 'c');
