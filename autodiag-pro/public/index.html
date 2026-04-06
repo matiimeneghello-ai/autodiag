@@ -3603,7 +3603,14 @@ wsClient.on('dtcs_cleared',()=>{
   document.getElementById('dtcCount').textContent='0';
   document.getElementById('ceVal').textContent='OFF';
   showNotif('✓ DTCs borrados','success');
-});
+})
+// ── AGENT WS LISTENERS ────────────────────────────────────────
+wsClient.on('agent_status',   (d) => handleAgentMessage('agent_status',   d));
+wsClient.on('scan_started',   (d) => handleAgentMessage('scan_started',   d));
+wsClient.on('module_scanned', (d) => handleAgentMessage('module_scanned', d));
+wsClient.on('scan_complete',  (d) => handleAgentMessage('scan_complete',  d));
+wsClient.on('agent_connected',(d) => console.log('Agent WS connected:', d));
+;
 
 let obd_latest = {};
 function updateLiveUI(data) {
