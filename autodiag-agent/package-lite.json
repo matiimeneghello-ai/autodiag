@@ -1,0 +1,12 @@
+{
+  "name": "autodiag-agent",
+  "version": "1.0.0",
+  "main": "agent-lite.js",
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "pkg": {
+    "targets": ["node18-win-x64"],
+    "outputPath": "dist"
+  }
+}

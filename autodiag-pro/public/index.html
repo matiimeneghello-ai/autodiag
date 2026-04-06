@@ -2194,35 +2194,74 @@ body::before {
 
         <!-- Download card -->
         <div class="gcard" style="background:linear-gradient(135deg,rgba(37,99,235,.08),rgba(6,182,212,.04));border-color:rgba(37,99,235,.2)">
-          <div class="gcard-body" style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
-            <div style="font-size:48px;flex-shrink:0">🖥️</div>
-            <div style="flex:1;min-width:200px">
-              <div style="font-family:var(--rajd);font-size:16px;font-weight:700;letter-spacing:1px;margin-bottom:6px">AutoDiag Agent v1.0</div>
-              <div style="font-size:12px;color:var(--t2);line-height:1.7;margin-bottom:10px">
-                Aplicación para Windows que conecta tu interfaz J2534 con AutoDiag Pro.<br>
-                Diagnóstico completo de <strong style="color:var(--text)">todos los módulos</strong>: Motor, ABS, Airbag, Transmisión, BCM, Climatizador, Dirección.
+          <div class="gcard-body">
+            <div style="display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap">
+              <div style="font-size:44px;flex-shrink:0">🖥️</div>
+              <div style="flex:1;min-width:220px">
+                <div style="font-family:var(--rajd);font-size:16px;font-weight:700;letter-spacing:1px;margin-bottom:4px">AutoDiag Agent v1.0</div>
+                <div style="font-size:12px;color:var(--t2);line-height:1.7;margin-bottom:12px">
+                  Programa para Windows que conecta tu interfaz J2534 con AutoDiag Pro y permite diagnosticar 
+                  <strong style="color:var(--text)">todos los módulos del vehículo</strong> (Motor, ABS, Airbag, Transmisión, BCM y más).
+                </div>
+
+                <!-- Step by step install -->
+                <div style="background:var(--b1);border:1px solid var(--b2);border-radius:12px;padding:14px;margin-bottom:12px">
+                  <div style="font-size:9px;font-family:var(--mono);color:var(--blue3);letter-spacing:1.5px;margin-bottom:10px">INSTALACIÓN — 3 PASOS</div>
+                  
+                  <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:10px">
+                    <div style="width:22px;height:22px;border-radius:50%;background:var(--blue);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0">1</div>
+                    <div>
+                      <div style="font-size:12px;font-weight:600;color:var(--text)">Instalá Node.js</div>
+                      <div style="font-size:11px;color:var(--t2);margin-top:2px">Descargalo gratis desde <a href="https://nodejs.org" target="_blank" style="color:var(--cyan2);text-decoration:none">nodejs.org</a> → instalá la versión LTS (recomendada)</div>
+                    </div>
+                  </div>
+
+                  <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:10px">
+                    <div style="width:22px;height:22px;border-radius:50%;background:var(--blue);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0">2</div>
+                    <div>
+                      <div style="font-size:12px;font-weight:600;color:var(--text)">Descargá el Agente</div>
+                      <div style="font-size:11px;color:var(--t2);margin-top:4px">
+                        <a href="https://github.com/matiimeneghello-ai/autodiag/archive/refs/heads/main.zip" 
+                           target="_blank"
+                           style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:8px;background:linear-gradient(135deg,var(--blue),var(--cyan));color:#fff;font-size:11px;font-weight:700;text-decoration:none">
+                          ⬇ Descargar ZIP del agente
+                        </a>
+                        <span style="font-size:10px;color:var(--t3);margin-left:8px">→ descomprimí → carpeta autodiag-agent</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style="display:flex;gap:10px;align-items:flex-start">
+                    <div style="width:22px;height:22px;border-radius:50%;background:var(--blue);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0">3</div>
+                    <div>
+                      <div style="font-size:12px;font-weight:600;color:var(--text)">Ejecutá el agente</div>
+                      <div style="font-size:11px;color:var(--t2);margin-top:2px">Doble click en <code style="background:var(--b2);padding:2px 7px;border-radius:5px;font-family:var(--mono);font-size:10px">start.bat</code> → ingresá tu token → listo</div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Token instruction -->
+                <div style="background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.2);border-radius:10px;padding:10px 14px;display:flex;gap:10px;align-items:flex-start">
+                  <span style="font-size:16px;flex-shrink:0">🔑</span>
+                  <div style="font-size:11px;color:var(--t2);line-height:1.7">
+                    <strong style="color:var(--yel2)">¿Dónde encuentro mi token?</strong><br>
+                    En la plataforma → click en tu avatar (arriba derecha) → aparece tu email y datos de sesión. El token es el que tenés en localStorage bajo la clave <code style="background:var(--b2);padding:1px 5px;border-radius:4px;font-family:var(--mono);font-size:9px">autodiag_token</code>.
+                  </div>
+                </div>
               </div>
-              <div style="display:flex;gap:8px;flex-wrap:wrap">
-                <a href="https://github.com/matiimeneghello-ai/autodiag/releases/latest/download/AutoDiagAgent.exe"
-                   target="_blank"
-                   style="display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border-radius:10px;background:linear-gradient(135deg,var(--blue),var(--cyan));color:#fff;font-size:12px;font-weight:700;text-decoration:none;box-shadow:0 4px 16px rgba(37,99,235,.4)">
-                  ⬇ Descargar .exe (Windows)
-                </a>
-                <a href="https://github.com/matiimeneghello-ai/autodiag/tree/main/autodiag-agent"
-                   target="_blank"
-                   style="display:inline-flex;align-items:center;gap:7px;padding:9px 16px;border-radius:10px;background:rgba(255,255,255,.05);border:1px solid var(--b3);color:var(--t2);font-size:12px;font-weight:600;text-decoration:none">
-                  📂 Ver código fuente
-                </a>
-              </div>
-            </div>
-            <div style="flex-shrink:0;padding:14px;border-radius:12px;background:var(--b1);border:1px solid var(--b2);min-width:180px">
-              <div style="font-size:9px;font-family:var(--mono);color:var(--t3);letter-spacing:1px;margin-bottom:8px">REQUISITOS</div>
-              <div style="font-size:11px;color:var(--t2);line-height:1.9">
-                <div>✅ Windows 10/11</div>
-                <div>✅ Node.js 18+ <span style="font-size:9px;color:var(--t3)">(o .exe standalone)</span></div>
-                <div>✅ Interfaz J2534</div>
-                <div>✅ Puerto USB libre</div>
-                <div>✅ Conexión a internet</div>
+
+              <div style="flex-shrink:0;min-width:160px">
+                <div style="font-size:9px;font-family:var(--mono);color:var(--t3);letter-spacing:1px;margin-bottom:8px;text-transform:uppercase">Módulos detectables</div>
+                <div style="display:flex;flex-direction:column;gap:4px">
+                  <div style="font-size:11px;color:var(--t2);padding:5px 9px;border-radius:7px;background:var(--b1)">🔧 Motor (ECU/PCM)</div>
+                  <div style="font-size:11px;color:var(--t2);padding:5px 9px;border-radius:7px;background:var(--b1)">⚙️ Transmisión</div>
+                  <div style="font-size:11px;color:var(--t2);padding:5px 9px;border-radius:7px;background:var(--b1)">🛑 ABS / ESP</div>
+                  <div style="font-size:11px;color:var(--t2);padding:5px 9px;border-radius:7px;background:var(--b1)">🫧 Airbag SRS</div>
+                  <div style="font-size:11px;color:var(--t2);padding:5px 9px;border-radius:7px;background:var(--b1)">💡 BCM</div>
+                  <div style="font-size:11px;color:var(--t2);padding:5px 9px;border-radius:7px;background:var(--b1)">❄️ Climatizador</div>
+                  <div style="font-size:11px;color:var(--t2);padding:5px 9px;border-radius:7px;background:var(--b1)">🎯 Dirección EPS</div>
+                  <div style="font-size:11px;color:var(--t2);padding:5px 9px;border-radius:7px;background:var(--b1)">📊 Instrumentos</div>
+                </div>
               </div>
             </div>
           </div>
