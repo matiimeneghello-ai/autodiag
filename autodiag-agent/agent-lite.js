@@ -24,6 +24,34 @@ let tick = 0;
 
 // ── KNOWN J2534 DLL PATHS ─────────────────────────────────────
 const KNOWN_DLLS = [
+  // VNCI Nano J2534 (y variantes VNCI)
+  { name: 'VNCI Nano J2534', paths: [
+    'C:\\Program Files\\VNCI\\VNCI.dll',
+    'C:\\Program Files (x86)\\VNCI\\VNCI.dll',
+    'C:\\Program Files\\VNCI\\x64\\VNCI.dll',
+    'C:\\Program Files (x86)\\VNCI\\x86\\VNCI.dll',
+    'C:\\Program Files\\VCI\\VNCI.dll',
+    'C:\\Program Files (x86)\\VCI\\VNCI.dll',
+    'C:\\Windows\\System32\\VNCI.dll',
+    'C:\\Windows\\SysWOW64\\VNCI.dll',
+    'C:\\Program Files\\VNCI Nano\\VNCI.dll',
+    'C:\\Program Files (x86)\\VNCI Nano\\VNCI.dll',
+  ]},
+  // VNCI FC / TSMaster
+  { name: 'VNCI FC / TSMaster', paths: [
+    'C:\\Program Files\\TSMaster\\TSMaster.dll',
+    'C:\\Program Files (x86)\\TSMaster\\TSMaster.dll',
+    'C:\\Program Files\\VNCI\\TSMaster.dll',
+    'C:\\Program Files\\FC\\fc.dll',
+  ]},
+  // VXVCI / VX Nano  
+  { name: 'VXVCI / VX Nano', paths: [
+    'C:\\Program Files\\VXVCI\\vxvci.dll',
+    'C:\\Program Files (x86)\\VXVCI\\vxvci.dll',
+    'C:\\Program Files\\VX\\vxvci.dll',
+    'C:\\Windows\\System32\\vxvci.dll',
+    'C:\\Windows\\SysWOW64\\vxvci.dll',
+  ]},
   // Tactrix Openport 2.0
   { name: 'Tactrix Openport 2.0', paths: [
     'C:\\Program Files\\Tactrix\\Openport 2.0 J2534\\op20pt32.dll',
@@ -41,23 +69,24 @@ const KNOWN_DLLS = [
   { name: 'Drew Technologies MongoosePro', paths: [
     'C:\\Program Files\\Drew Technologies\\MongoosePro GM II\\mondrv.dll',
     'C:\\Program Files (x86)\\Drew Technologies\\MongoosePro GM II\\mondrv.dll',
-    'C:\\Program Files\\Drew Technologies\\Mongoose\\mondrv.dll',
   ]},
   // Autel MaxiFlash
   { name: 'Autel MaxiFlash', paths: [
     'C:\\Program Files\\Autel\\MaxiFlash\\j2534.dll',
     'C:\\Program Files (x86)\\Autel\\MaxiFlash\\j2534.dll',
   ]},
-  // AGG J2534
-  { name: 'AGG J2534', paths: [
-    'C:\\Program Files\\AGG\\j2534.dll',
-    'C:\\Program Files (x86)\\AGG\\j2534.dll',
+  // Launch J2534
+  { name: 'Launch J2534', paths: [
+    'C:\\Program Files\\Launch Tech\\j2534.dll',
+    'C:\\Program Files (x86)\\Launch Tech\\j2534.dll',
+    'C:\\Program Files\\Launch\\j2534.dll',
   ]},
-  // Generic / clone
-  { name: 'J2534 Genérica', paths: [
+  // Genéricas / clones chinos
+  { name: 'J2534 Genérica / Clone', paths: [
     'C:\\Windows\\System32\\j2534.dll',
     'C:\\Windows\\SysWOW64\\j2534.dll',
     'C:\\j2534\\j2534.dll',
+    'C:\\Program Files\\J2534\\j2534.dll',
   ]},
 ];
 
@@ -139,6 +168,40 @@ function findDLLFromKnownPaths() {
   return null;
 }
 
+function scanProgramFilesForJ2534() {
+  // Scan Program Files for any J2534-related DLL
+  const keywords = ['vnci','j2534','vxvci','openport','mongoose','obdlink','maxiflash','launch','passthru'];
+  const searchDirs = [
+    'C:\\Program Files',
+    'C:\\Program Files (x86)',
+    'C:\\Windows\\System32',
+    'C:\\Windows\\SysWOW64',
+  ];
+  try {
+    for (const dir of searchDirs) {
+      if (!fs.existsSync(dir)) continue;
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        const subdir = path.join(dir, entry.name);
+        const lowerName = entry.name.toLowerCase();
+        if (!keywords.some(k => lowerName.includes(k))) continue;
+        try {
+          const files = fs.readdirSync(subdir);
+          for (const file of files) {
+            if (file.toLowerCase().endsWith('.dll')) {
+              const fullPath = path.join(subdir, file);
+              log(`🔍 DLL encontrada en escaneo: ${fullPath}`, 'g');
+              return { name: entry.name, path: fullPath };
+            }
+          }
+        } catch(e) {}
+      }
+    }
+  } catch(e) {}
+  return null;
+}
+
 // ── OBD REAL via node-obd or serial ───────────────────────────
 // Since ffi-napi native compilation isn't always available,
 // we use a two-path approach:
@@ -161,6 +224,12 @@ async function initOBD() {
     }
   }
 
+  // Also try scanning Program Files
+  if (!dllPath) {
+    const scanned = scanProgramFilesForJ2534();
+    if (scanned) dllPath = scanned.path;
+  }
+
   if (dllPath) {
     log(`✅ Interfaz J2534 detectada: ${path.basename(dllPath)}`, 'g');
     config.dllPath = dllPath;
@@ -173,9 +242,27 @@ async function initOBD() {
   log('🔍 Buscando interfaz ELM327 USB/Serial...', 'c');
   if (await initSerial()) return true;
 
-  // No real interface found
-  log('⚠️  No se encontró interfaz física. Usando simulación.', 'y');
-  log('   Conectá tu interfaz J2534 o ELM327 USB y reiniciá.', 'y');
+  // Ask user to manually enter DLL path
+  log('⚠️  No se detectó ninguna interfaz automáticamente.', 'y');
+  log('   Interfaces buscadas: VNCI, OBDLINK, Tactrix, Drew, Autel, Launch...', 'y');
+  log('', 'y');
+  
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const manualPath = await new Promise(r => {
+    rl.question('  ¿Tenés la DLL de tu interfaz? Pegá la ruta completa (o Enter para simulación): ', ans => {
+      rl.close(); r(ans.trim());
+    });
+  });
+
+  if (manualPath && fs.existsSync(manualPath)) {
+    log(`✅ DLL manual cargada: ${path.basename(manualPath)}`, 'g');
+    config.dllPath = manualPath;
+    saveConfig();
+    useSimulation = true; // Still sim until ffi-napi is compiled
+    return false;
+  }
+
+  log('⚠️  Usando simulación. Los datos NO son reales.', 'y');
   useSimulation = true;
   return false;
 }
