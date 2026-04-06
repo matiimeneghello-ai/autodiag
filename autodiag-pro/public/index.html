@@ -1647,6 +1647,7 @@ body::before {
           <button class="tb-more-item" onclick="goView('learning',this);closeMoreMenu()">🧠 Aprendizaje</button>
           <button class="tb-more-item" onclick="goView('ficha',this);closeMoreMenu()">🚗 Ficha técnica</button>
           <button class="tb-more-item" onclick="goView('j2534',this);closeMoreMenu()">🔌 J2534 Multi-módulo</button>
+          <button class="tb-more-item" onclick="goView('manuales',this);closeMoreMenu()">📚 Base técnica</button>
         </div>
       </div>
     </nav>
@@ -2387,6 +2388,34 @@ body::before {
               <div id="moduleGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px"></div>
               <div id="j2534Summary" style="display:none;margin-top:12px;padding:10px 14px;border-radius:10px;background:var(--b1);border:1px solid var(--b2);font-size:12px;color:var(--t2)"></div>
             </div>
+      </div>
+
+
+      <!-- MANUALES / BASE DE DATOS TÉCNICA -->
+      <div id="view-manuales" class="view">
+        <div class="stitle">Base Técnica <span class="stitle-sub">MANUALES Y DATOS POR MARCA</span></div>
+
+        <!-- Search bar -->
+        <div class="gcard">
+          <div class="gcard-body" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <input id="brandSearchInput" class="finput" placeholder="Buscar marca, modelo o código DTC..." 
+              style="flex:1;min-width:200px" oninput="filterBrandData(this.value)">
+            <div style="display:flex;gap:6px;flex-wrap:wrap" id="brandFilterBtns">
+              <button onclick="filterByBrand('all')" class="btn btn-blue brand-filter-btn active" data-brand="all" style="font-size:11px">Todas</button>
+              <button onclick="filterByBrand('mercedes')" class="btn btn-ghost brand-filter-btn" data-brand="mercedes" style="font-size:11px">Mercedes-Benz</button>
+              <button onclick="filterByBrand('bmw')" class="btn btn-ghost brand-filter-btn" data-brand="bmw" style="font-size:11px">BMW</button>
+              <button onclick="filterByBrand('vw')" class="btn btn-ghost brand-filter-btn" data-brand="vw" style="font-size:11px">VW / Audi</button>
+              <button onclick="filterByBrand('toyota')" class="btn btn-ghost brand-filter-btn" data-brand="toyota" style="font-size:11px">Toyota</button>
+              <button onclick="filterByBrand('ford')" class="btn btn-ghost brand-filter-btn" data-brand="ford" style="font-size:11px">Ford</button>
+              <button onclick="filterByBrand('chevrolet')" class="btn btn-ghost brand-filter-btn" data-brand="chevrolet" style="font-size:11px">Chevrolet</button>
+              <button onclick="filterByBrand('renault')" class="btn btn-ghost brand-filter-btn" data-brand="renault" style="font-size:11px">Renault</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Brand cards grid -->
+        <div id="brandDataGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px"></div>
+
       </div>
 
 <div class="bnav" id="bnav">
@@ -3346,6 +3375,7 @@ function goView(name,btn){
   const view = document.getElementById('view-'+name);
   if (view) view.classList.add('active');
   if (name === 'j2534') setTimeout(showAgentToken, 100);
+  if (name === 'manuales') setTimeout(renderBrandData, 100);
   if (btn) btn.classList.add('active');
   // Mobile: update page title
   const titleEl = document.getElementById('mobileTitle');
@@ -4578,6 +4608,270 @@ async function agentScanAll() {
 async function agentReadLive() {
   if (!agentConnected) { showNotif('Sin agente J2534 conectado', 'error'); return; }
   await API.post('/api/agent/command', { action: 'read_live' });
+}
+
+
+// ── BASE DE DATOS TÉCNICA POR MARCA ───────────────────────────
+const BRAND_DATA = [
+  // ── MERCEDES-BENZ ─────────────────────────────────────────
+  { brand:'mercedes', icon:'⭐', title:'Mercedes-Benz — Protocolos OBD',
+    content:`<b>Protocolos:</b> CAN-C (500kbps), CAN-B (125kbps), K-Line<br>
+    <b>Software oficial:</b> XENTRY/DAS (dealers), Vediamo (ingeniería)<br>
+    <b>Módulos principales:</b> ME (Motor), EGS (Transmisión), ESP, SRS, EZS (ignición)<br>
+    <b>Direcciones CAN típicas:</b><br>
+    • Motor (ME): 0x7E0 / Respuesta 0x7E8<br>
+    • Transmisión (EGS): 0x7E1 / Respuesta 0x7E9<br>
+    • ABS/ESP: 0x640 / Respuesta 0x648<br>
+    • Airbag (SRS): 0x400 / Respuesta 0x408<br>
+    • EZS (llave/encendido): 0x330` },
+
+  { brand:'mercedes', icon:'🔧', title:'Mercedes-Benz — Códigos DTC frecuentes',
+    content:`<b>Motor:</b><br>
+    P0087 — Presión de combustible baja (bomba o filtro)<br>
+    P0171/P0174 — Mezcla pobre (válvula MAF o vacío)<br>
+    P0300 — Falla de encendido aleatoria<br>
+    P0400 — Falla sistema EGR<br>
+    P0715 — Sensor velocidad turbina transmisión<br>
+    <b>Transmisión (722.6/722.9):</b><br>
+    P0705 — Sensor posición selector<br>
+    P0740 — Falla embrague convertidor<br>
+    <b>Electrónica:</b><br>
+    B1000 — Módulo SRS interno<br>
+    C1000 — Falla ABS/ESP módulo principal` },
+
+  { brand:'mercedes', icon:'⚙️', title:'Mercedes-Benz — Datos Live OBD',
+    content:`<b>PIDs importantes:</b><br>
+    0x04 — Carga motor (0-100%)<br>
+    0x05 — Temperatura refrigerante (normal: 80-100°C)<br>
+    0x06/0x07 — Fuel Trim (normal: -5% a +5%)<br>
+    0x0A — Presión combustible<br>
+    0x0B — Presión colector admisión<br>
+    0x0C — RPM<br>
+    0x10 — MAF (gramos/seg)<br>
+    0x42 — Voltaje ECU (normal: 12.0-14.5V)<br>
+    <b>Temp. normal de operación:</b> 85-95°C<br>
+    <b>Ralentí normal:</b> 600-800 RPM` },
+
+  { brand:'mercedes', icon:'📋', title:'Mercedes-Benz — Mantenimiento preventivo',
+    content:`<b>Motor gasolina:</b><br>
+    • Aceite: cada 10.000km (5W-30 o 5W-40 MB 229.5)<br>
+    • Filtro aceite: con cada cambio<br>
+    • Bujías: 30.000-60.000km (iridio: 100.000km)<br>
+    • Correa distribución (si aplica): 120.000km<br>
+    • Cadena distribución: revisar a 150.000km<br>
+    <b>Transmisión automática 7G-Tronic:</b><br>
+    • Aceite ATF: 80.000km (ATF 134 Mercedes)<br>
+    • Filtro caja: con cada cambio de aceite<br>
+    <b>Frenos:</b><br>
+    • Pastillas delanteras: 30.000-50.000km<br>
+    • Líquido frenos DOT 4: cada 2 años` },
+
+  { brand:'mercedes', icon:'🔍', title:'Mercedes-Benz — Problemas comunes por modelo',
+    content:`<b>W203/W204 (C-Class):</b><br>
+    • Falla regulador ventana eléctrica<br>
+    • Compresor A/C — ruido a 150.000km<br>
+    • Sensor posición árbol levas (P0016)<br>
+    <b>W211/W212 (E-Class):</b><br>
+    • Válvula solenoide transmisión 7G<br>
+    • Fuga aceite tapa válvulas<br>
+    • Brazo oscilante trasero (desgaste a 100.000km)<br>
+    <b>W164/W166 (ML/GLE):</b><br>
+    • Bomba transferencia combustible<br>
+    • Módulo SBC (frenos electrohidráulicos) — recall<br>
+    • Eje cardán center bearing` },
+
+  // ── BMW ─────────────────────────────────────────────────
+  { brand:'bmw', icon:'⭐', title:'BMW — Protocolos y módulos',
+    content:`<b>Protocolos:</b> ENET (F-Series), DCAN (E-Series), K-DCAN<br>
+    <b>Software oficial:</b> ISTA/D, INPA (E-Series), E-Sys (codificación)<br>
+    <b>Módulos principales:</b><br>
+    • DME/DDE — Motor gasolina/diesel<br>
+    • EGS/SMG — Transmisión<br>
+    • DSC — Control estabilidad (ABS+ESP)<br>
+    • ACSM — Módulo airbags y cinturones<br>
+    • FRM — Módulo puertas/luces<br>
+    • CAS/CAS3+ — Sistema encendido/llave` },
+
+  { brand:'bmw', icon:'🔧', title:'BMW — Códigos DTC frecuentes',
+    content:`<b>Motor:</b><br>
+    29CD — Sensor presión riel combustible<br>
+    2A82/2A87 — Vanos (variador árbol levas)<br>
+    2AAE — Actuador Valvetronic<br>
+    2C9B — Turbocompresor — presión insuficiente<br>
+    <b>Transmisión ZF 6HP:</b><br>
+    4B0A — Deslizamiento embrague convertidor<br>
+    480A — Presión hidráulica baja<br>
+    <b>Electrónica:</b><br>
+    A035E — Falla módulo FRM (luces)<br>
+    A0A6 — Módulo CAS — sincronización` },
+
+  // ── VOLKSWAGEN / AUDI ─────────────────────────────────────
+  { brand:'vw', icon:'⭐', title:'VW / Audi — Protocolos y módulos',
+    content:`<b>Protocolos:</b> UDS (K+CAN), KWP2000, CAN<br>
+    <b>Software oficial:</b> VCDS (Ross-Tech), OBDeleven, ODIS<br>
+    <b>Módulos principales:</b><br>
+    • 01 — Motor (ECU)<br>
+    • 02 — Transmisión<br>
+    • 03 — ABS<br>
+    • 15 — Airbags<br>
+    • 09 — Centralita BCM<br>
+    • 56 — Radio/Infotainment<br>
+    <b>Direcciones KWP:</b> 0x7E0 (motor), 0x7E1 (trans)` },
+
+  { brand:'vw', icon:'🔧', title:'VW / Audi — DTCs frecuentes',
+    content:`<b>Motor:</b><br>
+    P0171/P0174 — Mezcla pobre (MAF sucio o vacío)<br>
+    P0299 — Turbo — presión baja (TSI)<br>
+    P0340 — Sensor árbol levas bancada 1<br>
+    P2015 — Motor actuador mariposa admisión<br>
+    <b>Transmisión DSG (DQ200/DQ250):</b><br>
+    P179E — Temperatura mecatrónica alta<br>
+    P0AB4 — Falla actuador embrague 1<br>
+    <b>Electrónica:</b><br>
+    01314 — Falla comunicación módulo motor<br>
+    00532 — Tensión de alimentación baja` },
+
+  // ── TOYOTA ─────────────────────────────────────────────────
+  { brand:'toyota', icon:'⭐', title:'Toyota — Protocolos y módulos',
+    content:`<b>Protocolos:</b> ISO15765-4 CAN, Toyota Enhanced OBD<br>
+    <b>Software oficial:</b> Techstream, Mini-VCI J2534<br>
+    <b>Módulos principales:</b><br>
+    • ECM — Motor<br>
+    • TCM — Transmisión automática<br>
+    • ABS/VSC — Control estabilidad<br>
+    • SRS — Airbags<br>
+    • BCM — Carrocería<br>
+    <b>Corolla/Camry/Hilux:</b> amplia cobertura OBD estándar` },
+
+  { brand:'toyota', icon:'🔧', title:'Toyota — DTCs frecuentes',
+    content:`<b>Motor:</b><br>
+    P0420 — Eficiencia catalizador baja (banco 1)<br>
+    P0441 — Purga EVAP incorrecta<br>
+    P0171 — Sistema demasiado pobre<br>
+    P1349 — Falla sistema VVT-i<br>
+    <b>Transmisión:</b><br>
+    P0770 — Solenoide cambio E<br>
+    P0750 — Circuito solenoide cambio A<br>
+    <b>Híbridos Prius:</b><br>
+    P0A80 — Reemplazar módulo batería HV<br>
+    P3000 — Sistema batería HV` },
+
+  // ── FORD ─────────────────────────────────────────────────
+  { brand:'ford', icon:'⭐', title:'Ford — Protocolos y módulos',
+    content:`<b>Protocolos:</b> CAN ISO15765, J1850 PWM (viejos)<br>
+    <b>Software:</b> FORScan (gratuito, muy completo), IDS (oficial)<br>
+    <b>Módulos:</b><br>
+    • PCM — Motor/Transmisión<br>
+    • ABS — Frenos antibloqueo<br>
+    • RCM — Airbags<br>
+    • BCM/GEM — Carrocería<br>
+    • PATS — Sistema antirrobo<br>
+    <b>FORScan:</b> con ELM327 WiFi/USB cubre TODOS los módulos Ford` },
+
+  { brand:'ford', icon:'🔧', title:'Ford — DTCs frecuentes',
+    content:`<b>Motor EcoBoost:</b><br>
+    P0087 — Presión combustible baja<br>
+    P0299 — Turbo presión baja<br>
+    P0012 — Árbol levas retrasado bancada 1<br>
+    P0340 — Sensor árbol levas<br>
+    <b>Transmisión PowerShift (DCT):</b><br>
+    P0731-P0736 — Relación de marcha incorrecta<br>
+    P0C56 — Temperatura embrague alta<br>
+    <b>Electrónica:</b><br>
+    B1317 — Tensión batería alta<br>
+    U0100 — CAN perdido con PCM` },
+
+  // ── CHEVROLET / GM ─────────────────────────────────────────
+  { brand:'chevrolet', icon:'⭐', title:'Chevrolet/GM — Protocolos y módulos',
+    content:`<b>Protocolos:</b> GMLAN (CAN), Class 2 (J1850 VPW antiguo)<br>
+    <b>Software:</b> Tech 2 (oficial), GDS2 (nuevo), MDI2<br>
+    <b>Módulos:</b><br>
+    • ECM — Motor<br>
+    • TCM — Transmisión<br>
+    • EBCM — ABS/traction control<br>
+    • SDM — Airbags<br>
+    • BCM — Carrocería/luces/cierre<br>
+    <b>Cruze/Tracker/S10:</b> CAN estándar 500kbps` },
+
+  { brand:'chevrolet', icon:'🔧', title:'Chevrolet — DTCs frecuentes',
+    content:`<b>Motor:</b><br>
+    P0171/P0174 — Sistema pobre (MAF o vacío)<br>
+    P0300 — Falla encendido aleatoria<br>
+    P0441 — Sistema EVAP purga incorrecta<br>
+    P0507 — RPM ralentí alto<br>
+    <b>Transmisión automática:</b><br>
+    P0700 — Falla general transmisión<br>
+    P0894 — Deslizamiento de marchas<br>
+    <b>Electrónica:</b><br>
+    B0020 — Sensor impacto airbag frontal<br>
+    U0073 — CAN Bus apagado` },
+
+  // ── RENAULT ─────────────────────────────────────────────────
+  { brand:'renault', icon:'⭐', title:'Renault — Protocolos y módulos',
+    content:`<b>Protocolos:</b> CAN ISO15765, ISO14230 KWP2000<br>
+    <b>Software:</b> DiagBox/Clip (Renault/Peugeot), DDT4All (free)<br>
+    <b>Módulos:</b><br>
+    • UCE/SIM32 — Motor<br>
+    • UCT — Transmisión<br>
+    • ABS/ESP — Bosch o Continental<br>
+    • Airbags — TRW/Autoliv<br>
+    • UCH — Módulo habitáculo (BCM)<br>
+    <b>Sandero/Logan/Kangoo:</b> bien cubiertos con OBD genérico` },
+
+  { brand:'renault', icon:'🔧', title:'Renault — DTCs frecuentes',
+    content:`<b>Motor:</b><br>
+    DF011 — Sensor débito aire (MAF)<br>
+    DF035 — Sensor posición pedal acelerador<br>
+    DF094 — Presión riel combustible<br>
+    DF153 — Sensor árbol de levas<br>
+    <b>Transmisión EDC (DCT Renault):</b><br>
+    DF601 — Temperatura embrague<br>
+    DF612 — Actuador embrague 1<br>
+    <b>Electrónica:</b><br>
+    DF302 — Comunicación CAN UCH<br>
+    DF423 — Voltaje batería bajo` },
+];
+
+let currentBrandFilter = 'all';
+let currentSearchText  = '';
+
+function renderBrandData() {
+  const grid = document.getElementById('brandDataGrid');
+  if (!grid) return;
+  const filtered = BRAND_DATA.filter(item => {
+    const matchBrand  = currentBrandFilter === 'all' || item.brand === currentBrandFilter;
+    const matchSearch = !currentSearchText || 
+      item.title.toLowerCase().includes(currentSearchText.toLowerCase()) ||
+      item.content.toLowerCase().includes(currentSearchText.toLowerCase());
+    return matchBrand && matchSearch;
+  });
+  grid.innerHTML = filtered.map(item => `
+    <div class="gcard" style="cursor:default">
+      <div class="gcard-head">
+        <div class="gcard-title">${item.icon} ${item.title}</div>
+      </div>
+      <div class="gcard-body" style="font-size:11px;color:var(--t2);line-height:1.8">
+        ${item.content}
+      </div>
+    </div>
+  `).join('');
+  if (filtered.length === 0) {
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--t3);padding:40px;font-size:13px">Sin resultados para esa búsqueda</div>';
+  }
+}
+
+function filterByBrand(brand) {
+  currentBrandFilter = brand;
+  document.querySelectorAll('.brand-filter-btn').forEach(btn => {
+    const isActive = btn.dataset.brand === brand;
+    btn.className = isActive ? 'btn btn-blue brand-filter-btn' : 'btn btn-ghost brand-filter-btn';
+  });
+  renderBrandData();
+}
+
+function filterBrandData(text) {
+  currentSearchText = text;
+  renderBrandData();
 }
 
 // ── HEALTH CHECK ──
