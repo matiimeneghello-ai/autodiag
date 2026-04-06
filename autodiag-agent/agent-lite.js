@@ -24,15 +24,16 @@ let tick = 0;
 
 // ── KNOWN J2534 DLL PATHS ─────────────────────────────────────
 const KNOWN_DLLS = [
-  // Rockway VNCI Nano — ruta exacta confirmada
+  // Rockway VNCI Nano — DLL confirmada: RKW_VNCI_PT32.dll
   { name: 'Rockway VNCI Nano J2534', paths: [
+    'C:\\Program Files (x86)\\Rockway\\VNCI Nano Driver\\RKW_VNCI_PT32.dll',
     'C:\\Program Files (x86)\\Rockway\\VNCI Nano Driver\\VNCI.dll',
     'C:\\Program Files (x86)\\Rockway\\VNCI Nano Driver\\VCI.dll',
     'C:\\Program Files (x86)\\Rockway\\VNCI Nano Driver\\j2534.dll',
-    'C:\\Program Files (x86)\\Rockway\\VNCI Nano Driver\\vnci_j2534.dll',
+    'C:\\Program Files\\Rockway\\VNCI Nano Driver\\RKW_VNCI_PT32.dll',
     'C:\\Program Files\\Rockway\\VNCI Nano Driver\\VNCI.dll',
-    'C:\\Program Files\\Rockway\\VNCI Nano Driver\\VCI.dll',
-    'C:\\Program Files\\Rockway\\VNCI Nano Driver\\j2534.dll',
+    'C:\\Windows\\SysWOW64\\RKW_VNCI_PT32.dll',
+    'C:\\Windows\\System32\\RKW_VNCI_PT32.dll',
   ]},
   // VNCI Nano J2534 (variantes VNCI)
   { name: 'VNCI Nano J2534', paths: [
@@ -174,7 +175,7 @@ function findDLLFromKnownPaths() {
 
 function scanProgramFilesForJ2534() {
   // Scan Program Files for any J2534-related DLL
-  const keywords = ['vnci','rockway','j2534','vxvci','openport','mongoose','obdlink','maxiflash','launch','passthru'];
+  const keywords = ['vnci','rockway','rkw','j2534','vxvci','openport','mongoose','obdlink','maxiflash','launch','passthru'];
   const searchDirs = [
     'C:\\Program Files',
     'C:\\Program Files (x86)',
