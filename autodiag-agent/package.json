@@ -1,7 +1,7 @@
 {
   "name": "autodiag-agent",
-  "version": "2.1.0",
-  "description": "AutoDiag Pro - Agente J2534 Real",
+  "version": "4.0.0",
+  "description": "AutoDiag Pro - Agente J2534 Real - ffi-napi + ELM327 fallback",
   "main": "agent-lite.js",
   "scripts": {
     "start": "node agent-lite.js",
@@ -19,6 +19,7 @@
   },
   "pkg": {
     "targets": ["node18-win-x64"],
-    "assets": ["*.dll"]
+    "assets": ["*.dll"],
+    "scripts": ["agent-lite.js"]
   }
 }
