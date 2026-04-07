@@ -31,7 +31,7 @@ jobs:
           $url = "https://nodejs.org/dist/v$ver/node-v$ver-win-x86.zip"
           Invoke-WebRequest -Uri $url -OutFile "node-x86.zip" -UseBasicParsing
           Expand-Archive -Path "node-x86.zip" -DestinationPath "node-x86-tmp" -Force
-          Rename-Item "node-x86-tmp\node-v$ver-win-x86" "node-x86-tmp\node" -Force
+          Rename-Item "node-x86-tmp\node-v$ver-win-x86" "node" -Force
           & "node-x86-tmp\node\node.exe" --version
           & "node-x86-tmp\node\node.exe" -e "console.log('arch:', process.arch)"
 
