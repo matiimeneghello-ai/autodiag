@@ -3688,16 +3688,20 @@ function runScan(){
   pct.style.display='block';icon.style.fontSize='0';
   log.innerHTML='';
   const ts=()=>{const n=new Date();return '['+[n.getHours(),n.getMinutes(),n.getSeconds()].map(x=>String(x).padStart(2,'0')).join(':')+']';};
-  const steps=[
-    {t:'info',m:'Iniciando protocolo OBD-II ELM327...',d:0},
-    {t:'info',m:'Conectando con ECU principal...',d:700},
-    {t:'ok',  m:'ECU detectada',d:1300},
-    {t:'info',m:'Leyendo VIN...',d:1900},
-    {t:'info',m:'Escaneando motor (P0xxx)...',d:2800},
-    {t:'err', m:'► DTC detectado — leyendo...',d:3600},
-    {t:'info',m:'Escaneando EVAP, transmisión, ABS...',d:4400},
-    {t:'info',m:'Leyendo PIDs en tiempo real...',d:5500},
-    {t:'ok',  m:'✓ Escaneo completo',d:6500},
+  const agentOn = agentConnected;
+  const steps = agentOn ? [
+    {t:'info',m:'Interfaz J2534 detectada — iniciando...',d:0},
+    {t:'ok',  m:'Canal CAN ISO15765 abierto @ 500kbps',d:600},
+    {t:'info',m:'Enviando request modo 01 al ECU...',d:1200},
+    {t:'ok',  m:'ECU respondiendo — leyendo datos',d:1800},
+    {t:'info',m:'Solicitando DTCs almacenados (modo 03)...',d:2500},
+    {t:'info',m:'Leyendo PIDs en tiempo real...',d:3500},
+    {t:'ok',  m:'✓ Escaneo J2534 real completado',d:4500},
+  ] : [
+    {t:'info',m:'Modo simulación — conectá tu interfaz J2534',d:0},
+    {t:'info',m:'Sin conexión real al vehículo',d:800},
+    {t:'ok',  m:'Datos de ejemplo (NO son del auto)',d:1600},
+    {t:'ok',  m:'✓ Simulación completada',d:2400},
   ];
   steps.forEach((s,i)=>{
     setTimeout(()=>{
@@ -4873,6 +4877,9 @@ function filterBrandData(text) {
   currentSearchText = text;
   renderBrandData();
 }
+
+// Render brand data immediately so it's ready
+setTimeout(renderBrandData, 500);
 
 // ── HEALTH CHECK ──
 async function checkHealth(){
