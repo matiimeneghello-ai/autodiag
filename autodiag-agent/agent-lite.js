@@ -229,7 +229,17 @@ async function initSerial() {
       catch(e) { log('   ' + port.path + ' fallo: ' + e.message, 'y'); }
     }
     return false;
-  } catch(e) { if (e.code !== 'MODULE_NOT_FOUND') log('Error serial: ' + e.message, 'y'); return false; }
+  } catch(e) {
+    if (e.code === 'MODULE_NOT_FOUND') return false;
+    // "No native build was found" = serialport instalado sin --build-from-source
+    if (e.message?.includes('No native build') || e.message?.includes('node-gyp-build')) {
+      log('Serial no disponible: bindings nativos no compilados (normal en exe portable)', 'y');
+      log('Usando solo J2534 DLL para acceso a modulos', 'y');
+      return false;
+    }
+    log('Error serial: ' + e.message, 'y');
+    return false;
+  }
 }
 
 async function tryConnectSerial(portPath) {

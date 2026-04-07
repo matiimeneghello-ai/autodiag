@@ -45,10 +45,22 @@ jobs:
           $nodeExe = (Resolve-Path "node-x86-tmp\node\node.exe").Path
           $npmJs   = (Resolve-Path "node-x86-tmp\node\node_modules\npm\bin\npm-cli.js").Path
           Set-Location autodiag-agent
+
+          # ws - puro JS, sin nativos
           & $nodeExe $npmJs install ws
-          & $nodeExe $npmJs install koffi --arch=ia32
-          & $nodeExe $npmJs install serialport --arch=ia32
-          Write-Host "=== Instalado ==="
+          Write-Host "ws OK"
+
+          # koffi - tiene prebuilds win32-ia32, no compila
+          & $nodeExe $npmJs install koffi
+          Write-Host "koffi OK"
+
+          # serialport - instalar SIN scripts (no compila), solo el JS
+          # Los bindings nativos no son necesarios: el agente los carga en runtime
+          # Si no hay prebuild, el agente cae a "sin serial" y usa solo J2534
+          & $nodeExe $npmJs install serialport --ignore-scripts
+          Write-Host "serialport OK (sin compilar)"
+
+          Write-Host "=== node_modules ==="
           Get-ChildItem node_modules -Directory | Select-Object Name
 
       - name: Empaquetar release portable
