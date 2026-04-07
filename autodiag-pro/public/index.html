@@ -3642,6 +3642,32 @@ wsClient.on('scan_started',   (d) => handleAgentMessage('scan_started',   d));
 wsClient.on('module_scanned', (d) => handleAgentMessage('module_scanned', d));
 wsClient.on('scan_complete',  (d) => handleAgentMessage('scan_complete',  d));
 wsClient.on('agent_connected',(d) => console.log('Agent WS connected:', d));
+wsClient.on('obd_status', (d) => {
+  if (!d.obdConnected) {
+    // Show NO DATA in live data panel
+    document.querySelectorAll('.lval').forEach(el => { el.textContent = '—'; el.style.color = 'var(--t3)'; });
+    const statusEl = document.getElementById('statusText');
+    if (statusEl) { statusEl.textContent = '⚠ Sin OBD'; statusEl.style.color = 'var(--yel2)'; }
+  }
+});
+
+wsClient.on('scan_error', (d) => {
+  showNotif('❌ ' + (d.reason || 'Error en escaneo'), 'error');
+  addAgentLog('❌ ' + (d.reason || 'Error'), 'red');
+  // Reset scan UI
+  const circle = document.getElementById('progCircle');
+  const pct    = document.getElementById('hudPct');
+  const title  = document.getElementById('scanTitle');
+  const icon   = document.getElementById('hudIcon');
+  if (circle) circle.setAttribute('stroke-dashoffset', '452');
+  if (pct)    pct.textContent = '0%';
+  if (title)  title.textContent = 'Sin conexión OBD';
+  if (icon)   { icon.textContent = '❌'; icon.style.fontSize = '28px'; }
+  const btn = document.getElementById('scanBtn');
+  if (btn)    { btn.disabled = false; btn.textContent = '⚡ Reintentar'; }
+  scanning = false;
+});
+
 wsClient.on('obd_disconnected',(d) => {
   showNotif('⚠️ Interfaz OBD desconectada físicamente — reconectá la VNCI Nano', 'error');
   const dot = document.getElementById('j2534Dot');
@@ -3661,6 +3687,14 @@ wsClient.on('vehicle_vin', (d) => {
 
 let obd_latest = {};
 function updateLiveUI(data) {
+  // If no real data, show dashes — never show fake values
+  if (data._noData) {
+    ['lv-rpm','lv-spd','lv-clt','lv-thr','lv-load','lv-fts','lv-ftl','lv-o2','lv-maf','lv-volt'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.textContent = '—'; el.style.color = 'var(--t3)'; }
+    });
+    return;
+  }
   obd_latest = data;
   const map = {
     'lv-rpm':  data.rpm?.value,

@@ -308,39 +308,80 @@ async function readDTCsFromModule(moduleId) {
       const code   = `${prefix}${digit}${rest.toString(16).padStart(3,'0').toUpperCase()}`;
       if (!dtcs.includes(code)) dtcs.push(code);
     }
-    return dtcs;
-  } catch(e) { return []; }
+    return dtcs; // empty array = responded, no DTCs
+  } catch(e) { return null; } // null = error/no response
 }
 
 // ── SCAN ALL MODULES ──────────────────────────────────────────
 async function scanAllModules() {
-  log('\n🔍 Escaneando todos los módulos del vehículo...', 'c');
-  send('scan_started', { modules: MODULES.map(m => m.key) });
+  // NO scan without real OBD connection
+  if (!obdReady || !serialPort?.isOpen) {
+    log('❌ Sin conexión OBD real — escaneo cancelado', 'r');
+    send('scan_error', { 
+      reason: 'Sin conexión OBD real. Verificá que la VNCI Nano esté conectada al USB y al OBD-II del vehículo.'
+    });
+    return;
+  }
+
+  log('\n🔍 Escaneando módulos — datos REALES del vehículo...', 'c');
+  send('scan_started', { modules: MODULES.map(m => m.key), realData: true });
 
   // Read VIN first
-  if (!useSimulation && serialPort?.isOpen) {
-    const vin = await readVIN();
-    if (vin) {
-      log(`   VIN: ${vin}`, 'g');
-      send('vehicle_vin', { vin });
-    }
+  const vin = await readVIN();
+  if (vin) {
+    log(`   VIN detectado: ${vin}`, 'g');
+    send('vehicle_vin', { vin });
+  } else {
+    log('   VIN: no disponible (protocolo no soportado o auto apagado)', 'y');
   }
 
   const results = [];
   for (const mod of MODULES) {
     await sleep(400);
+    log(`  ${mod.icon} Escaneando ${mod.name}...`, 'x');
     const dtcs = await readDTCsFromModule(mod.id);
-    const hasFault = dtcs.length > 0;
-    const status = useSimulation ? 'sim' : (hasFault ? 'fault' : 'ok');
-    log(`  ${mod.icon} ${mod.name}: ${hasFault ? '⚠ '+dtcs.join(', ') : '✓ OK'}${useSimulation?' (sim)':''}`, hasFault?'r':'g');
-    send('module_scanned', { ...mod, dtcs, status, dtcCount: dtcs.length, realData: !useSimulation });
-    results.push({ ...mod, dtcs });
+    
+    // null = module didn't respond (not present or not accessible)
+    // [] = module responded, no DTCs
+    const responded = dtcs !== null;
+    const hasFault  = dtcs?.length > 0;
+    
+    let status, logMsg;
+    if (!responded) {
+      status = 'no_response';
+      logMsg = `   → Sin respuesta (módulo no presente o no accesible)`;
+    } else if (hasFault) {
+      status = 'fault';
+      logMsg = `   → ⚠ ${dtcs.join(', ')}`;
+    } else {
+      status = 'ok';
+      logMsg = `   → ✓ Sin fallas`;
+    }
+    
+    log(logMsg, hasFault ? 'r' : (responded ? 'g' : 'y'));
+    send('module_scanned', { 
+      ...mod, 
+      dtcs: dtcs || [], 
+      status, 
+      dtcCount: dtcs?.length || 0, 
+      realData: true,
+      responded 
+    });
+    results.push({ ...mod, dtcs: dtcs || [], responded });
   }
 
-  const totalDTCs    = results.reduce((a,m) => a + m.dtcs.length, 0);
-  const faultyModules = results.filter(m => m.dtcs.length > 0).length;
-  send('scan_complete', { modules: results, totalDTCs, faultyModules, realData: !useSimulation });
-  log(`\n${useSimulation?'⚠ SIMULACIÓN':'✅ REAL'} — ${totalDTCs} DTC${totalDTCs!==1?'s':''} en ${faultyModules} módulo${faultyModules!==1?'s':''}`, totalDTCs>0?'y':'g');
+  const responded    = results.filter(m => m.responded);
+  const totalDTCs    = results.reduce((a,m) => a + (m.dtcs?.length||0), 0);
+  const faultyMods   = results.filter(m => m.dtcs?.length > 0).length;
+  
+  log(`\n✅ DATOS REALES — ${responded.length} módulos respondieron, ${totalDTCs} DTC${totalDTCs!==1?'s':''}`, totalDTCs>0?'y':'g');
+  send('scan_complete', { 
+    modules: results, 
+    totalDTCs, 
+    faultyModules: faultyMods,
+    modulesResponded: responded.length,
+    realData: true 
+  });
 }
 
 // ── SIMULATION FALLBACK ───────────────────────────────────────
@@ -415,11 +456,16 @@ function connect() {
     liveTimer = setInterval(async () => {
       if (!connected) return;
       const data = await readLiveData();
-      send('live_data', { ...data, obdConnected: obdReady, simMode: useSimulation });
+      // Only send if real data — never send simulated values
+      if (data._noData) {
+        send('obd_status', { obdConnected: false, reason: data._reason });
+      } else {
+        send('live_data', { ...data, obdConnected: true, simMode: false });
+      }
     }, 500);
 
-    // Full scan every 60s
-    setTimeout(() => scanAllModules(), 2000);
+    // First scan after 3s (give time to initialize)
+    setTimeout(() => scanAllModules(), 3000);
     scanTimer = setInterval(() => scanAllModules(), 60000);
 
     // Health check every 5s — detect physical disconnect
