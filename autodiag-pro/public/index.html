@@ -3640,6 +3640,21 @@ wsClient.on('scan_started',   (d) => handleAgentMessage('scan_started',   d));
 wsClient.on('module_scanned', (d) => handleAgentMessage('module_scanned', d));
 wsClient.on('scan_complete',  (d) => handleAgentMessage('scan_complete',  d));
 wsClient.on('agent_connected',(d) => console.log('Agent WS connected:', d));
+wsClient.on('obd_disconnected',(d) => {
+  showNotif('⚠️ Interfaz OBD desconectada físicamente — reconectá la VNCI Nano', 'error');
+  const dot = document.getElementById('j2534Dot');
+  if (dot) { dot.style.background = 'var(--red2)'; dot.style.boxShadow = '0 0 6px var(--red2)'; }
+  const txt = document.getElementById('j2534BadgeText');
+  if (txt) { txt.textContent = 'OBD DESCONECTADO'; txt.style.color = 'var(--red2)'; }
+  addAgentLog('⚠ Interfaz OBD desconectada del USB', 'red');
+});
+wsClient.on('vehicle_vin', (d) => {
+  showNotif('✅ VIN leído: ' + d.vin, 'success');
+  addAgentLog('VIN: ' + d.vin, 'grn');
+  // Auto-fill VIN if vehicle form is open
+  const vinInput = document.getElementById('av-vin');
+  if (vinInput && !vinInput.value) vinInput.value = d.vin;
+});
 ;
 
 let obd_latest = {};
@@ -4556,7 +4571,8 @@ function handleAgentMessage(type, payload) {
       // Status panel
       if (circle)  { circle.style.background='var(--grn2)'; circle.style.boxShadow='0 0 8px var(--grn2)'; }
       if (stTitle) { stTitle.textContent='Agente conectado'; stTitle.style.color='var(--grn2)'; }
-      if (stSub)   { stSub.textContent=(payload.j2534Dll||'AutoDiagAgent v'+payload.version) + ' · ' + new Date().toLocaleTimeString('es-AR'); }
+      const modeLabel = payload.simMode ? ' · ⚠ SIMULACIÓN' : ' · ✅ DATOS REALES';
+      if (stSub)   { stSub.textContent=(payload.j2534Dll||'AutoDiagAgent v'+payload.version) + modeLabel + ' · ' + new Date().toLocaleTimeString('es-AR'); }
       if (statProt){ statProt.textContent = payload.protocol || 'ISO15765'; }
       addAgentLog('✓ Agente conectado — ' + (payload.j2534Dll || 'simulación'), 'grn');
       const info = document.getElementById('j2534Info');
