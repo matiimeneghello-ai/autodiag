@@ -13,7 +13,7 @@ const fs           = require('fs');
 const path         = require('path');
 const { execSync } = require('child_process');
 
-const VERSION     = '4.1.0';
+const VERSION     = '4.2.0';
 const SERVER_URL  = 'wss://autodiag-production.up.railway.app';
 const CONFIG_FILE = path.join(__dirname, 'config.json');
 

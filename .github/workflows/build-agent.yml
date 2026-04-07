@@ -10,69 +10,85 @@ on:
 
 jobs:
   build-windows:
-    name: Compilar .exe en Windows
+    name: Compilar .exe en Windows (x86 para DLL 32-bit)
     runs-on: windows-2022
 
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '18.20.4'
-
-      # ffi-napi tiene prebuilds para win32-x64 en npm
-      # Hay que instalarlo SIN compilar y bajar el prebuild
-      - name: Instalar dependencias (prebuilds, sin compilar)
-        working-directory: autodiag-agent
+      # Node 18 x86 (32-bit) — necesario para cargar RKW_VNCI_PT32.dll que es 32-bit
+      - name: Setup Node.js 18 x86 (32-bit)
         shell: pwsh
         run: |
-          # ws - puro JS, sin nativos
+          # Descargar Node 18 x86
+          $nodeVersion = "18.20.4"
+          $url = "https://nodejs.org/dist/v$nodeVersion/node-v$nodeVersion-win-x86.zip"
+          Write-Host "Descargando Node $nodeVersion x86..."
+          Invoke-WebRequest -Uri $url -OutFile "node-x86.zip"
+          Expand-Archive -Path "node-x86.zip" -DestinationPath "C:\node-x86" -Force
+          $nodePath = "C:\node-x86\node-v$nodeVersion-win-x86"
+          Write-Host "Node x86 en: $nodePath"
+          # Agregar al PATH de este job
+          echo "$nodePath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          # Verificar
+          & "$nodePath\node.exe" --version
+          & "$nodePath\node.exe" -e "console.log(process.arch)"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Configurar node-gyp para x86
+        shell: pwsh
+        run: |
+          npm config set msvs_version 2022
+          npm config set python python
+          npm install -g node-gyp
+          npm install -g pkg@5.8.1
+
+      - name: Instalar dependencias x86
+        working-directory: autodiag-agent
+        shell: pwsh
+        env:
+          npm_config_msvs_version: '2022'
+          npm_config_arch: 'ia32'
+          npm_config_target_arch: 'ia32'
+        run: |
+          # Instalar todo para x86 (ia32)
           npm install ws
-
-          # serialport - bajar prebuild win32-x64 sin compilar
-          npm install serialport --ignore-scripts
-          # Forzar descarga del prebuild correcto
-          node -e "
-            const { execSync } = require('child_process');
-            try {
-              execSync('node node_modules/@serialport/bindings-cpp/node_modules/.bin/node-pre-gyp install --fallback-to-build=false', { stdio: 'inherit' });
-            } catch(e) {
-              console.log('prebuild-install directo...');
-              execSync('node node_modules/prebuild-install/bin.js --runtime napi --target 18 --platform win32 --arch x64', { stdio: 'inherit', cwd: 'node_modules/@serialport/bindings-cpp' });
-            }
-          " || echo "serialport prebuild: intentando alternativa"
-          npm install @serialport/bindings-cpp --ignore-scripts
-
-          # ffi-napi - usar version con prebuild disponible para win32
-          # koffi es el reemplazo moderno de ffi-napi con prebuilds
-          npm install koffi
-
-          # ref-napi solo para tipado (no se usa en runtime del agente)
-          npm install ref-napi ref-struct-napi --ignore-scripts
-
-          Write-Host "Deps instaladas"
+          
+          # koffi - tiene prebuilds win32-ia32
+          npm install koffi --arch=ia32
+          
+          # serialport - forzar x86
+          npm install serialport --arch=ia32
+          
+          Write-Host "=== Deps instaladas ==="
           npm list --depth=0
 
-      - name: Instalar pkg
-        run: npm install -g pkg@5.8.1
-
-      - name: Build exe
+      - name: Build exe x86
         working-directory: autodiag-agent
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
+          
+          # pkg target: node18-win-x86 (32-bit)
           pkg agent-lite.js `
-            --targets node18-win-x64 `
+            --targets node18-win-x86 `
             --output dist/AutoDiagAgent.exe `
             --no-bytecode `
             --public-packages "*" `
             --public
+          
           if (Test-Path "dist/AutoDiagAgent.exe") {
             $mb = [math]::Round((Get-Item "dist/AutoDiagAgent.exe").Length/1MB,1)
-            Write-Host "exe OK: $mb MB"
-          } else { exit 1 }
+            Write-Host "exe x86 OK: $mb MB"
+          } else {
+            Write-Host "FALLO: no se genero el exe"
+            exit 1
+          }
 
-      - name: Empaquetar ZIP (exe + nativos)
+      - name: Empaquetar ZIP (exe + nativos x86)
         shell: pwsh
         run: |
           $src = "autodiag-agent"
@@ -81,7 +97,7 @@ jobs:
           Copy-Item "$src/dist/AutoDiagAgent.exe" "$tmp/"
           if (Test-Path "$src/LEEME.txt") { Copy-Item "$src/LEEME.txt" "$tmp/" }
 
-          # Copiar todos los .node nativos al lado del exe
+          # Copiar .node nativos x86
           $nmSrc = "$src/node_modules"
           $nmDst = "$tmp/node_modules"
           New-Item -ItemType Directory -Force -Path $nmDst | Out-Null
@@ -90,18 +106,18 @@ jobs:
             $dst = "$nmDst/$rel"
             New-Item -ItemType Directory -Force -Path (Split-Path $dst) | Out-Null
             Copy-Item $_.FullName $dst -Force
-            Write-Host "  nativo: $rel"
+            Write-Host "  nativo x86: $rel"
           }
 
           $zip = "autodiag-pro/public/AutoDiagAgent.zip"
           Compress-Archive -Path "$tmp/*" -DestinationPath $zip -Force
           $mb = [math]::Round((Get-Item $zip).Length/1MB,1)
-          Write-Host "ZIP: $mb MB -> $zip"
+          Write-Host "ZIP: $mb MB"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: AutoDiagAgent-release
+          name: AutoDiagAgent-x86
           path: autodiag-agent/dist/release/
           retention-days: 30
 
@@ -115,6 +131,6 @@ jobs:
           git add "autodiag-pro/public/AutoDiagAgent.zip"
           $changed = git diff --cached --name-only
           if ($changed) {
-            git commit -m "ci: AutoDiagAgent.exe actualizado [skip ci]"
+            git commit -m "ci: AutoDiagAgent.exe x86 actualizado [skip ci]"
             git push
           } else { Write-Host "Sin cambios" }

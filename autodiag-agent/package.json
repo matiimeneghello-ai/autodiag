@@ -1,11 +1,11 @@
 {
   "name": "autodiag-agent",
-  "version": "4.1.0",
-  "description": "AutoDiag Pro - Agente J2534 Real - koffi + ELM327 fallback",
+  "version": "4.2.0",
+  "description": "AutoDiag Pro - Agente J2534 x86 - koffi + ELM327 fallback",
   "main": "agent-lite.js",
   "scripts": {
     "start": "node agent-lite.js",
-    "build": "pkg agent-lite.js --targets node18-win-x64 --output dist/AutoDiagAgent.exe"
+    "build": "pkg agent-lite.js --targets node18-win-x86 --output dist/AutoDiagAgent.exe --no-bytecode --public-packages \"*\" --public"
   },
   "dependencies": {
     "ws": "^8.18.0",
@@ -17,7 +17,7 @@
   },
   "pkg": {
     "targets": [
-      "node18-win-x64"
+      "node18-win-x86"
     ],
     "assets": [
       "*.dll"
