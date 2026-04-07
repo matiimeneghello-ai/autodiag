@@ -2239,6 +2239,25 @@ body::before {
           </div>
         </div>
 
+        <!-- Token - show directly -->
+                <div style="background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.2);border-radius:10px;padding:14px">
+                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+                    <span style="font-size:16px">🔑</span>
+                    <strong style="color:var(--yel2);font-size:12px">Tu token personal — el agente lo necesita para conectarse</strong>
+                  </div>
+                  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                    <code id="tokenDisplay" style="flex:1;min-width:0;font-family:var(--mono);font-size:10px;padding:9px 12px;border-radius:8px;background:var(--b2);color:var(--cyan2);border:1px solid var(--b3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block">
+                      Cargando...
+                    </code>
+                    <button onclick="copyAgentToken()" id="copyTokenBtn" style="padding:9px 16px;border-radius:8px;background:var(--blue);color:#fff;border:none;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0">
+                      📋 Copiar token
+                    </button>
+                  </div>
+                  <div style="font-size:10px;color:var(--t3);margin-top:8px">
+                    Al ejecutar el agente por primera vez, pegá este token cuando te lo pida.
+                  </div>
+                </div>
+
         <!-- Download card -->
         <div class="gcard" style="background:linear-gradient(135deg,rgba(37,99,235,.08),rgba(6,182,212,.04));border-color:rgba(37,99,235,.2)">
           <div class="gcard-body">
@@ -2287,24 +2306,7 @@ body::before {
                   </div>
                 </div>
 
-                <!-- Token - show directly -->
-                <div style="background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.2);border-radius:10px;padding:14px">
-                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-                    <span style="font-size:16px">🔑</span>
-                    <strong style="color:var(--yel2);font-size:12px">Tu token personal — el agente lo necesita para conectarse</strong>
-                  </div>
-                  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-                    <code id="tokenDisplay" style="flex:1;min-width:0;font-family:var(--mono);font-size:10px;padding:9px 12px;border-radius:8px;background:var(--b2);color:var(--cyan2);border:1px solid var(--b3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block">
-                      Cargando...
-                    </code>
-                    <button onclick="copyAgentToken()" id="copyTokenBtn" style="padding:9px 16px;border-radius:8px;background:var(--blue);color:#fff;border:none;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0">
-                      📋 Copiar token
-                    </button>
-                  </div>
-                  <div style="font-size:10px;color:var(--t3);margin-top:8px">
-                    Al ejecutar el agente por primera vez, pegá este token cuando te lo pida.
-                  </div>
-                </div>
+                
               </div>
 
               <div style="flex-shrink:0;min-width:160px">

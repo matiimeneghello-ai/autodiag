@@ -197,21 +197,28 @@ async function tryConnectSerial(portPath) {
 
 function sendCmd(sp, cmd, timeout=2000) {
   return new Promise((resolve) => {
+    if (!sp?.isOpen) { resolve(null); return; }
     let buffer = '';
     const timer = setTimeout(() => {
-      sp.removeAllListeners('data');
+      try { sp.removeAllListeners('data'); } catch(e) {}
       resolve(buffer || null);
     }, timeout);
 
-    sp.write(cmd + '\r');
-    sp.on('data', function onData(chunk) {
+    try {
+      sp.write(cmd + '\r', (err) => {
+        if (err) { clearTimeout(timer); resolve(null); }
+      });
+    } catch(e) { clearTimeout(timer); resolve(null); return; }
+
+    const onData = (chunk) => {
       buffer += chunk.toString();
       if (buffer.includes('>')) {
         clearTimeout(timer);
-        sp.removeListener('data', onData);
+        try { sp.removeListener('data', onData); } catch(e) {}
         resolve(buffer.replace(/>/g, '').trim());
       }
-    });
+    };
+    sp.on('data', onData);
   });
 }
 
@@ -219,33 +226,16 @@ function sendCmd(sp, cmd, timeout=2000) {
 async function checkPhysicalConnection() {
   if (!serialPort?.isOpen) {
     if (obdReady) {
-      log('⚠️  Interfaz desconectada — detectado por health check', 'r');
+      log('⚠️  Puerto serie cerrado — interfaz desconectada', 'r');
       obdReady = false;
       useSimulation = true;
-      send('obd_disconnected', { reason: 'Interface not responding' });
+      send('obd_disconnected', { reason: 'Serial port closed' });
     }
     return;
   }
-
-  try {
-    const resp = await sendCmd(serialPort, 'ATIGN', 1000);
-    if (resp && (resp.includes('ON') || resp.includes('OFF') || resp.includes('OK'))) {
-      lastResponse = Date.now();
-      return; // OK
-    }
-    // No valid response
-    const timeSince = Date.now() - lastResponse;
-    if (timeSince > 8000) {
-      log('⚠️  Sin respuesta de la interfaz por 8s — posible desconexión', 'r');
-      send('obd_disconnected', { reason: 'No response timeout' });
-      obdReady = false;
-      useSimulation = true;
-    }
-  } catch(e) {
-    obdReady = false;
-    useSimulation = true;
-    send('obd_disconnected', { reason: e.message });
-  }
+  // Port is open = interface is connected physically
+  // Just update lastResponse to keep alive
+  lastResponse = Date.now();
 }
 
 // ── READ VIN ──────────────────────────────────────────────────
@@ -433,7 +423,7 @@ function connect() {
     scanTimer = setInterval(() => scanAllModules(), 60000);
 
     // Health check every 5s — detect physical disconnect
-    healthTimer = setInterval(() => checkPhysicalConnection(), 5000);
+    healthTimer = setInterval(() => checkPhysicalConnection(), 10000);
   });
 
   ws.on('message', async (raw) => {
