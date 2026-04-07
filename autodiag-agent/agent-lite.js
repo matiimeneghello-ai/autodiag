@@ -145,26 +145,52 @@ async function tryConnectSerial(portPath) {
 
   log(`   Respuesta ATI: ${response.trim()}`, 'g');
   
-  // Initialize ELM327
-  await sendCmd(sp, 'ATZ',   2000); // Reset
-  await sendCmd(sp, 'ATE0',  300);  // Echo off
-  await sendCmd(sp, 'ATL0',  300);  // Linefeeds off
-  await sendCmd(sp, 'ATS0',  300);  // Spaces off
-  await sendCmd(sp, 'ATH1',  300);  // Headers on
-  
-  // Set protocol for Mercedes-Benz GLK (ISO 15765-4 CAN 500kbps)
-  await sendCmd(sp, 'ATSP6', 500);  // Protocol 6 = ISO 15765-4 CAN 500kbps
-  
-  // Test connection to ECU
-  const testResp = await sendCmd(sp, '0100', 3000); // Supported PIDs
-  if (!testResp || testResp.includes('NO DATA') || testResp.includes('UNABLE')) {
-    // Try auto protocol
-    await sendCmd(sp, 'ATSP0', 500);
-    const testResp2 = await sendCmd(sp, '0100', 4000);
-    if (!testResp2 || testResp2.includes('NO DATA') || testResp2.includes('UNABLE')) {
-      sp.close();
-      return false;
+  // Full reset and init
+  log('   Reiniciando interfaz...', 'x');
+  await sendCmd(sp, 'ATZ',   3000); // Full reset
+  await sleep(1000);
+  await sendCmd(sp, 'ATE0',  500);  // Echo off
+  await sendCmd(sp, 'ATL0',  500);  // Linefeeds off  
+  await sendCmd(sp, 'ATS0',  500);  // Spaces off
+  await sendCmd(sp, 'ATH1',  500);  // Headers on
+  await sendCmd(sp, 'ATAT2', 500);  // Adaptive timing
+  await sendCmd(sp, 'ATST64',500);  // Timeout 100ms
+
+  // Try protocols in order for Mercedes GLK300 2012
+  // GLK300 uses ISO 15765-4 CAN (6=500kbps, A=250kbps)
+  const protocols = [
+    { code:'6',  name:'ISO 15765-4 CAN 500kbps (Mercedes CAN-C)' },
+    { code:'0',  name:'Auto detectar' },
+    { code:'A',  name:'ISO 15765-4 CAN 250kbps' },
+    { code:'7',  name:'ISO 15765-4 CAN 11bit 500kbps' },
+    { code:'8',  name:'ISO 15765-4 CAN 11bit 250kbps' },
+    { code:'3',  name:'ISO 9141-2' },
+    { code:'4',  name:'ISO 14230-4 KWP 5baud' },
+    { code:'5',  name:'ISO 14230-4 KWP fast' },
+  ];
+
+  for (const proto of protocols) {
+    log(`   Probando protocolo ${proto.code}: ${proto.name}...`, 'c');
+    await sendCmd(sp, `ATSP${proto.code}`, 500);
+    await sleep(300);
+    const testResp = await sendCmd(sp, '0100', 5000);
+    log(`   → Respuesta 0100: ${testResp?.substring(0,60) || 'sin respuesta'}`, 'x');
+    if (testResp && !testResp.includes('NO DATA') && !testResp.includes('UNABLE') && !testResp.includes('BUS INIT') && testResp.includes('41')) {
+      log(`   ✅ Protocolo ${proto.code} funciona — ECU responde`, 'g');
+      break;
     }
+    log(`   ✗ Protocolo ${proto.code} sin respuesta`, 'y');
+  }
+  
+  // Final check
+  const finalTest = await sendCmd(sp, '0100', 3000);
+  log(`   Test final 0100: ${finalTest?.substring(0,80) || 'sin respuesta'}`, finalTest?.includes('41') ? 'g' : 'y');
+  
+  if (!finalTest || !finalTest.includes('41')) {
+    log('   ❌ ECU no responde a ningún protocolo', 'r');
+    log('   Verificá: auto encendido, OBD-II conectado correctamente', 'y');
+    sp.close();
+    return false;
   }
 
   serialPort  = sp;
