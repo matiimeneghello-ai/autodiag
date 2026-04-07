@@ -20,90 +20,83 @@ jobs:
         with:
           node-version: '18.20.4'
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Configurar node-gyp / MSVC
-        run: |
-          npm config set msvs_version 2022
-          npm config set python python
-          npm install -g node-gyp
-          npm install -g pkg@5.8.1
-
-      # Instalar TODAS las deps en autodiag-agent
-      # serialport y ffi-napi compilan nativos con MSVC 2022
-      - name: npm install completo
+      # ffi-napi tiene prebuilds para win32-x64 en npm
+      # Hay que instalarlo SIN compilar y bajar el prebuild
+      - name: Instalar dependencias (prebuilds, sin compilar)
         working-directory: autodiag-agent
-        env:
-          npm_config_msvs_version: '2022'
-          GYP_MSVS_VERSION: '2022'
-        run: npm install
+        shell: pwsh
+        run: |
+          # ws - puro JS, sin nativos
+          npm install ws
 
-      # Estrategia: pkg empaqueta el JS, los .node nativos van en carpeta aparte
-      # El ZIP final contiene: AutoDiagAgent.exe + node_modules/ (solo los .node)
-      - name: Build exe con pkg
+          # serialport - bajar prebuild win32-x64 sin compilar
+          npm install serialport --ignore-scripts
+          # Forzar descarga del prebuild correcto
+          node -e "
+            const { execSync } = require('child_process');
+            try {
+              execSync('node node_modules/@serialport/bindings-cpp/node_modules/.bin/node-pre-gyp install --fallback-to-build=false', { stdio: 'inherit' });
+            } catch(e) {
+              console.log('prebuild-install directo...');
+              execSync('node node_modules/prebuild-install/bin.js --runtime napi --target 18 --platform win32 --arch x64', { stdio: 'inherit', cwd: 'node_modules/@serialport/bindings-cpp' });
+            }
+          " || echo "serialport prebuild: intentando alternativa"
+          npm install @serialport/bindings-cpp --ignore-scripts
+
+          # ffi-napi - usar version con prebuild disponible para win32
+          # koffi es el reemplazo moderno de ffi-napi con prebuilds
+          npm install koffi
+
+          # ref-napi solo para tipado (no se usa en runtime del agente)
+          npm install ref-napi ref-struct-napi --ignore-scripts
+
+          Write-Host "Deps instaladas"
+          npm list --depth=0
+
+      - name: Instalar pkg
+        run: npm install -g pkg@5.8.1
+
+      - name: Build exe
         working-directory: autodiag-agent
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
-
-          # pkg - empaquetar solo el JS, los nativos se cargan desde disco
           pkg agent-lite.js `
             --targets node18-win-x64 `
             --output dist/AutoDiagAgent.exe `
             --no-bytecode `
             --public-packages "*" `
             --public
-
           if (Test-Path "dist/AutoDiagAgent.exe") {
             $mb = [math]::Round((Get-Item "dist/AutoDiagAgent.exe").Length/1MB,1)
             Write-Host "exe OK: $mb MB"
-          } else {
-            Write-Host "exe FALLO - listando errores"
-            exit 1
-          }
+          } else { exit 1 }
 
-      # ZIP: exe + los binarios nativos necesarios (.node files)
-      - name: Empaquetar ZIP con nativos
+      - name: Empaquetar ZIP (exe + nativos)
         shell: pwsh
         run: |
-          $src  = "autodiag-agent"
-          $dist = "$src/dist"
-          $tmp  = "$dist/release"
+          $src = "autodiag-agent"
+          $tmp = "$src/dist/release"
           New-Item -ItemType Directory -Force -Path $tmp | Out-Null
-
-          # exe principal
-          Copy-Item "$dist/AutoDiagAgent.exe" "$tmp/"
-
-          # Copiar .node nativos que el exe necesita en runtime
-          # Estructura que espera pkg: junto al exe o en subcarpeta
-          $nativeDir = "$tmp/node_modules"
-          New-Item -ItemType Directory -Force -Path $nativeDir | Out-Null
-
-          # serialport bindings
-          $spBinding = "$src/node_modules/@serialport/bindings-cpp/prebuilds/win32-x64"
-          if (Test-Path $spBinding) {
-            $dst = "$nativeDir/@serialport/bindings-cpp/prebuilds/win32-x64"
-            New-Item -ItemType Directory -Force -Path $dst | Out-Null
-            Copy-Item "$spBinding/*.node" $dst/ -ErrorAction SilentlyContinue
-          }
-          # Buscar cualquier .node de serialport
-          Get-ChildItem "$src/node_modules" -Recurse -Filter "*.node" | ForEach-Object {
-            $rel = $_.FullName.Substring((Resolve-Path "$src/node_modules").Path.Length + 1)
-            $dstFile = "$nativeDir/$rel"
-            New-Item -ItemType Directory -Force -Path (Split-Path $dstFile) | Out-Null
-            Copy-Item $_.FullName $dstFile -Force
-            Write-Host "Nativo: $rel"
-          }
-
+          Copy-Item "$src/dist/AutoDiagAgent.exe" "$tmp/"
           if (Test-Path "$src/LEEME.txt") { Copy-Item "$src/LEEME.txt" "$tmp/" }
 
-          # Crear ZIP
-          $zipPath = "autodiag-pro/public/AutoDiagAgent.zip"
-          Compress-Archive -Path "$tmp/*" -DestinationPath $zipPath -Force
-          $mb = [math]::Round((Get-Item $zipPath).Length/1MB,1)
-          Write-Host "ZIP final: $mb MB"
+          # Copiar todos los .node nativos al lado del exe
+          $nmSrc = "$src/node_modules"
+          $nmDst = "$tmp/node_modules"
+          New-Item -ItemType Directory -Force -Path $nmDst | Out-Null
+          Get-ChildItem $nmSrc -Recurse -Filter "*.node" | ForEach-Object {
+            $rel = $_.FullName.Substring((Resolve-Path $nmSrc).Path.Length + 1)
+            $dst = "$nmDst/$rel"
+            New-Item -ItemType Directory -Force -Path (Split-Path $dst) | Out-Null
+            Copy-Item $_.FullName $dst -Force
+            Write-Host "  nativo: $rel"
+          }
+
+          $zip = "autodiag-pro/public/AutoDiagAgent.zip"
+          Compress-Archive -Path "$tmp/*" -DestinationPath $zip -Force
+          $mb = [math]::Round((Get-Item $zip).Length/1MB,1)
+          Write-Host "ZIP: $mb MB -> $zip"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -112,7 +105,7 @@ jobs:
           path: autodiag-agent/dist/release/
           retention-days: 30
 
-      - name: Commit ZIP a repo
+      - name: Commit ZIP
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
@@ -122,9 +115,6 @@ jobs:
           git add "autodiag-pro/public/AutoDiagAgent.zip"
           $changed = git diff --cached --name-only
           if ($changed) {
-            git commit -m "ci: AutoDiagAgent actualizado [skip ci]"
+            git commit -m "ci: AutoDiagAgent.exe actualizado [skip ci]"
             git push
-            Write-Host "Pusheado OK"
-          } else {
-            Write-Host "Sin cambios en ZIP"
-          }
+          } else { Write-Host "Sin cambios" }

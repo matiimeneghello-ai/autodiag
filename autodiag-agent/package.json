@@ -1,7 +1,7 @@
 {
   "name": "autodiag-agent",
-  "version": "4.0.0",
-  "description": "AutoDiag Pro - Agente J2534 Real - ffi-napi + ELM327 fallback",
+  "version": "4.1.0",
+  "description": "AutoDiag Pro - Agente J2534 Real - koffi + ELM327 fallback",
   "main": "agent-lite.js",
   "scripts": {
     "start": "node agent-lite.js",
@@ -10,16 +10,20 @@
   "dependencies": {
     "ws": "^8.18.0",
     "serialport": "^12.0.0",
-    "ffi-napi": "^4.0.3",
-    "ref-napi": "^3.0.3",
-    "ref-struct-napi": "^1.1.1"
+    "koffi": "^2.8.0"
   },
   "devDependencies": {
     "pkg": "^5.8.1"
   },
   "pkg": {
-    "targets": ["node18-win-x64"],
-    "assets": ["*.dll"],
-    "scripts": ["agent-lite.js"]
+    "targets": [
+      "node18-win-x64"
+    ],
+    "assets": [
+      "*.dll"
+    ],
+    "scripts": [
+      "agent-lite.js"
+    ]
   }
 }

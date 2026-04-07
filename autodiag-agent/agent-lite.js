@@ -13,7 +13,7 @@ const fs           = require('fs');
 const path         = require('path');
 const { execSync } = require('child_process');
 
-const VERSION     = '4.0.0';
+const VERSION     = '4.1.0';
 const SERVER_URL  = 'wss://autodiag-production.up.railway.app';
 const CONFIG_FILE = path.join(__dirname, 'config.json');
 
@@ -84,24 +84,25 @@ const MODULES = [
 // ============================================================
 function loadJ2534DLL(dllPath) {
   try {
-    const ffi = require('ffi-napi');
-    const ref = require('ref-napi');
-    const ulong   = ref.types.ulong;
-    const uint    = ref.types.uint;
-    const voidPtr = ref.refType(ref.types.void);
-    const lib = ffi.Library(dllPath, {
-      'PassThruOpen':           [ ulong, [ voidPtr, ref.refType(ulong) ] ],
-      'PassThruClose':          [ ulong, [ ulong ] ],
-      'PassThruConnect':        [ ulong, [ ulong, ulong, ulong, ulong, ref.refType(ulong) ] ],
-      'PassThruDisconnect':     [ ulong, [ ulong ] ],
-      'PassThruReadMsgs':       [ ulong, [ ulong, voidPtr, ref.refType(ulong), ulong ] ],
-      'PassThruWriteMsgs':      [ ulong, [ ulong, voidPtr, ref.refType(ulong), ulong ] ],
-      'PassThruStartMsgFilter': [ ulong, [ ulong, uint, voidPtr, voidPtr, voidPtr, ref.refType(ulong) ] ],
-    });
-    log('ffi-napi cargo la DLL J2534 OK', 'g');
-    return lib;
+    const koffi = require('koffi');
+    const lib = koffi.load(dllPath);
+    // Definir tipos J2534
+    const ULONG = 'uint32';
+    const PVOID = 'void *';
+    // Cargar funciones J2534 via koffi
+    const fns = {
+      PassThruOpen:           lib.func('PassThruOpen',           ULONG, [PVOID, koffi.out(koffi.pointer(ULONG))]),
+      PassThruClose:          lib.func('PassThruClose',          ULONG, [ULONG]),
+      PassThruConnect:        lib.func('PassThruConnect',        ULONG, [ULONG, ULONG, ULONG, ULONG, koffi.out(koffi.pointer(ULONG))]),
+      PassThruDisconnect:     lib.func('PassThruDisconnect',     ULONG, [ULONG]),
+      PassThruReadMsgs:       lib.func('PassThruReadMsgs',       ULONG, [ULONG, PVOID, koffi.inout(koffi.pointer(ULONG)), ULONG]),
+      PassThruWriteMsgs:      lib.func('PassThruWriteMsgs',      ULONG, [ULONG, PVOID, koffi.inout(koffi.pointer(ULONG)), ULONG]),
+      PassThruStartMsgFilter: lib.func('PassThruStartMsgFilter', ULONG, [ULONG, ULONG, PVOID, PVOID, PVOID, koffi.out(koffi.pointer(ULONG))]),
+    };
+    log('koffi cargo la DLL J2534 OK', 'g');
+    return fns;
   } catch (e) {
-    log('ffi-napi no disponible: ' + e.message, 'y');
+    log('koffi no disponible: ' + e.message, 'y');
     log('Usando ELM327 serial (solo modulo motor)', 'y');
     return null;
   }
@@ -123,17 +124,15 @@ function buildMsg(arbId, dataBytes) {
 async function j2534SR(txId, rxId, data, timeoutMs = 600) {
   if (!j2534lib || !j2534ChannelId) return null;
   try {
-    const ref   = require('ref-napi');
-    const ulong = ref.types.ulong;
     const txMsg = buildMsg(txId, data);
-    const n     = ref.alloc(ulong, 1);
+    let n = [1];
     if (j2534lib.PassThruWriteMsgs(j2534ChannelId, txMsg, n, TX_TIMEOUT) !== 0) return null;
-    const rxMsg   = Buffer.alloc(PASSTHRU_MSG_SIZE, 0);
-    const rxCount = ref.alloc(ulong, 1);
-    const dead    = Date.now() + timeoutMs;
+    const rxMsg = Buffer.alloc(PASSTHRU_MSG_SIZE, 0);
+    const dead  = Date.now() + timeoutMs;
     while (Date.now() < dead) {
+      let rxCount = [1];
       const ret = j2534lib.PassThruReadMsgs(j2534ChannelId, rxMsg, rxCount, 100);
-      if (ret !== 0 || rxCount.deref() === 0) { await sleep(20); continue; }
+      if (ret !== 0 || rxCount[0] === 0) { await sleep(20); continue; }
       const sz  = rxMsg.readUInt32LE(16);
       const arb = rxMsg.readUInt32BE(24);
       if (arb === rxId && sz > 4) return rxMsg.slice(28, 28 + sz - 4);
@@ -149,25 +148,23 @@ async function initJ2534(dllPath) {
   j2534lib = loadJ2534DLL(dllPath);
   if (!j2534lib) return false;
   try {
-    const ref   = require('ref-napi');
-    const ulong = ref.types.ulong;
-    const devBuf = ref.alloc(ulong);
-    if (j2534lib.PassThruOpen(ref.NULL, devBuf) !== 0) { log('PassThruOpen fallo', 'r'); return false; }
-    j2534DeviceId = devBuf.deref();
+    // koffi: out params se pasan como arrays de 1 elemento
+    const devId = [0];
+    if (j2534lib.PassThruOpen(null, devId) !== 0) { log('PassThruOpen fallo', 'r'); return false; }
+    j2534DeviceId = devId[0];
     log('PassThruOpen OK - device: ' + j2534DeviceId, 'g');
-    const chBuf = ref.alloc(ulong);
-    let ret = j2534lib.PassThruConnect(j2534DeviceId, ISO15765, 0, 500000, chBuf);
+    const chId = [0];
+    let ret = j2534lib.PassThruConnect(j2534DeviceId, ISO15765, 0, 500000, chId);
     if (ret !== 0) {
       log('CAN 500k fallo (' + ret + '), probando 250k...', 'y');
-      ret = j2534lib.PassThruConnect(j2534DeviceId, ISO15765, 0, 250000, chBuf);
+      ret = j2534lib.PassThruConnect(j2534DeviceId, ISO15765, 0, 250000, chId);
     }
     if (ret !== 0) { log('PassThruConnect fallo: ' + ret, 'r'); j2534lib.PassThruClose(j2534DeviceId); j2534DeviceId = null; return false; }
-    j2534ChannelId = chBuf.deref();
+    j2534ChannelId = chId[0];
     log('PassThruConnect OK - channel: ' + j2534ChannelId, 'g');
-    // Filtro paso libre
-    const filterId = ref.alloc(ulong);
+    const filterId = [0];
     const zeroMsg  = buildMsg(0, Buffer.alloc(4, 0));
-    j2534lib.PassThruStartMsgFilter(j2534ChannelId, 1, zeroMsg, zeroMsg, ref.NULL, filterId);
+    j2534lib.PassThruStartMsgFilter(j2534ChannelId, 1, zeroMsg, zeroMsg, null, filterId);
     j2534Mode     = true;
     obdReady      = true;
     useSimulation = false;
@@ -487,6 +484,7 @@ function findDLL() {
 function cleanup() {
   try { if (j2534lib && j2534ChannelId) j2534lib.PassThruDisconnect(j2534ChannelId); } catch(e) {}
   try { if (j2534lib && j2534DeviceId)  j2534lib.PassThruClose(j2534DeviceId);       } catch(e) {}
+  try { if (j2534lib)                   { const koffi = require('koffi'); koffi.reset(); } } catch(e) {}
   if (ws) ws.close();
   process.exit(0);
 }
