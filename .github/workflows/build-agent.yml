@@ -24,22 +24,17 @@ jobs:
         with:
           python-version: '3.11'
 
-      # Descargar Node 18 x86 portable (no instalar, solo el zip)
       - name: Descargar Node 18 x86 portable
         shell: pwsh
         run: |
           $ver = "18.20.4"
           $url = "https://nodejs.org/dist/v$ver/node-v$ver-win-x86.zip"
-          Write-Host "Descargando Node $ver x86 portable..."
           Invoke-WebRequest -Uri $url -OutFile "node-x86.zip" -UseBasicParsing
           Expand-Archive -Path "node-x86.zip" -DestinationPath "node-x86-tmp" -Force
-          # Renombrar carpeta a nombre fijo
           Rename-Item "node-x86-tmp\node-v$ver-win-x86" "node-x86-tmp\node" -Force
-          Write-Host "Node x86 OK"
           & "node-x86-tmp\node\node.exe" --version
           & "node-x86-tmp\node\node.exe" -e "console.log('arch:', process.arch)"
 
-      # Instalar deps con Node x86
       - name: Instalar dependencias con Node x86
         shell: pwsh
         env:
@@ -47,59 +42,44 @@ jobs:
           npm_config_arch: 'ia32'
           npm_config_target_arch: 'ia32'
         run: |
-          $node  = (Resolve-Path "node-x86-tmp\node\node.exe").Path
-          $npm   = (Resolve-Path "node-x86-tmp\node\npm.cmd").Path
-          
+          $nodeExe = (Resolve-Path "node-x86-tmp\node\node.exe").Path
+          $npmJs   = (Resolve-Path "node-x86-tmp\node\node_modules\npm\bin\npm-cli.js").Path
           Set-Location autodiag-agent
-          
-          # Instalar solo las deps necesarias para runtime
-          & $node $npm.Replace(".cmd","") install ws --prefer-offline 2>&1
-          & $node $npm.Replace(".cmd","") install koffi --arch=ia32 2>&1
-          & $node $npm.Replace(".cmd","") install serialport --arch=ia32 2>&1
-          
-          Write-Host "=== node_modules instalados ==="
+          & $nodeExe $npmJs install ws
+          & $nodeExe $npmJs install koffi --arch=ia32
+          & $nodeExe $npmJs install serialport --arch=ia32
+          Write-Host "=== Instalado ==="
           Get-ChildItem node_modules -Directory | Select-Object Name
 
-      # Empaquetar: carpeta con node.exe x86 + agent-lite.js + node_modules
       - name: Empaquetar release portable
         shell: pwsh
         run: |
-          $release = "release-tmp"
-          New-Item -ItemType Directory -Force -Path $release | Out-Null
+          $rel = "release-tmp"
+          New-Item -ItemType Directory -Force -Path $rel | Out-Null
 
-          # node.exe x86
-          Copy-Item "node-x86-tmp\node\node.exe" "$release\"
-          
-          # archivos del agente
-          Copy-Item "autodiag-agent\agent-lite.js"   "$release\"
-          Copy-Item "autodiag-agent\package.json"    "$release\"
-          if (Test-Path "autodiag-agent\LEEME.txt") { Copy-Item "autodiag-agent\LEEME.txt" "$release\" }
+          Copy-Item "node-x86-tmp\node\node.exe" "$rel\"
+          Copy-Item "autodiag-agent\agent-lite.js" "$rel\"
+          Copy-Item "autodiag-agent\package.json"  "$rel\"
+          if (Test-Path "autodiag-agent\LEEME.txt") { Copy-Item "autodiag-agent\LEEME.txt" "$rel\" }
+          Copy-Item "autodiag-agent\node_modules" "$rel\node_modules" -Recurse
 
-          # node_modules completo
-          Copy-Item "autodiag-agent\node_modules" "$release\node_modules" -Recurse
+          # Escribir el .bat sin heredoc (evita problemas YAML)
+          $bat = "@echo off`r`n"
+          $bat += "title AutoDiag Pro - Agente J2534`r`n"
+          $bat += "cd /d `"%~dp0`"`r`n"
+          $bat += "echo.`r`n"
+          $bat += "echo  AutoDiag Pro - Agente v4.2`r`n"
+          $bat += "echo  Iniciando...`r`n"
+          $bat += "echo.`r`n"
+          $bat += "node.exe agent-lite.js`r`n"
+          $bat += "pause`r`n"
+          [System.IO.File]::WriteAllText("$rel\AutoDiagAgent.bat", $bat, [System.Text.Encoding]::ASCII)
 
-          # Lanzador .bat — doble click ejecuta el agente
-          @'
-@echo off
-title AutoDiag Pro - Agente J2534
-cd /d "%~dp0"
-echo.
-echo  +==========================================+
-echo  ^|  AUTODIAG PRO - Agente v4.2              ^|
-echo  ^|  Iniciando...                             ^|
-echo  +==========================================+
-echo.
-node.exe agent-lite.js
-pause
-'@ | Out-File -FilePath "$release\AutoDiagAgent.bat" -Encoding ascii
-
-          # Crear ZIP final
           $zip = "autodiag-pro\public\AutoDiagAgent.zip"
-          Compress-Archive -Path "$release\*" -DestinationPath $zip -Force
+          Compress-Archive -Path "$rel\*" -DestinationPath $zip -Force
           $mb = [math]::Round((Get-Item $zip).Length / 1MB, 1)
-          Write-Host "ZIP generado: $mb MB"
-          Write-Host "Contenido:"
-          Get-ChildItem $release | Select-Object Name, Length
+          Write-Host "ZIP: $mb MB"
+          Get-ChildItem $rel | Select-Object Name
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -120,4 +100,4 @@ pause
           if ($changed) {
             git commit -m "ci: AutoDiagAgent portable x86 actualizado [skip ci]"
             git push
-          } else { Write-Host "Sin cambios en ZIP" }
+          } else { Write-Host "Sin cambios" }
