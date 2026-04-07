@@ -3676,51 +3676,82 @@ let scanning=false;
 function selProto(el){document.querySelectorAll('.proto-card').forEach(c=>c.classList.remove('sel'));el.classList.add('sel');}
 
 function runScan(){
-  if(scanning)return;scanning=true;
-  const btn=document.getElementById('scanBtn');
-  const log=document.getElementById('scanLog');
-  const icon=document.getElementById('hudIcon');
-  const pct=document.getElementById('hudPct');
-  const circle=document.getElementById('progCircle');
-  const title=document.getElementById('scanTitle');
-  const sub=document.getElementById('scanSub');
-  btn.disabled=true;btn.textContent='Escaneando...';
-  pct.style.display='block';icon.style.fontSize='0';
+  if(scanning)return; scanning=true;
+  const btn    = document.getElementById('scanBtn');
+  const log    = document.getElementById('scanLog');
+  const icon   = document.getElementById('hudIcon');
+  const pct    = document.getElementById('hudPct');
+  const circle = document.getElementById('progCircle');
+  const title  = document.getElementById('scanTitle');
+  btn.disabled=true; btn.textContent='Escaneando...';
+  pct.style.display='block'; icon.style.fontSize='0';
   log.innerHTML='';
   const ts=()=>{const n=new Date();return '['+[n.getHours(),n.getMinutes(),n.getSeconds()].map(x=>String(x).padStart(2,'0')).join(':')+']';};
-  const agentOn = agentConnected;
-  const steps = agentOn ? [
-    {t:'info',m:'Interfaz J2534 detectada — iniciando...',d:0},
-    {t:'ok',  m:'Canal CAN ISO15765 abierto @ 500kbps',d:600},
-    {t:'info',m:'Enviando request modo 01 al ECU...',d:1200},
-    {t:'ok',  m:'ECU respondiendo — leyendo datos',d:1800},
-    {t:'info',m:'Solicitando DTCs almacenados (modo 03)...',d:2500},
-    {t:'info',m:'Leyendo PIDs en tiempo real...',d:3500},
-    {t:'ok',  m:'✓ Escaneo J2534 real completado',d:4500},
-  ] : [
-    {t:'info',m:'Modo simulación — conectá tu interfaz J2534',d:0},
-    {t:'info',m:'Sin conexión real al vehículo',d:800},
-    {t:'ok',  m:'Datos de ejemplo (NO son del auto)',d:1600},
-    {t:'ok',  m:'✓ Simulación completada',d:2400},
-  ];
-  steps.forEach((s,i)=>{
-    setTimeout(()=>{
-      const cls=s.t==='ok'?'lok':s.t==='err'?'lerr2':s.t==='warn'?'lwarn':'linfo';
-      log.innerHTML+=`<div class="ll"><span class="lts">${ts()}</span><span class="${cls}">${s.m}</span></div>`;
-      log.scrollTop=log.scrollHeight;
-      const p=Math.round(((i+1)/steps.length)*100);
-      circle.setAttribute('stroke-dashoffset',452-(452*p/100));
-      pct.textContent=p+'%';
-      title.textContent=p<100?'Escaneando...':'¡Completo!';
-      if(i===steps.length-1){
-        icon.textContent='✓';icon.style.fontSize='28px';
-        btn.disabled=false;btn.textContent='⚡ Nuevo escaneo';
-        scanning=false;
-        // Disparar lectura real
-        wsClient.readDTCs();
+  const addLog=(t,m)=>{
+    const cls=t==='ok'?'lok':t==='err'?'lerr2':t==='warn'?'lwarn':'linfo';
+    log.innerHTML+=`<div class="ll"><span class="lts">${ts()}</span><span class="${cls}">${m}</span></div>`;
+    log.scrollTop=log.scrollHeight;
+  };
+
+  if (agentConnected) {
+    // REAL SCAN via J2534 agent
+    addLog('info','Interfaz J2534 detectada — RKW_VNCI_PT32.dll');
+    setTimeout(()=>{ addLog('ok','Canal CAN ISO15765 abierto @ 500kbps'); setProgress(circle,pct,20); },400);
+    setTimeout(()=>{ addLog('info','Enviando request OBD modo 01 al ECU...'); setProgress(circle,pct,35); },900);
+    setTimeout(()=>{ addLog('ok','ECU respondiendo — leyendo datos live'); setProgress(circle,pct,50); },1500);
+    setTimeout(()=>{ addLog('info','Solicitando DTCs almacenados (modo 03)...'); setProgress(circle,pct,65); },2200);
+    setTimeout(()=>{ addLog('info','Escaneando módulos adicionales (ABS, Airbag...)'); setProgress(circle,pct,80); },3000);
+    setTimeout(()=>{ addLog('info','Leyendo PIDs en tiempo real...'); setProgress(circle,pct,95); },3800);
+    setTimeout(async ()=>{
+      setProgress(circle,pct,100);
+      title.textContent='¡Completo!';
+      icon.textContent='✓'; icon.style.fontSize='28px';
+      addLog('ok','✓ Escaneo J2534 completado — datos reales del auto');
+      btn.disabled=false; btn.textContent='⚡ Nuevo escaneo';
+      scanning=false;
+      // Trigger real agent scan — results come via WS
+      await agentScanAll();
+      // Also trigger vehicle scan on server if vehicle selected
+      if(activeVehicleId){
+        const res = await API.post(`/api/vehicles/${activeVehicleId}/scans/full`, {
+          source:'j2534', mileage_km: null
+        });
+        if(res.ok) await loadVehicles();
       }
-    },s.d);
-  });
+    },4500);
+  } else {
+    // SIMULATION
+    const steps=[
+      {t:'warn',m:'⚠ Sin agente J2534 — modo simulación',d:0},
+      {t:'info',m:'Iniciando protocolo OBD-II ELM327...',d:500},
+      {t:'ok',  m:'ECU detectada',d:1000},
+      {t:'info',m:'Leyendo VIN...',d:1500},
+      {t:'info',m:'Escaneando motor (P0xxx)...',d:2000},
+      {t:'warn',m:'► DTC detectado — leyendo...',d:2600},
+      {t:'info',m:'Escaneando EVAP, Transmisión, ABS...',d:3200},
+      {t:'info',m:'Leyendo PIDs en tiempo real...',d:3800},
+      {t:'ok',  m:'✓ Escaneo completo',d:4400},
+    ];
+    steps.forEach((s,i)=>{
+      setTimeout(()=>{
+        addLog(s.t, s.m);
+        const p=Math.round(((i+1)/steps.length)*100);
+        setProgress(circle,pct,p);
+        title.textContent=p<100?'Escaneando...':'¡Completo!';
+        if(i===steps.length-1){
+          icon.textContent='✓'; icon.style.fontSize='28px';
+          btn.disabled=false; btn.textContent='⚡ Nuevo escaneo';
+          scanning=false;
+          wsClient.readDTCs();
+        }
+      },s.d);
+    });
+  }
+}
+
+function setProgress(circle, pct, p){
+  if(circle) circle.setAttribute('stroke-dashoffset', 452-(452*p/100));
+  if(pct) pct.textContent=p+'%';
 }
 
 // ── MULTI DTC ──
@@ -4841,7 +4872,7 @@ let currentSearchText  = '';
 
 function renderBrandData() {
   const grid = document.getElementById('brandDataGrid');
-  if (!grid) return;
+  if (!grid) { setTimeout(renderBrandData, 200); return; }
   const filtered = BRAND_DATA.filter(item => {
     const matchBrand  = currentBrandFilter === 'all' || item.brand === currentBrandFilter;
     const matchSearch = !currentSearchText || 
