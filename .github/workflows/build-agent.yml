@@ -10,118 +10,105 @@ on:
 
 jobs:
   build-windows:
-    name: Compilar .exe en Windows (x86 para DLL 32-bit)
+    name: Empaquetar agente portable x86
     runs-on: windows-2022
 
     steps:
       - uses: actions/checkout@v4
 
-      # Node 18 x86 (32-bit) — necesario para cargar RKW_VNCI_PT32.dll que es 32-bit
-      - name: Setup Node.js 18 x86 (32-bit)
-        shell: pwsh
-        run: |
-          # Descargar Node 18 x86
-          $nodeVersion = "18.20.4"
-          $url = "https://nodejs.org/dist/v$nodeVersion/node-v$nodeVersion-win-x86.zip"
-          Write-Host "Descargando Node $nodeVersion x86..."
-          Invoke-WebRequest -Uri $url -OutFile "node-x86.zip"
-          Expand-Archive -Path "node-x86.zip" -DestinationPath "C:\node-x86" -Force
-          $nodePath = "C:\node-x86\node-v$nodeVersion-win-x86"
-          Write-Host "Node x86 en: $nodePath"
-          # Agregar al PATH de este job
-          echo "$nodePath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          # Verificar
-          & "$nodePath\node.exe" --version
-          & "$nodePath\node.exe" -e "console.log(process.arch)"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18.20.4'
 
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Configurar node-gyp para x86
+      # Descargar Node 18 x86 portable (no instalar, solo el zip)
+      - name: Descargar Node 18 x86 portable
         shell: pwsh
         run: |
-          npm config set msvs_version 2022
-          npm config set python python
-          npm install -g node-gyp
-          npm install -g pkg@5.8.1
+          $ver = "18.20.4"
+          $url = "https://nodejs.org/dist/v$ver/node-v$ver-win-x86.zip"
+          Write-Host "Descargando Node $ver x86 portable..."
+          Invoke-WebRequest -Uri $url -OutFile "node-x86.zip" -UseBasicParsing
+          Expand-Archive -Path "node-x86.zip" -DestinationPath "node-x86-tmp" -Force
+          # Renombrar carpeta a nombre fijo
+          Rename-Item "node-x86-tmp\node-v$ver-win-x86" "node-x86-tmp\node" -Force
+          Write-Host "Node x86 OK"
+          & "node-x86-tmp\node\node.exe" --version
+          & "node-x86-tmp\node\node.exe" -e "console.log('arch:', process.arch)"
 
-      - name: Instalar dependencias x86
-        working-directory: autodiag-agent
+      # Instalar deps con Node x86
+      - name: Instalar dependencias con Node x86
         shell: pwsh
         env:
           npm_config_msvs_version: '2022'
           npm_config_arch: 'ia32'
           npm_config_target_arch: 'ia32'
         run: |
-          # Instalar todo para x86 (ia32)
-          npm install ws
+          $node  = (Resolve-Path "node-x86-tmp\node\node.exe").Path
+          $npm   = (Resolve-Path "node-x86-tmp\node\npm.cmd").Path
           
-          # koffi - tiene prebuilds win32-ia32
-          npm install koffi --arch=ia32
+          Set-Location autodiag-agent
           
-          # serialport - forzar x86
-          npm install serialport --arch=ia32
+          # Instalar solo las deps necesarias para runtime
+          & $node $npm.Replace(".cmd","") install ws --prefer-offline 2>&1
+          & $node $npm.Replace(".cmd","") install koffi --arch=ia32 2>&1
+          & $node $npm.Replace(".cmd","") install serialport --arch=ia32 2>&1
           
-          Write-Host "=== Deps instaladas ==="
-          npm list --depth=0
+          Write-Host "=== node_modules instalados ==="
+          Get-ChildItem node_modules -Directory | Select-Object Name
 
-      - name: Build exe x86
-        working-directory: autodiag-agent
+      # Empaquetar: carpeta con node.exe x86 + agent-lite.js + node_modules
+      - name: Empaquetar release portable
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          $release = "release-tmp"
+          New-Item -ItemType Directory -Force -Path $release | Out-Null
+
+          # node.exe x86
+          Copy-Item "node-x86-tmp\node\node.exe" "$release\"
           
-          # pkg target: node18-win-x86 (32-bit)
-          pkg agent-lite.js `
-            --targets node18-win-x86 `
-            --output dist/AutoDiagAgent.exe `
-            --no-bytecode `
-            --public-packages "*" `
-            --public
-          
-          if (Test-Path "dist/AutoDiagAgent.exe") {
-            $mb = [math]::Round((Get-Item "dist/AutoDiagAgent.exe").Length/1MB,1)
-            Write-Host "exe x86 OK: $mb MB"
-          } else {
-            Write-Host "FALLO: no se genero el exe"
-            exit 1
-          }
+          # archivos del agente
+          Copy-Item "autodiag-agent\agent-lite.js"   "$release\"
+          Copy-Item "autodiag-agent\package.json"    "$release\"
+          if (Test-Path "autodiag-agent\LEEME.txt") { Copy-Item "autodiag-agent\LEEME.txt" "$release\" }
 
-      - name: Empaquetar ZIP (exe + nativos x86)
-        shell: pwsh
-        run: |
-          $src = "autodiag-agent"
-          $tmp = "$src/dist/release"
-          New-Item -ItemType Directory -Force -Path $tmp | Out-Null
-          Copy-Item "$src/dist/AutoDiagAgent.exe" "$tmp/"
-          if (Test-Path "$src/LEEME.txt") { Copy-Item "$src/LEEME.txt" "$tmp/" }
+          # node_modules completo
+          Copy-Item "autodiag-agent\node_modules" "$release\node_modules" -Recurse
 
-          # Copiar .node nativos x86
-          $nmSrc = "$src/node_modules"
-          $nmDst = "$tmp/node_modules"
-          New-Item -ItemType Directory -Force -Path $nmDst | Out-Null
-          Get-ChildItem $nmSrc -Recurse -Filter "*.node" | ForEach-Object {
-            $rel = $_.FullName.Substring((Resolve-Path $nmSrc).Path.Length + 1)
-            $dst = "$nmDst/$rel"
-            New-Item -ItemType Directory -Force -Path (Split-Path $dst) | Out-Null
-            Copy-Item $_.FullName $dst -Force
-            Write-Host "  nativo x86: $rel"
-          }
+          # Lanzador .bat — doble click ejecuta el agente
+          @'
+@echo off
+title AutoDiag Pro - Agente J2534
+cd /d "%~dp0"
+echo.
+echo  +==========================================+
+echo  ^|  AUTODIAG PRO - Agente v4.2              ^|
+echo  ^|  Iniciando...                             ^|
+echo  +==========================================+
+echo.
+node.exe agent-lite.js
+pause
+'@ | Out-File -FilePath "$release\AutoDiagAgent.bat" -Encoding ascii
 
-          $zip = "autodiag-pro/public/AutoDiagAgent.zip"
-          Compress-Archive -Path "$tmp/*" -DestinationPath $zip -Force
-          $mb = [math]::Round((Get-Item $zip).Length/1MB,1)
-          Write-Host "ZIP: $mb MB"
+          # Crear ZIP final
+          $zip = "autodiag-pro\public\AutoDiagAgent.zip"
+          Compress-Archive -Path "$release\*" -DestinationPath $zip -Force
+          $mb = [math]::Round((Get-Item $zip).Length / 1MB, 1)
+          Write-Host "ZIP generado: $mb MB"
+          Write-Host "Contenido:"
+          Get-ChildItem $release | Select-Object Name, Length
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: AutoDiagAgent-x86
-          path: autodiag-agent/dist/release/
+          name: AutoDiagAgent-portable
+          path: release-tmp/
           retention-days: 30
 
-      - name: Commit ZIP
+      - name: Commit ZIP a main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
@@ -131,6 +118,6 @@ jobs:
           git add "autodiag-pro/public/AutoDiagAgent.zip"
           $changed = git diff --cached --name-only
           if ($changed) {
-            git commit -m "ci: AutoDiagAgent.exe x86 actualizado [skip ci]"
+            git commit -m "ci: AutoDiagAgent portable x86 actualizado [skip ci]"
             git push
-          } else { Write-Host "Sin cambios" }
+          } else { Write-Host "Sin cambios en ZIP" }
